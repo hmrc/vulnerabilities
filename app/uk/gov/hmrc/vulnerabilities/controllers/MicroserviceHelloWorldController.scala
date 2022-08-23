@@ -36,7 +36,7 @@ class MicroserviceHelloWorldController @Inject()(
 
   private implicit val x = Vulnerability.apiFormat
 
-  def hello(): Action[AnyContent] = Action.async {
+  def helloWorld(): Action[AnyContent] = Action.async {
     vulnerabilitiesRepository.findAll().map {
       result => Ok(Json.toJson(result))
     }
