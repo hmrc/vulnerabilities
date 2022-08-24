@@ -17,7 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.persistence
 
 import com.mongodb.client.model.Indexes
-import org.mongodb.scala.model.{IndexModel, IndexOptions}
+import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.vulnerabilities.model.Vulnerability
@@ -39,10 +39,6 @@ class VulnerabilitiesRepository @Inject()(
     IndexModel(Indexes.ascending("teams"), IndexOptions().name("teams").background(true)),
   ),
 ) {
-  // queries and updates can now be implemented with the available `collection: org.mongodb.scala.MongoCollection`
-  def findAll(): Future[Seq[Vulnerability]] =
-    collection.find().toFuture()
-
 
   def insert(vulnerability: Vulnerability): Future[Unit] =
     collection
@@ -51,4 +47,18 @@ class VulnerabilitiesRepository @Inject()(
       )
       .toFuture()
       .map(_ => ())
+
+  def search(service: Option[String] = None, id: Option[String] = None, description: Option[String] = None, team: Option[String] = None): Future[Seq[Vulnerability]] = {
+    val filters = Seq(
+           service.map(s => Filters.equal("service", s)),
+                id.map(i => Filters.equal("id", i)),
+       description.map(d => Filters.regex("description", d)),
+              team.map(t => Filters.equal("teams", t))
+    ).flatten
+
+    filters match {
+      case Nil => collection.find().toFuture()
+      case more => collection.find(Filters.and(more:_*)).toFuture()
+    }
+  }
 }
