@@ -18,13 +18,12 @@ package uk.gov.hmrc.vulnerabilities.controllers
 
 import play.api.libs.json.Format.GenericFormat
 import play.api.libs.json.Json
-import play.api.libs.json.Json.toJson
-import play.api.libs.json.OFormat.oFormatFromReadsAndOWrites
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.vulnerabilities.model.Vulnerability
 import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitiesRepository
 
+import java.time.Instant
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -36,10 +35,26 @@ class MicroserviceHelloWorldController @Inject()(
 
   private implicit val x = Vulnerability.apiFormat
 
-  def helloWorld(): Action[AnyContent] = Action.async {
+  def findAllVulnerabilities(): Action[AnyContent] = Action.async {
     vulnerabilitiesRepository.findAll().map {
       result => Ok(Json.toJson(result))
     }
   }
+
+  def testEndPoint(): Action[AnyContent] = Action {
+     Ok("Hello")
+  }
+
+  def insertData(): Action[AnyContent] = Action.async { implicit request =>
+    Future.sequence(data.map(i => vulnerabilitiesRepository.insert(i))).map(_ => Ok("inserted"))
+  }
+
+  private val now = Instant.now()
+
+  val data: Seq[Vulnerability] = Seq(
+    Vulnerability("service1", "1", "test", "test", "", "id", 12.5, "desc", true, "", now, Seq("team1", "team2"), Seq("test", "test"), now, now),
+
+    Vulnerability("service2", "2", "test", "test", "", "id", 12.5, "desc", false, "", now, Seq("team1", "team2"), Seq("test", "test"), now, now)
+  )
 }
 

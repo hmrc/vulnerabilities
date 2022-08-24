@@ -42,4 +42,13 @@ class VulnerabilitiesRepository @Inject()(
   // queries and updates can now be implemented with the available `collection: org.mongodb.scala.MongoCollection`
   def findAll(): Future[Seq[Vulnerability]] =
     collection.find().toFuture()
+
+
+  def insert(vulnerability: Vulnerability): Future[Unit] =
+    collection
+      .insertOne(
+        vulnerability
+      )
+      .toFuture()
+      .map(_ => ())
 }
