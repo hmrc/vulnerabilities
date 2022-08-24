@@ -1,4 +1,5 @@
 # microservice specific routes
 
 GET        /hello-world           uk.gov.hmrc.vulnerabilities.controllers.MicroserviceHelloWorldController.helloWorld()
+GET        /insert                uk.gov.hmrc.vulnerabilities.controllers.MicroserviceHelloWorldController.insertData()
 
