@@ -1,5 +1,6 @@
 # microservice specific routes
 
-GET        /hello-world           uk.gov.hmrc.vulnerabilities.controllers.MicroserviceHelloWorldController.helloWorld()
-GET        /insert                uk.gov.hmrc.vulnerabilities.controllers.MicroserviceHelloWorldController.insertData()
+GET        /find-all            uk.gov.hmrc.vulnerabilities.controllers.MicroserviceHelloWorldController.findAllVulnerabilities()
+GET        /test                uk.gov.hmrc.vulnerabilities.controllers.MicroserviceHelloWorldController.testEndPoint()
+GET        /insert              uk.gov.hmrc.vulnerabilities.controllers.MicroserviceHelloWorldController.insertData()
 
