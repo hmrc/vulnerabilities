@@ -39,15 +39,6 @@ class VulnerabilitiesRepository @Inject()(
     IndexModel(Indexes.ascending("teams"), IndexOptions().name("teams").background(true)),
   ),
 ) {
-
-  def insert(vulnerability: Vulnerability): Future[Unit] =
-    collection
-      .insertOne(
-        vulnerability
-      )
-      .toFuture()
-      .map(_ => ())
-
   def search(service: Option[String] = None, id: Option[String] = None, description: Option[String] = None, team: Option[String] = None): Future[Seq[Vulnerability]] = {
     val filters = Seq(
            service.map(s => Filters.equal("service", s)),

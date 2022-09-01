@@ -19,27 +19,33 @@ package uk.gov.hmrc.vulnerabilities.controllers
 import play.api.libs.json.{Json, OFormat}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.vulnerabilities.model.Vulnerability
+import uk.gov.hmrc.vulnerabilities.model.{Vulnerability, VulnerabilityCountSummary}
 import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitiesRepository
+import uk.gov.hmrc.vulnerabilities.service.VulnerabilitiesService
+
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
 
 @Singleton()
 class VulnerabilitiesController @Inject()(
     cc: ControllerComponents,
+    vulnerabilitiesService: VulnerabilitiesService,
     vulnerabilitiesRepository: VulnerabilitiesRepository
 )(implicit ec: ExecutionContext) extends BackendController(cc) {
 
-  private implicit val fmt: OFormat[Vulnerability] = Vulnerability.apiFormat
-
-  def findVulnerabilities(service: Option[String], id: Option[String], description: Option[String], team: Option[String]): Action[AnyContent] = Action.async {
-    vulnerabilitiesRepository.search(service, id, description, team).map {
+  def vulnerabilities(service: Option[String], id: Option[String], description: Option[String], team: Option[String]): Action[AnyContent] = Action.async {
+    implicit val fmt: OFormat[Vulnerability] = Vulnerability.apiFormat
+    vulnerabilitiesService.allVulnerabilities(service, id, description, team).map {
       result => Ok(Json.toJson(result))
     }
   }
 
-  def testEndPoint(): Action[AnyContent] = Action {
-     Ok("Hello")
+  def distinctVulnerabilitySummaries: Action[AnyContent] = Action.async {
+    implicit val fmt: OFormat[VulnerabilityCountSummary] = VulnerabilityCountSummary.reads
+    vulnerabilitiesService.distinctVulnerabilitiesSummary.map {
+      result => Ok(Json.toJson(result))
+    }
   }
+
 }
 
