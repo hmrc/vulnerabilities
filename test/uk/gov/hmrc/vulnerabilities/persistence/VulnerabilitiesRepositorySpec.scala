@@ -47,10 +47,10 @@ class VulnerabilitiesRepositorySpec
       id = "CVE-TEST-1",
       score = Some(1.0),
       description = "desc1",
-      requiresAction = true,
-      assessment = "",
-      lastReviewed = now,
-      teams = Seq("team1", "team2"),
+      requiresAction = Some(true),
+      assessment = Some(""),
+      lastReviewed = Some(now),
+      teams = Some(Seq("team1", "team2")),
       references = Seq("test", "test"),
       published = now,
       scanned = now
@@ -66,10 +66,10 @@ class VulnerabilitiesRepositorySpec
       id = "CVE-TEST-2",
       score = Some(2.0),
       description = "desc2",
-      requiresAction = true,
-      assessment = "",
-      lastReviewed = now,
-      teams = Seq("team1", "team2"),
+      requiresAction = Some(true),
+      assessment = Some(""),
+      lastReviewed = Some(now),
+      teams = Some(Seq("team1", "team2")),
       references = Seq("test", "test"),
       published = now,
       scanned = now
@@ -85,10 +85,10 @@ class VulnerabilitiesRepositorySpec
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
-      requiresAction = false,
-      assessment = "",
-      lastReviewed = now,
-      teams = Seq("team1"),
+      requiresAction = Some(false),
+      assessment = Some(""),
+      lastReviewed = Some(now),
+      teams = Some(Seq("team1")),
       references = Seq("test", "test"),
       published = now,
       scanned = now
@@ -124,6 +124,18 @@ class VulnerabilitiesRepositorySpec
       repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3)).toFuture().futureValue
       val results = repository.search(description = Some("desc")).futureValue
       results must contain allOf(vulnerability1, vulnerability2, vulnerability3)
+    }
+
+    "find all vulnerabilities that requireAction" in {
+      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3)).toFuture().futureValue
+      val results = repository.search(requiresAction = Some(true)).futureValue
+      results must contain theSameElementsAs(Seq(vulnerability1, vulnerability2))
+    }
+
+    "find all vulnerabilities that don't requireAction" in {
+      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3)).toFuture().futureValue
+      val results = repository.search(requiresAction = Some(false)).futureValue
+      results must contain only(vulnerability3)
     }
   }
 }

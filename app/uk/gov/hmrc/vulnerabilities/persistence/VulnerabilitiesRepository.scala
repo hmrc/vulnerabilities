@@ -39,12 +39,15 @@ class VulnerabilitiesRepository @Inject()(
     IndexModel(Indexes.ascending("teams"), IndexOptions().name("teams").background(true)),
   ),
 ) {
-  def search(service: Option[String] = None, id: Option[String] = None, description: Option[String] = None, team: Option[String] = None): Future[Seq[Vulnerability]] = {
+  def search(service: Option[String] = None, id: Option[String] = None, description: Option[String] = None, team: Option[String] = None, requiresAction: Option[Boolean] = None): Future[Seq[Vulnerability]] = {
+    println(requiresAction)
+    println(id)
     val filters = Seq(
-           service.map(s => Filters.equal("service", s)),
-                id.map(i => Filters.equal("id", i)),
-       description.map(d => Filters.regex("description", d)),
-              team.map(t => Filters.equal("teams", t))
+             service.map(s => Filters.equal("service", s)),
+                  id.map(i => Filters.regex("id", i)),
+         description.map(d => Filters.regex("description", d)),
+                team.map(t => Filters.equal("teams", t)),
+      requiresAction.map(r => Filters.equal("requiresAction", r))
     ).flatten
 
     filters match {
