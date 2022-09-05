@@ -36,13 +36,14 @@ class VulnerabilitiesController @Inject()(
   def vulnerabilities(service: Option[String], id: Option[String], description: Option[String], team: Option[String]): Action[AnyContent] = Action.async {
     implicit val fmt: OFormat[Vulnerability] = Vulnerability.apiFormat
     vulnerabilitiesService.allVulnerabilities(service, id, description, team).map {
-      result => Ok(Json.toJson(result))
+      result =>
+        Ok(Json.toJson(result))
     }
   }
 
-  def distinctVulnerabilitySummaries: Action[AnyContent] = Action.async {
+  def distinctVulnerabilitySummaries(vulnerability: Option[String] = None, requiresActionOnly: Option[Boolean] = None): Action[AnyContent] = Action.async {
     implicit val fmt: OFormat[VulnerabilityCountSummary] = VulnerabilityCountSummary.reads
-    vulnerabilitiesService.distinctVulnerabilitiesSummary.map {
+    vulnerabilitiesService.distinctVulnerabilitiesSummary(vulnerability, requiresActionOnly).map {
       result => Ok(Json.toJson(result))
     }
   }

@@ -30,19 +30,18 @@ class VulnerabilitiesService @Inject() (
   def allVulnerabilities(service: Option[String], id: Option[String], description: Option[String], team: Option[String]): Future[Seq[Vulnerability]] =
     vulnerabilitiesRepository.search(service, id, description, team)
 
-  def distinctVulnerabilitiesSummary: Future[Seq[VulnerabilityCountSummary]] =
+  def distinctVulnerabilitiesSummary(vulnerability: Option[String], requiresActionOnly: Option[Boolean]): Future[Seq[VulnerabilityCountSummary]] =
     for {
-      allVulns                     <- vulnerabilitiesRepository.search()
-      distinct                     = allVulns.groupBy(_.id)
-      servicesPerVuln              = distinct.view.mapValues(_.map(_.service)).toMap
-      teamsPerVuln                 = distinct.view.mapValues(_.flatMap(_.teams).distinct).toMap
+      allVulns <- vulnerabilitiesRepository.search(service = None, id = vulnerability, description = None, team = None, requiresAction = requiresActionOnly )
+      distinct = allVulns.groupBy(_.id)
+      servicesPerVuln = distinct.view.mapValues(_.map(_.service)).toMap
+      teamsPerVuln = distinct.view.mapValues(_.flatMap(_.teams.getOrElse(Seq())).distinct).toMap
       distinctWithServicesAndTeams = distinct.map(_._2.head).map(v => VulnerabilityCountSummary(
-          DistinctVulnerability(v.vulnerableComponentName, v.vulnerableComponentVersion, v.id, v.score, v.description, v.references, v.published),
-          servicesPerVuln(v.id),
-          teamsPerVuln(v.id)
-        ))
+        DistinctVulnerability(v.vulnerableComponentName, v.vulnerableComponentVersion, v.id, v.score, v.description, v.references, v.publishedDate, v.requiresAction, v.assessment, v.lastReviewed),
+        servicesPerVuln(v.id),
+        teamsPerVuln(v.id)
+      ))
     } yield distinctWithServicesAndTeams
       .toSeq
       .sortBy(_.distinctVulnerability.id)
-
 }

@@ -50,13 +50,13 @@ class VulnerabilitiesServiceSpec
       id = "CVE-TEST-1",
       score = Some(1.0),
       description = "desc1",
-      requiresAction = true,
-      assessment = "",
-      lastReviewed = now,
-      teams = Seq("team1", "team2"),
+      requiresAction = Some(true),
+      assessment = Some(""),
+      lastReviewed = Some(now),
+      teams = Some(Seq("team1", "team2")),
       references = Seq("test", "test"),
-      published = now,
-      scanned = now
+      publishedDate = now,
+      scannedDate = now
     )
 
   private val vulnerability1again =
@@ -69,13 +69,13 @@ class VulnerabilitiesServiceSpec
       id = "CVE-TEST-1",
       score = Some(1.0),
       description = "desc1",
-      requiresAction = true,
-      assessment = "",
-      lastReviewed = now,
-      teams = Seq("team7", "team8", "team1"),
+      requiresAction = Some(true),
+      assessment = Some(""),
+      lastReviewed = Some(now),
+      teams = Some(Seq("team7", "team8", "team1")),
       references = Seq("test", "test"),
-      published = now,
-      scanned = now
+      publishedDate = now,
+      scannedDate = now
     )
 
   private val vulnerability2 =
@@ -88,13 +88,13 @@ class VulnerabilitiesServiceSpec
       id = "CVE-TEST-2",
       score = Some(2.0),
       description = "desc2",
-      requiresAction = true,
-      assessment = "",
-      lastReviewed = now,
-      teams = Seq("team1", "team2"),
+      requiresAction = Some(true),
+      assessment = Some(""),
+      lastReviewed = Some(now),
+      teams = Some(Seq("team1", "team2")),
       references = Seq("test", "test"),
-      published = now,
-      scanned = now
+      publishedDate = now,
+      scannedDate = now
     )
 
   private val vulnerability3 =
@@ -107,30 +107,30 @@ class VulnerabilitiesServiceSpec
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
-      requiresAction = false,
-      assessment = "",
-      lastReviewed = now,
-      teams = Seq("team1"),
+      requiresAction = Some(false),
+      assessment = Some(""),
+      lastReviewed = Some(now),
+      teams = Some(Seq("team1")),
       references = Seq("test", "test"),
-      published = now,
-      scanned = now
+      publishedDate = now,
+      scannedDate = now
     )
 
   "distinctVulnerabilitiesSummary" must {
 
     "find all distinct Vulnerabilities, along with the services and teams that are vulnerable" in {
      val res1 = VulnerabilityCountSummary(
-            distinctVulnerability = DistinctVulnerability(vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0", id = "CVE-TEST-1", score = Some(1.0), description = "desc1", references = Seq("test", "test"), published = now),
+            distinctVulnerability = DistinctVulnerability(vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0", id = "CVE-TEST-1", score = Some(1.0), description = "desc1", references = Seq("test", "test"), publishedDate = now, requiresAction = Some(true), assessment =  Some(""), lastReviewed = Some(now)),
             services = Seq("service1", "service4"),
             teams = Seq("team1", "team2", "team7", "team8")
           )
      val res2 =  VulnerabilityCountSummary(
-            distinctVulnerability = DistinctVulnerability(vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0", id = "CVE-TEST-2", score = Some(2.0), description = "desc2", references = Seq("test", "test"), published = now),
+            distinctVulnerability = DistinctVulnerability(vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0", id = "CVE-TEST-2", score = Some(2.0), description = "desc2", references = Seq("test", "test"), publishedDate = now, requiresAction = Some(true), assessment = Some(""), lastReviewed = Some(now)),
             services = Seq("service2"),
             teams = Seq("team1", "team2")
           )
      val res3 = VulnerabilityCountSummary(
-            distinctVulnerability = DistinctVulnerability(vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0", id = "XRAY-TEST-1", score = None, description = "desc3", references = Seq("test", "test"), published = now),
+            distinctVulnerability = DistinctVulnerability(vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0", id = "XRAY-TEST-1", score = None, description = "desc3", references = Seq("test", "test"), publishedDate = now, requiresAction = Some(false), assessment = Some(""), lastReviewed = Some(now)),
             services = Seq("service3"),
             teams = Seq("team1")
           )
@@ -140,9 +140,32 @@ class VulnerabilitiesServiceSpec
         Seq(vulnerability1, vulnerability1again, vulnerability2, vulnerability3)
       ))
 
-      val results = vulnerabilitiesService.distinctVulnerabilitiesSummary.futureValue
+      val results = vulnerabilitiesService.distinctVulnerabilitiesSummary(None, None).futureValue
       results.length shouldBe 3
       results should contain theSameElementsInOrderAs expectedResults
     }
+
+    "find distinct vulnerabilities, filtered by id" in {
+      val res1 = VulnerabilityCountSummary(
+        distinctVulnerability = DistinctVulnerability(vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0", id = "CVE-TEST-1", score = Some(1.0), description = "desc1", references = Seq("test", "test"), publishedDate = now, requiresAction = Some(true), assessment =  Some(""), lastReviewed = Some(now)),
+        services = Seq("service1", "service4"),
+        teams = Seq("team1", "team2", "team7", "team8")
+      )
+      val res2 =  VulnerabilityCountSummary(
+        distinctVulnerability = DistinctVulnerability(vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0", id = "CVE-TEST-2", score = Some(2.0), description = "desc2", references = Seq("test", "test"), publishedDate = now, requiresAction = Some(true), assessment = Some(""), lastReviewed = Some(now)),
+        services = Seq("service2"),
+        teams = Seq("team1", "team2")
+      )
+
+      val expectedResults = Seq(res1, res2)
+      when(vulnerabilitiesRepository.search(id = Some("cve"))).thenReturn(Future.successful(
+        Seq(vulnerability1, vulnerability1again, vulnerability2)
+      ))
+
+      val results = vulnerabilitiesService.distinctVulnerabilitiesSummary(vulnerability = Some("cve"), None).futureValue
+      results.length shouldBe 2
+      results should contain theSameElementsInOrderAs expectedResults
+    }
+
   }
 }
