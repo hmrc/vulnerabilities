@@ -37,7 +37,7 @@ class VulnerabilitiesService @Inject() (
       servicesPerVuln = distinct.view.mapValues(_.map(_.service)).toMap
       teamsPerVuln = distinct.view.mapValues(_.flatMap(_.teams.getOrElse(Seq())).distinct).toMap
       distinctWithServicesAndTeams = distinct.map(_._2.head).map(v => VulnerabilityCountSummary(
-        DistinctVulnerability(v.vulnerableComponentName, v.vulnerableComponentVersion, v.id, v.score, v.description, v.references, v.published, v.requiresAction, v.assessment, v.lastReviewed),
+        DistinctVulnerability(v.vulnerableComponentName, v.vulnerableComponentVersion, v.id, v.score, v.description, v.references, v.publishedDate, v.requiresAction, v.assessment, v.lastReviewed),
         servicesPerVuln(v.id),
         teamsPerVuln(v.id)
       ))

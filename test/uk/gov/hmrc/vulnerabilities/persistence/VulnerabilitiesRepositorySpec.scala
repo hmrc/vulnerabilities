@@ -52,8 +52,8 @@ class VulnerabilitiesRepositorySpec
       lastReviewed = Some(now),
       teams = Some(Seq("team1", "team2")),
       references = Seq("test", "test"),
-      published = now,
-      scanned = now
+      publishedDate = now,
+      scannedDate = now
     )
 
   private val vulnerability2 =
@@ -71,8 +71,8 @@ class VulnerabilitiesRepositorySpec
       lastReviewed = Some(now),
       teams = Some(Seq("team1", "team2")),
       references = Seq("test", "test"),
-      published = now,
-      scanned = now
+      publishedDate = now,
+      scannedDate = now
     )
 
   private val vulnerability3 =
@@ -90,8 +90,8 @@ class VulnerabilitiesRepositorySpec
       lastReviewed = Some(now),
       teams = Some(Seq("team1")),
       references = Seq("test", "test"),
-      published = now,
-      scanned = now
+      publishedDate = now,
+      scannedDate = now
     )
 
   "search" must {

@@ -40,8 +40,6 @@ class VulnerabilitiesRepository @Inject()(
   ),
 ) {
   def search(service: Option[String] = None, id: Option[String] = None, description: Option[String] = None, team: Option[String] = None, requiresAction: Option[Boolean] = None): Future[Seq[Vulnerability]] = {
-    println(requiresAction)
-    println(id)
     val filters = Seq(
              service.map(s => Filters.equal("service", s)),
                   id.map(i => Filters.regex("id", i)),
