@@ -20,7 +20,7 @@ import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
-import uk.gov.hmrc.vulnerabilities.model.Vulnerability
+import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, Vulnerability, VulnerabilityCountSummary}
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -94,6 +94,44 @@ class VulnerabilitiesRepositorySpec
       scannedDate = now
     )
 
+  private val vulnerability3RepeatedService =
+    Vulnerability(
+      service = "service3",
+      serviceVersion = "3",
+      vulnerableComponentName = "component3",
+      vulnerableComponentVersion = "3.0",
+      componentPathInSlug = "x",
+      id = "XRAY-TEST-1",
+      score = None,
+      description = "desc3",
+      requiresAction = Some(false),
+      assessment = Some(""),
+      lastReviewed = Some(now),
+      teams = Some(Seq("team1")),
+      references = Seq("test", "test"),
+      publishedDate = now,
+      scannedDate = now
+    )
+
+  private val vulnerability3NoTeams =
+    Vulnerability(
+      service = "service98",
+      serviceVersion = "3",
+      vulnerableComponentName = "component3",
+      vulnerableComponentVersion = "3.0",
+      componentPathInSlug = "x",
+      id = "XRAY-TEST-1",
+      score = None,
+      description = "desc3",
+      requiresAction = Some(false),
+      assessment = Some(""),
+      lastReviewed = Some(now),
+      teams = None,
+      references = Seq("test", "test"),
+      publishedDate = now,
+      scannedDate = now
+    )
+
   "search" must {
 
     "find all vulnerabilities" in {
@@ -125,17 +163,86 @@ class VulnerabilitiesRepositorySpec
       val results = repository.search(description = Some("desc")).futureValue
       results must contain allOf(vulnerability1, vulnerability2, vulnerability3)
     }
+  }
 
-    "find all vulnerabilities that requireAction" in {
-      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3)).toFuture().futureValue
-      val results = repository.search(requiresAction = Some(true)).futureValue
-      results must contain theSameElementsAs(Seq(vulnerability1, vulnerability2))
+  "distinctVulnerabilitySummary" must {
+
+    val expected1 = VulnerabilityCountSummary(
+      distinctVulnerability = DistinctVulnerability(
+        vulnerableComponentName = "component1",
+        vulnerableComponentVersion = "1.0",
+        id = "CVE-TEST-1",
+        score = Some(1.0),
+        description = "desc1",
+        references = Seq("test", "test"),
+        publishedDate = now,
+        requiresAction = Some(true),
+        assessment = Some(""),
+        lastReviewed = Some(now)
+      ),
+      servicesCount = 1,
+      teams = Seq("team1", "team2")
+    )
+
+    val expected2 = VulnerabilityCountSummary(
+      distinctVulnerability = DistinctVulnerability(
+        vulnerableComponentName = "component2",
+        vulnerableComponentVersion = "2.0",
+        id = "CVE-TEST-2",
+        score = Some(2.0),
+        description = "desc2",
+        references = Seq("test", "test"),
+        publishedDate = now,
+        requiresAction = Some(true),
+        assessment = Some(""),
+        lastReviewed = Some(now)
+      ),
+      servicesCount = 1,
+      teams = Seq("team1", "team2")
+    )
+
+    val expected3 = VulnerabilityCountSummary(
+      distinctVulnerability = DistinctVulnerability(
+        vulnerableComponentName = "component3",
+        vulnerableComponentVersion = "3.0",
+        id = "XRAY-TEST-1",
+        score = None,
+        description = "desc3",
+        references = Seq("test", "test"),
+        publishedDate = now,
+        requiresAction = Some(false),
+        assessment = Some(""),
+        lastReviewed = Some(now)
+      ),
+      servicesCount = 2,
+      teams = Seq("team1")
+    )
+
+    "find all distinct CVEs, with a count of distinct services & a list of distinct teams" in {
+
+      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3, vulnerability3NoTeams, vulnerability3RepeatedService)).toFuture().futureValue
+      val results = repository.distinctVulnerabilitiesSummary(None, None).futureValue
+      val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted))
+
+      resultsSorted.length mustBe 3
+      resultsSorted must contain theSameElementsAs (Seq(expected1, expected2, expected3))
     }
 
-    "find all vulnerabilities that don't requireAction" in {
-      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3)).toFuture().futureValue
-      val results = repository.search(requiresAction = Some(false)).futureValue
-      results must contain only(vulnerability3)
+    "filter by id" in {
+      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3, vulnerability3NoTeams, vulnerability3RepeatedService)).toFuture().futureValue
+      val results = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), None).futureValue
+
+      results.length mustBe 1
+      results mustBe Seq(expected3)
+    }
+
+    "filter by requiresAction" in {
+      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3, vulnerability3NoTeams, vulnerability3RepeatedService)).toFuture().futureValue
+      val results = repository.distinctVulnerabilitiesSummary(None, requiresAction = Some(true)).futureValue
+      val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted))
+
+      resultsSorted.length mustBe 2
+      resultsSorted must contain theSameElementsAs(Seq(expected1, expected2))
     }
   }
 }
