@@ -16,11 +16,10 @@
 
 package uk.gov.hmrc.vulnerabilities.controllers
 
-import play.api.libs.json.{Json, OFormat}
+import play.api.libs.json.{Json, OFormat, Reads}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
-import uk.gov.hmrc.vulnerabilities.model.{Vulnerability, VulnerabilityCountSummary}
-import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitiesRepository
+import uk.gov.hmrc.vulnerabilities.model.{Vulnerability, VulnerabilitySummary}
 import uk.gov.hmrc.vulnerabilities.service.VulnerabilitiesService
 
 import javax.inject.{Inject, Singleton}
@@ -30,7 +29,6 @@ import scala.concurrent.ExecutionContext
 class VulnerabilitiesController @Inject()(
     cc: ControllerComponents,
     vulnerabilitiesService: VulnerabilitiesService,
-    vulnerabilitiesRepository: VulnerabilitiesRepository
 )(implicit ec: ExecutionContext) extends BackendController(cc) {
 
   def vulnerabilities(service: Option[String], id: Option[String], description: Option[String], team: Option[String]): Action[AnyContent] = Action.async {
@@ -41,9 +39,10 @@ class VulnerabilitiesController @Inject()(
     }
   }
 
-  def distinctVulnerabilitySummaries(vulnerability: Option[String] = None, requiresActionOnly: Option[Boolean] = None): Action[AnyContent] = Action.async {
-    implicit val fmt: OFormat[VulnerabilityCountSummary] = VulnerabilityCountSummary.apiFormat
-    vulnerabilitiesService.distinctVulnerabilitiesSummary(vulnerability, requiresActionOnly).map {
+  def distinctVulnerabilitySummaries(vulnerability: Option[String] = None, requiresActionOnly: Option[Boolean] = None, service: Option[String] = None, team: Option[String] = None): Action[AnyContent] =
+    Action.async {
+    implicit val fmt: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
+    vulnerabilitiesService.distinctVulnerabilitiesSummary(vulnerability, requiresActionOnly, service, team).map {
       result => Ok(Json.toJson(result))
     }
   }
