@@ -16,7 +16,8 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
-import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, Vulnerability, VulnerabilityCountSummary}
+import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, Vulnerability, VulnerabilitySummary}
 import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitiesRepository
 
 import javax.inject.{Inject, Singleton}
@@ -24,12 +25,12 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class VulnerabilitiesService @Inject() (
-  vulnerabilitiesRepository: VulnerabilitiesRepository
+  vulnerabilitiesRepository: VulnerabilitiesRepository,
 )(implicit val ec: ExecutionContext) {
 
   def allVulnerabilities(service: Option[String], id: Option[String], description: Option[String], team: Option[String]): Future[Seq[Vulnerability]] =
     vulnerabilitiesRepository.search(service, id, description, team)
 
-  def distinctVulnerabilitiesSummary(vulnerability: Option[String], requiresActionOnly: Option[Boolean]): Future[Seq[VulnerabilityCountSummary]] =
-    vulnerabilitiesRepository.distinctVulnerabilitiesSummary(vulnerability, requiresActionOnly)
+  def distinctVulnerabilitiesSummary(vulnerability: Option[String], requiresActionOnly: Option[Boolean], service: Option[String], team: Option[String]): Future[Seq[VulnerabilitySummary]] =
+    vulnerabilitiesRepository.distinctVulnerabilitiesSummary(vulnerability, requiresActionOnly, service, team)
 }
