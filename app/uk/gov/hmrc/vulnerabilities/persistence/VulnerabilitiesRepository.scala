@@ -77,7 +77,7 @@ class VulnerabilitiesRepository @Inject()(
     val pipeline = Seq(
       group(
         id = "$id",
-        addToSet("teams", "$teams"),
+        push("teams", "$teams"),
         push("occurrences", BsonDocument(
           "service" -> "$service",
           "serviceVersion" -> "$serviceVersion",
@@ -102,6 +102,12 @@ class VulnerabilitiesRepository @Inject()(
               "in" -> BsonDocument("$concatArrays" -> BsonArray("$$value", "$$this"))
             )
           ),
+          "distinctVulnerability" -> "$distinctVulnerability"
+        )),
+      project(
+        BsonDocument(
+          "occurrences" -> "$occurrences",
+          "teams" -> BsonDocument("$setUnion" -> "$teams"),
           "distinctVulnerability" -> "$distinctVulnerability"
         ))
     )

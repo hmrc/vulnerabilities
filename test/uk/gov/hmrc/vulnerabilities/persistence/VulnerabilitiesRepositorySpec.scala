@@ -212,6 +212,7 @@ class VulnerabilitiesRepositorySpec
       val results = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), None, None, None).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
+
       resultsSorted.length mustBe 1
       resultsSorted mustBe Seq(expected1)
     }
@@ -261,9 +262,20 @@ class VulnerabilitiesRepositorySpec
       val results1Sorted = results1.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
       val results2Sorted = results2.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
-      results1.length mustBe 0
-      results2.length mustBe 1
-      results2 must contain theSameElementsAs Seq(expected1)
+      results1Sorted.length mustBe 0
+      results2Sorted.length mustBe 1
+      results2Sorted must contain theSameElementsAs Seq(expected1)
+    }
+
+    "return only unique teams" in {
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"))
+      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3, vulnerability3NoTeams, vulnerability3RepeatedService)).toFuture().futureValue
+      val results = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), None, None, None).futureValue
+
+      val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
+
+      resultsSorted.length mustBe 1
+      resultsSorted.head.teams.length mustBe 1
 
     }
   }
