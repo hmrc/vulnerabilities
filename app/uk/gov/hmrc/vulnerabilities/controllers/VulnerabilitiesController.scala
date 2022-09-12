@@ -39,10 +39,10 @@ class VulnerabilitiesController @Inject()(
     }
   }
 
-  def distinctVulnerabilitySummaries(vulnerability: Option[String] = None, requiresActionOnly: Option[Boolean] = None, service: Option[String] = None, team: Option[String] = None): Action[AnyContent] =
+  def distinctVulnerabilitySummaries(vulnerability: Option[String] = None, requiresAction: Option[Boolean] = None, service: Option[String] = None, team: Option[String] = None): Action[AnyContent] =
     Action.async {
     implicit val fmt: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
-    vulnerabilitiesService.distinctVulnerabilitiesSummary(vulnerability, requiresActionOnly, service, team).map {
+    vulnerabilitiesService.distinctVulnerabilitiesSummary(vulnerability, requiresAction, service, team).map {
       result => Ok(Json.toJson(result))
     }
   }

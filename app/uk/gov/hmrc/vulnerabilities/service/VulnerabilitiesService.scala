@@ -31,6 +31,6 @@ class VulnerabilitiesService @Inject() (
   def allVulnerabilities(service: Option[String], id: Option[String], description: Option[String], team: Option[String]): Future[Seq[Vulnerability]] =
     vulnerabilitiesRepository.search(service, id, description, team)
 
-  def distinctVulnerabilitiesSummary(vulnerability: Option[String], requiresActionOnly: Option[Boolean], service: Option[String], team: Option[String]): Future[Seq[VulnerabilitySummary]] =
-    vulnerabilitiesRepository.distinctVulnerabilitiesSummary(vulnerability, requiresActionOnly, service, team)
+  def distinctVulnerabilitiesSummary(vulnerability: Option[String], requiresAction: Option[Boolean], service: Option[String], team: Option[String]): Future[Seq[VulnerabilitySummary]] =
+    vulnerabilitiesRepository.distinctVulnerabilitiesSummary(vulnerability, requiresAction, service, team)
 }
