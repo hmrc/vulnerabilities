@@ -82,7 +82,9 @@ class VulnerabilitiesRepository @Inject()(
           "service" -> "$service",
           "serviceVersion" -> "$serviceVersion",
           "assessment" -> "$assessment",
-          "requiresAction" -> "$requiresAction")),
+          "requiresAction" -> "$requiresAction",
+          "componentPathInSlug" -> "$componentPathInSlug"
+        )),
         first("distinctVulnerability", BsonDocument(
           "vulnerableComponentName" -> "$vulnerableComponentName",
           "vulnerableComponentVersion" -> "$vulnerableComponentVersion",

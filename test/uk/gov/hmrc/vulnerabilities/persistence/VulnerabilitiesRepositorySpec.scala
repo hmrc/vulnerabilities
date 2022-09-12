@@ -43,7 +43,7 @@ class VulnerabilitiesRepositorySpec
       serviceVersion = "1",
       vulnerableComponentName = "component1",
       vulnerableComponentVersion = "1.0",
-      componentPathInSlug = "",
+      componentPathInSlug = "a",
       id = "CVE-TEST-1",
       score = Some(1.0),
       description = "desc1",
@@ -62,7 +62,7 @@ class VulnerabilitiesRepositorySpec
       serviceVersion = "2",
       vulnerableComponentName = "component2",
       vulnerableComponentVersion = "2.0",
-      componentPathInSlug = "",
+      componentPathInSlug = "b",
       id = "CVE-TEST-2",
       score = Some(2.0),
       description = "desc2",
@@ -81,7 +81,7 @@ class VulnerabilitiesRepositorySpec
       serviceVersion = "3",
       vulnerableComponentName = "component3",
       vulnerableComponentVersion = "3.0",
-      componentPathInSlug = "",
+      componentPathInSlug = "c",
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
@@ -100,7 +100,7 @@ class VulnerabilitiesRepositorySpec
       serviceVersion = "3.1",
       vulnerableComponentName = "component3",
       vulnerableComponentVersion = "3.0",
-      componentPathInSlug = "x",
+      componentPathInSlug = "d",
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
@@ -119,7 +119,7 @@ class VulnerabilitiesRepositorySpec
       serviceVersion = "3",
       vulnerableComponentName = "component3",
       vulnerableComponentVersion = "3.0",
-      componentPathInSlug = "x",
+      componentPathInSlug = "e",
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
@@ -183,11 +183,11 @@ class VulnerabilitiesRepositorySpec
     )
 
     val expectedOccurrences = Seq(
-      VulnerabilityOccurrence(service = "service1", serviceVersion = "1", assessment = Some(""), requiresAction = Some(true)),
-      VulnerabilityOccurrence(service = "service2", serviceVersion = "2", assessment = Some(""), requiresAction = Some(false)),
-      VulnerabilityOccurrence(service = "service3", serviceVersion = "3", assessment = Some(""), requiresAction = Some(false)),
-      VulnerabilityOccurrence(service = "service3", serviceVersion = "3.1", assessment = Some(""), requiresAction = Some(true)),
-      VulnerabilityOccurrence(service = "service98", serviceVersion = "3", assessment = Some(""), requiresAction = Some(false))
+      VulnerabilityOccurrence(service = "service1", serviceVersion = "1", assessment = Some(""), requiresAction = Some(true), componentPathInSlug = "a"),
+      VulnerabilityOccurrence(service = "service2", serviceVersion = "2", assessment = Some(""), requiresAction = Some(false), componentPathInSlug = "b"),
+      VulnerabilityOccurrence(service = "service3", serviceVersion = "3", assessment = Some(""), requiresAction = Some(false), componentPathInSlug = "c"),
+      VulnerabilityOccurrence(service = "service3", serviceVersion = "3.1", assessment = Some(""), requiresAction = Some(true), componentPathInSlug = "d"),
+      VulnerabilityOccurrence(service = "service98", serviceVersion = "3", assessment = Some(""), requiresAction = Some(false), componentPathInSlug = "e")
     )
 
     "find all distinct CVEs, with a count of distinct services & a list of distinct teams" in {
