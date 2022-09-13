@@ -115,7 +115,7 @@ class VulnerabilitiesRepositorySpec
 
   private val vulnerability3NoTeams =
     Vulnerability(
-      service = "service98",
+      service = "service33",
       serviceVersion = "3",
       vulnerableComponentName = "component3",
       vulnerableComponentVersion = "3.0",
@@ -187,7 +187,7 @@ class VulnerabilitiesRepositorySpec
       VulnerabilityOccurrence(service = "service2", serviceVersion = "2", assessment = Some(""), requiresAction = Some(false), componentPathInSlug = "b"),
       VulnerabilityOccurrence(service = "service3", serviceVersion = "3", assessment = Some(""), requiresAction = Some(false), componentPathInSlug = "c"),
       VulnerabilityOccurrence(service = "service3", serviceVersion = "3.1", assessment = Some(""), requiresAction = Some(true), componentPathInSlug = "d"),
-      VulnerabilityOccurrence(service = "service98", serviceVersion = "3", assessment = Some(""), requiresAction = Some(false), componentPathInSlug = "e")
+      VulnerabilityOccurrence(service = "service33", serviceVersion = "3", assessment = Some(""), requiresAction = Some(false), componentPathInSlug = "e")
     )
 
     "find all distinct CVEs, with a count of distinct services & a list of distinct teams" in {
@@ -276,6 +276,19 @@ class VulnerabilitiesRepositorySpec
 
       resultsSorted.length mustBe 1
       resultsSorted.head.teams.length mustBe 1
+
+    }
+
+    "Do an exact match on service when searchTerm is quoted" in {
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3)), Seq("team1"))
+      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3, vulnerability3NoTeams, vulnerability3RepeatedService)).toFuture().futureValue
+      val results = repository.distinctVulnerabilitiesSummary(None, None, Some("\"service3\""), None).futureValue
+
+      val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
+
+      resultsSorted.length mustBe 1
+      resultsSorted must contain theSameElementsAs Seq(expected1)
+      resultsSorted.head.occurrences.length mustBe 2 //Shouldn't pick up 'Service33'
 
     }
   }

@@ -45,10 +45,10 @@ class VulnerabilitiesRepository @Inject()(
 ) {
   def search(service: Option[String] = None, id: Option[String] = None, description: Option[String] = None, team: Option[String] = None): Future[Seq[Vulnerability]] = {
     val filters = Seq(
-          service.map(s => Filters.equal("service", s)),
-               id.map(i => Filters.regex("id", i)),
-      description.map(d => Filters.regex("description", d)),
-             team.map(t => Filters.equal("teams", t))
+      service.map(s => Filters.equal("service", s)),
+           id.map(i => Filters.regex("id", i)),
+  description.map(d => Filters.regex("description", d)),
+         team.map(t => Filters.equal("teams", t))
     ).flatten
 
     filters match {
@@ -66,12 +66,16 @@ class VulnerabilitiesRepository @Inject()(
     )
 
   def distinctVulnerabilitiesSummary(id: Option[String], requiresAction: Option[Boolean], service: Option[String], team: Option[String]): Future[Seq[VulnerabilitySummary]] = {
+    val Quoted = """^\"(.*)\"$""".r
 
     val optFilters = Seq(
-                  id.map(i => Filters.regex("id", i)),
-      requiresAction.map(r => Filters.equal("requiresAction", r)),
-             service.map(s => Filters.regex("service", s)),
-                team.map(t => Filters.equal("teams", t))
+                    id.map(i => Filters.regex("id", i)),
+        requiresAction.map(r => Filters.equal("requiresAction", r)),
+                  team.map(t => Filters.equal("teams", t)),
+               service.map{
+                 case Quoted(s) => Filters.equal("service", s)
+                 case s         => Filters.regex("service", s)
+               }
     ).flatten
 
     val pipeline = Seq(
@@ -120,5 +124,6 @@ class VulnerabilitiesRepository @Inject()(
     }
 
     vcsCollection.aggregate(finalPipeline).toFuture()
-  }
+ }
 }
+
