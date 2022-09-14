@@ -85,8 +85,6 @@ class VulnerabilitiesRepository @Inject()(
         push("occurrences", BsonDocument(
           "service" -> "$service",
           "serviceVersion" -> "$serviceVersion",
-          "assessment" -> "$assessment",
-          "requiresAction" -> "$requiresAction",
           "componentPathInSlug" -> "$componentPathInSlug"
         )),
         first("distinctVulnerability", BsonDocument(
@@ -96,7 +94,9 @@ class VulnerabilitiesRepository @Inject()(
           "score" -> "$score",
           "description" -> "$description",
           "references" -> "$references",
-          "published" -> "$published"))
+          "published" -> "$published",
+          "assessment" -> "$assessment",
+          "requiresAction" -> "$requiresAction"))
       ),
       project(
         BsonDocument(
