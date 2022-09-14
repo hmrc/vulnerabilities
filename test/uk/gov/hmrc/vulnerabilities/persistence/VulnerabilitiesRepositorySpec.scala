@@ -94,7 +94,7 @@ class VulnerabilitiesRepositorySpec
       references = Seq("test", "test"),
       publishedDate = now,
       scannedDate = now,
-      ticket = "BDOG-3"
+      ticket = Some("BDOG-3")
     )
 
   private val vulnerability3RepeatedService =
@@ -114,7 +114,7 @@ class VulnerabilitiesRepositorySpec
       references = Seq("test", "test"),
       publishedDate = now,
       scannedDate = now,
-      ticket = "BDOG-3"
+      ticket = Some("BDOG-3")
     )
 
   private val vulnerability3NoTeams =
@@ -134,7 +134,7 @@ class VulnerabilitiesRepositorySpec
       references = Seq("test", "test"),
       publishedDate = now,
       scannedDate = now,
-      ticket = "BDOG-3"
+      ticket = Some("BDOG-3")
     )
 
   "search" must {
@@ -225,12 +225,12 @@ class VulnerabilitiesRepositorySpec
       resultsSorted mustBe Seq(expected1)
     }
 
-    "filter by requiresAction" in {
+    "filter by curationStatus" in {
       val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(0)), Seq("team1", "team2"))
       val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"))
 
       repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3, vulnerability3NoTeams, vulnerability3RepeatedService)).toFuture().futureValue
-      val results = repository.distinctVulnerabilitiesSummary(None, requiresAction = Some(true), None, None).futureValue
+      val results = repository.distinctVulnerabilitiesSummary(None, curationStatus = Some(CurationStatus.ActionRequired.asString), None, None).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
       resultsSorted.length mustBe 2
@@ -264,8 +264,8 @@ class VulnerabilitiesRepositorySpec
       val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3)), Seq("team1"))
 
       repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3, vulnerability3NoTeams, vulnerability3RepeatedService)).toFuture().futureValue
-      val results1 = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), requiresAction = Some(true), service = Some("3"), team = Some("team2")).futureValue
-      val results2 = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), requiresAction = Some(true), service = Some("3"), team = Some("team1")).futureValue
+      val results1 = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), curationStatus = Some(CurationStatus.ActionRequired.asString), service = Some("3"), team = Some("team2")).futureValue
+      val results2 = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), curationStatus = Some(CurationStatus.ActionRequired.asString), service = Some("3"), team = Some("team1")).futureValue
 
       val results1Sorted = results1.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
       val results2Sorted = results2.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
