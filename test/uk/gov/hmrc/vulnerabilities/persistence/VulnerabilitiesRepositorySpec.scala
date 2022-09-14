@@ -20,7 +20,7 @@ import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
-import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, Vulnerability, VulnerabilityOccurrence, VulnerabilitySummary}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, Vulnerability, VulnerabilityOccurrence, VulnerabilitySummary}
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -47,13 +47,14 @@ class VulnerabilitiesRepositorySpec
       id = "CVE-TEST-1",
       score = Some(1.0),
       description = "desc1",
-      requiresAction = Some(true),
+      curationStatus = Some(CurationStatus.ActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
       teams = Some(Seq("team1", "team2")),
       references = Seq("test", "test"),
       publishedDate = now,
-      scannedDate = now
+      scannedDate = now,
+      ticket = Some("BDOG-1")
     )
 
   private val vulnerability2 =
@@ -66,13 +67,14 @@ class VulnerabilitiesRepositorySpec
       id = "CVE-TEST-2",
       score = Some(2.0),
       description = "desc2",
-      requiresAction = Some(false),
+      curationStatus = Some(CurationStatus.NoActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
       teams = Some(Seq("team1", "team2")),
       references = Seq("test", "test"),
       publishedDate = now,
-      scannedDate = now
+      scannedDate = now,
+      ticket = Some("BDOG-2")
     )
 
   private val vulnerability3 =
@@ -85,13 +87,14 @@ class VulnerabilitiesRepositorySpec
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
-      requiresAction = Some(true),
+      curationStatus = Some(CurationStatus.ActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
       teams = Some(Seq("team1")),
       references = Seq("test", "test"),
       publishedDate = now,
-      scannedDate = now
+      scannedDate = now,
+      ticket = "BDOG-3"
     )
 
   private val vulnerability3RepeatedService =
@@ -104,13 +107,14 @@ class VulnerabilitiesRepositorySpec
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
-      requiresAction = Some(true),
+      curationStatus = Some(CurationStatus.ActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
       teams = Some(Seq("team1")),
       references = Seq("test", "test"),
       publishedDate = now,
-      scannedDate = now
+      scannedDate = now,
+      ticket = "BDOG-3"
     )
 
   private val vulnerability3NoTeams =
@@ -123,13 +127,14 @@ class VulnerabilitiesRepositorySpec
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
-      requiresAction = Some(true),
+      curationStatus = Some(CurationStatus.ActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
       teams = None,
       references = Seq("test", "test"),
       publishedDate = now,
-      scannedDate = now
+      scannedDate = now,
+      ticket = "BDOG-3"
     )
 
   "search" must {
@@ -170,15 +175,18 @@ class VulnerabilitiesRepositorySpec
     val expectedDistinctVulnerabilities = Seq(
       DistinctVulnerability(
         vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0", id = "CVE-TEST-1",
-        score = Some(1.0), description = "desc1", references = Seq("test", "test"), publishedDate = now, assessment = Some(""), requiresAction = Some(true)
+        score = Some(1.0), description = "desc1", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
+        curationStatus = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-1")
       ),
       DistinctVulnerability(
         vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0", id = "CVE-TEST-2",
-        score = Some(2.0), description = "desc2", references = Seq("test", "test"), publishedDate = now, assessment = Some(""), requiresAction = Some(false)
+        score = Some(2.0), description = "desc2", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
+        curationStatus = Some(CurationStatus.NoActionRequired), ticket = Some("BDOG-2")
       ),
       DistinctVulnerability(
         vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0", id = "XRAY-TEST-1",
-        score = None, description = "desc3", references = Seq("test", "test"), publishedDate = now, assessment = Some(""), requiresAction = Some(true)
+        score = None, description = "desc3", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
+        curationStatus = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-3")
       )
     )
 

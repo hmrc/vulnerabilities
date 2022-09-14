@@ -65,12 +65,12 @@ class VulnerabilitiesRepository @Inject()(
       VulnerabilitySummary.mongoFormat
     )
 
-  def distinctVulnerabilitiesSummary(id: Option[String], requiresAction: Option[Boolean], service: Option[String], team: Option[String]): Future[Seq[VulnerabilitySummary]] = {
+  def distinctVulnerabilitiesSummary(id: Option[String], curationStatus: Option[String], service: Option[String], team: Option[String]): Future[Seq[VulnerabilitySummary]] = {
     val Quoted = """^\"(.*)\"$""".r
 
     val optFilters = Seq(
                     id.map(i => Filters.regex("id", i)),
-        requiresAction.map(r => Filters.equal("requiresAction", r)),
+        curationStatus.map(r => Filters.equal("curationStatus", r)),
                   team.map(t => Filters.equal("teams", t)),
                service.map{
                  case Quoted(s) => Filters.equal("service", s)
@@ -96,7 +96,9 @@ class VulnerabilitiesRepository @Inject()(
           "references" -> "$references",
           "published" -> "$published",
           "assessment" -> "$assessment",
-          "requiresAction" -> "$requiresAction"))
+          "curationStatus" -> "$curationStatus",
+          "ticket" -> "$ticket"
+        ))
       ),
       project(
         BsonDocument(
