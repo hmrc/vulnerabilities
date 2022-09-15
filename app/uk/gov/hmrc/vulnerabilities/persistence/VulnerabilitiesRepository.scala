@@ -18,10 +18,10 @@ package uk.gov.hmrc.vulnerabilities.persistence
 
 import com.mongodb.client.model.Indexes
 import org.mongodb.scala.bson.{BsonArray, BsonDocument}
-import org.mongodb.scala.{MongoCollection}
+import org.mongodb.scala.MongoCollection
 import org.mongodb.scala.model.Accumulators.{addToSet, first, push}
 import org.mongodb.scala.model.Aggregates._
-import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions}
+import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, Sorts}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
 import uk.gov.hmrc.vulnerabilities.model.{Vulnerability, VulnerabilitySummary}
@@ -39,8 +39,9 @@ class VulnerabilitiesRepository @Inject()(
   domainFormat   = Vulnerability.mongoFormat,
   indexes        = Seq(
     IndexModel(Indexes.ascending("service"), IndexOptions().name("service").background(true)),
-    IndexModel(Indexes.ascending("cve"), IndexOptions().name("cve").background(true)),
+    IndexModel(Indexes.ascending("id"), IndexOptions().name("id").background(true)),
     IndexModel(Indexes.ascending("teams"), IndexOptions().name("teams").background(true)),
+    IndexModel(Indexes.ascending("curationStatus"), IndexOptions().name("curationStatus").background(true)),
   ),
 ) {
   def search(service: Option[String] = None, id: Option[String] = None, description: Option[String] = None, team: Option[String] = None): Future[Seq[Vulnerability]] = {
@@ -99,6 +100,9 @@ class VulnerabilitiesRepository @Inject()(
           "curationStatus" -> "$curationStatus",
           "ticket" -> "$ticket"
         ))
+      ),
+      sort(
+        Sorts.orderBy(Sorts.descending("distinctVulnerability.score"), Sorts.ascending("distinctVulnerability.id"))
       ),
       project(
         BsonDocument(
