@@ -47,6 +47,7 @@ class VulnerabilitiesRepositorySpec
       id = "CVE-TEST-1",
       score = Some(1.0),
       description = "desc1",
+      fixedVersions = None,
       curationStatus = Some(CurationStatus.ActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
@@ -67,6 +68,7 @@ class VulnerabilitiesRepositorySpec
       id = "CVE-TEST-2",
       score = Some(1.0),
       description = "desc2",
+      fixedVersions = Some(Seq("1", "2")),
       curationStatus = Some(CurationStatus.NoActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
@@ -87,6 +89,7 @@ class VulnerabilitiesRepositorySpec
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
+      fixedVersions = None,
       curationStatus = Some(CurationStatus.ActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
@@ -107,6 +110,7 @@ class VulnerabilitiesRepositorySpec
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
+      fixedVersions = None,
       curationStatus = Some(CurationStatus.ActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
@@ -127,6 +131,7 @@ class VulnerabilitiesRepositorySpec
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
+      fixedVersions = None,
       curationStatus = Some(CurationStatus.ActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
@@ -176,17 +181,20 @@ class VulnerabilitiesRepositorySpec
       DistinctVulnerability(
         vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0", id = "CVE-TEST-1",
         score = Some(1.0), description = "desc1", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
-        curationStatus = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-1")
+        curationStatus = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-1"),
+        fixedVersions = None
       ),
       DistinctVulnerability(
         vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0", id = "CVE-TEST-2",
         score = Some(1.0), description = "desc2", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
-        curationStatus = Some(CurationStatus.NoActionRequired), ticket = Some("BDOG-2")
+        curationStatus = Some(CurationStatus.NoActionRequired), ticket = Some("BDOG-2"),
+        fixedVersions = Some(Seq("1", "2"))
       ),
       DistinctVulnerability(
         vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0", id = "XRAY-TEST-1",
         score = None, description = "desc3", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
-        curationStatus = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-3")
+        curationStatus = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-3"),
+        fixedVersions = None
       )
     )
 

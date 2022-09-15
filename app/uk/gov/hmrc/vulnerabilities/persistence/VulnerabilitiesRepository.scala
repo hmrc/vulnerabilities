@@ -94,6 +94,7 @@ class VulnerabilitiesRepository @Inject()(
           "id" -> "$id",
           "score" -> "$score",
           "description" -> "$description",
+          "fixedVersions" -> "$fixedVersions",
           "references" -> "$references",
           "published" -> "$published",
           "assessment" -> "$assessment",
