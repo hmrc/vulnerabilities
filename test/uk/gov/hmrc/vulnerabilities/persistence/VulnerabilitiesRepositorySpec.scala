@@ -65,7 +65,7 @@ class VulnerabilitiesRepositorySpec
       vulnerableComponentVersion = "2.0",
       componentPathInSlug = "b",
       id = "CVE-TEST-2",
-      score = Some(2.0),
+      score = Some(1.0),
       description = "desc2",
       curationStatus = Some(CurationStatus.NoActionRequired),
       assessment = Some(""),
@@ -180,7 +180,7 @@ class VulnerabilitiesRepositorySpec
       ),
       DistinctVulnerability(
         vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0", id = "CVE-TEST-2",
-        score = Some(2.0), description = "desc2", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
+        score = Some(1.0), description = "desc2", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
         curationStatus = Some(CurationStatus.NoActionRequired), ticket = Some("BDOG-2")
       ),
       DistinctVulnerability(
@@ -197,6 +197,18 @@ class VulnerabilitiesRepositorySpec
       VulnerabilityOccurrence(service = "service3", serviceVersion = "3.1", componentPathInSlug = "d"),
       VulnerabilityOccurrence(service = "service33", serviceVersion = "3", componentPathInSlug = "e")
     )
+
+    "default sort by descending score and ascending id" in {
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(0)), Seq("team1", "team2"))
+      val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(1), Seq(expectedOccurrences(1)), Seq("team1", "team2"))
+      val expected3 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"))
+
+      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3, vulnerability3NoTeams, vulnerability3RepeatedService)).toFuture().futureValue
+      val results = repository.distinctVulnerabilitiesSummary(None, None, None, None).futureValue
+      val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
+
+      resultsSorted must contain theSameElementsInOrderAs Seq(expected1, expected2, expected3)
+    }
 
     "find all distinct CVEs, with a count of distinct services & a list of distinct teams" in {
 
