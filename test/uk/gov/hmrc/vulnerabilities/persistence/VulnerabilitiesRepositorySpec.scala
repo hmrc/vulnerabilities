@@ -20,7 +20,7 @@ import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
-import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, Vulnerability, VulnerabilityOccurrence, VulnerabilitySummary}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, Vulnerability, VulnerabilityOccurrence, VulnerabilitySummary}
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -47,13 +47,14 @@ class VulnerabilitiesRepositorySpec
       id = "CVE-TEST-1",
       score = Some(1.0),
       description = "desc1",
-      requiresAction = Some(true),
+      curationStatus = Some(CurationStatus.ActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
       teams = Some(Seq("team1", "team2")),
       references = Seq("test", "test"),
       publishedDate = now,
-      scannedDate = now
+      scannedDate = now,
+      ticket = Some("BDOG-1")
     )
 
   private val vulnerability2 =
@@ -66,13 +67,14 @@ class VulnerabilitiesRepositorySpec
       id = "CVE-TEST-2",
       score = Some(2.0),
       description = "desc2",
-      requiresAction = Some(false),
+      curationStatus = Some(CurationStatus.NoActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
       teams = Some(Seq("team1", "team2")),
       references = Seq("test", "test"),
       publishedDate = now,
-      scannedDate = now
+      scannedDate = now,
+      ticket = Some("BDOG-2")
     )
 
   private val vulnerability3 =
@@ -85,13 +87,14 @@ class VulnerabilitiesRepositorySpec
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
-      requiresAction = Some(false),
+      curationStatus = Some(CurationStatus.ActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
       teams = Some(Seq("team1")),
       references = Seq("test", "test"),
       publishedDate = now,
-      scannedDate = now
+      scannedDate = now,
+      ticket = Some("BDOG-3")
     )
 
   private val vulnerability3RepeatedService =
@@ -104,13 +107,14 @@ class VulnerabilitiesRepositorySpec
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
-      requiresAction = Some(true),
+      curationStatus = Some(CurationStatus.ActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
       teams = Some(Seq("team1")),
       references = Seq("test", "test"),
       publishedDate = now,
-      scannedDate = now
+      scannedDate = now,
+      ticket = Some("BDOG-3")
     )
 
   private val vulnerability3NoTeams =
@@ -123,13 +127,14 @@ class VulnerabilitiesRepositorySpec
       id = "XRAY-TEST-1",
       score = None,
       description = "desc3",
-      requiresAction = Some(false),
+      curationStatus = Some(CurationStatus.ActionRequired),
       assessment = Some(""),
       lastReviewed = Some(now),
       teams = None,
       references = Seq("test", "test"),
       publishedDate = now,
-      scannedDate = now
+      scannedDate = now,
+      ticket = Some("BDOG-3")
     )
 
   "search" must {
@@ -170,24 +175,27 @@ class VulnerabilitiesRepositorySpec
     val expectedDistinctVulnerabilities = Seq(
       DistinctVulnerability(
         vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0", id = "CVE-TEST-1",
-        score = Some(1.0), description = "desc1", references = Seq("test", "test"), publishedDate = now
+        score = Some(1.0), description = "desc1", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
+        curationStatus = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-1")
       ),
       DistinctVulnerability(
         vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0", id = "CVE-TEST-2",
-        score = Some(2.0), description = "desc2", references = Seq("test", "test"), publishedDate = now
+        score = Some(2.0), description = "desc2", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
+        curationStatus = Some(CurationStatus.NoActionRequired), ticket = Some("BDOG-2")
       ),
       DistinctVulnerability(
         vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0", id = "XRAY-TEST-1",
-        score = None, description = "desc3", references = Seq("test", "test"), publishedDate = now
+        score = None, description = "desc3", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
+        curationStatus = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-3")
       )
     )
 
     val expectedOccurrences = Seq(
-      VulnerabilityOccurrence(service = "service1", serviceVersion = "1", assessment = Some(""), requiresAction = Some(true), componentPathInSlug = "a"),
-      VulnerabilityOccurrence(service = "service2", serviceVersion = "2", assessment = Some(""), requiresAction = Some(false), componentPathInSlug = "b"),
-      VulnerabilityOccurrence(service = "service3", serviceVersion = "3", assessment = Some(""), requiresAction = Some(false), componentPathInSlug = "c"),
-      VulnerabilityOccurrence(service = "service3", serviceVersion = "3.1", assessment = Some(""), requiresAction = Some(true), componentPathInSlug = "d"),
-      VulnerabilityOccurrence(service = "service33", serviceVersion = "3", assessment = Some(""), requiresAction = Some(false), componentPathInSlug = "e")
+      VulnerabilityOccurrence(service = "service1", serviceVersion = "1", componentPathInSlug = "a"),
+      VulnerabilityOccurrence(service = "service2", serviceVersion = "2", componentPathInSlug = "b"),
+      VulnerabilityOccurrence(service = "service3", serviceVersion = "3", componentPathInSlug = "c"),
+      VulnerabilityOccurrence(service = "service3", serviceVersion = "3.1", componentPathInSlug = "d"),
+      VulnerabilityOccurrence(service = "service33", serviceVersion = "3", componentPathInSlug = "e")
     )
 
     "find all distinct CVEs, with a count of distinct services & a list of distinct teams" in {
@@ -217,12 +225,12 @@ class VulnerabilitiesRepositorySpec
       resultsSorted mustBe Seq(expected1)
     }
 
-    "filter by requiresAction" in {
+    "filter by curationStatus" in {
       val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(0)), Seq("team1", "team2"))
-      val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(3)), Seq("team1"))
+      val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"))
 
       repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3, vulnerability3NoTeams, vulnerability3RepeatedService)).toFuture().futureValue
-      val results = repository.distinctVulnerabilitiesSummary(None, requiresAction = Some(true), None, None).futureValue
+      val results = repository.distinctVulnerabilitiesSummary(None, curationStatus = Some(CurationStatus.ActionRequired.asString), None, None).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
       resultsSorted.length mustBe 2
@@ -253,22 +261,21 @@ class VulnerabilitiesRepositorySpec
     }
 
     "filter by all four parameters" in {
-      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2)), Seq("team1"))
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3)), Seq("team1"))
 
       repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3, vulnerability3NoTeams, vulnerability3RepeatedService)).toFuture().futureValue
-      val results1 = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), requiresAction = Some(false), service = Some("3"), team = Some("team2")).futureValue
-      val results2 = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), requiresAction = Some(false), service = Some("3"), team = Some("team1")).futureValue
+      val results1 = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), curationStatus = Some(CurationStatus.ActionRequired.asString), service = Some("3"), team = Some("team2")).futureValue
+      val results2 = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), curationStatus = Some(CurationStatus.ActionRequired.asString), service = Some("3"), team = Some("team1")).futureValue
 
       val results1Sorted = results1.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
       val results2Sorted = results2.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
       results1Sorted.length mustBe 0
       results2Sorted.length mustBe 1
-      results2Sorted must contain theSameElementsAs Seq(expected1)
+      results2Sorted mustBe Seq(expected1)
     }
 
     "return only unique teams" in {
-      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"))
       repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3, vulnerability3NoTeams, vulnerability3RepeatedService)).toFuture().futureValue
       val results = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), None, None, None).futureValue
 
