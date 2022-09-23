@@ -70,12 +70,12 @@ class VulnerabilitiesRepository @Inject()(
     val Quoted = """^\"(.*)\"$""".r
 
     val optFilters = Seq(
-                    id.map(i => Filters.regex("id", i)),
+                    id.map(i => Filters.regex("id", i.toUpperCase())),
         curationStatus.map(r => Filters.equal("curationStatus", r)),
                   team.map(t => Filters.equal("teams", t)),
                service.map{
-                 case Quoted(s) => Filters.equal("service", s)
-                 case s         => Filters.regex("service", s)
+                 case Quoted(s) => Filters.equal("service", s.toLowerCase())
+                 case s         => Filters.regex("service", s.toLowerCase())
                }
     ).flatten
 
