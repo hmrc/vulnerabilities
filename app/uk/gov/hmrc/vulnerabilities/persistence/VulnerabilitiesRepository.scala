@@ -19,7 +19,7 @@ package uk.gov.hmrc.vulnerabilities.persistence
 import com.mongodb.client.model.Indexes
 import org.mongodb.scala.bson.{BsonArray, BsonDocument}
 import org.mongodb.scala.MongoCollection
-import org.mongodb.scala.model.Accumulators.{addToSet, first, push}
+import org.mongodb.scala.model.Accumulators.{first, push}
 import org.mongodb.scala.model.Aggregates._
 import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, Sorts}
 import uk.gov.hmrc.mongo.MongoComponent

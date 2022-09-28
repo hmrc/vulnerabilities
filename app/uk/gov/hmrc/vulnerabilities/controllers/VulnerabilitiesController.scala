@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.controllers
 
-import play.api.libs.json.{Json, OFormat, Reads}
+import play.api.libs.json.{Json, OFormat}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.vulnerabilities.model.{Vulnerability, VulnerabilitySummary}
@@ -28,7 +28,7 @@ import scala.concurrent.ExecutionContext
 @Singleton()
 class VulnerabilitiesController @Inject()(
     cc: ControllerComponents,
-    vulnerabilitiesService: VulnerabilitiesService,
+    vulnerabilitiesService: VulnerabilitiesService
 )(implicit ec: ExecutionContext) extends BackendController(cc) {
 
   def vulnerabilities(service: Option[String], id: Option[String], description: Option[String], team: Option[String]): Action[AnyContent] = Action.async {
@@ -47,5 +47,10 @@ class VulnerabilitiesController @Inject()(
     }
   }
 
+  def getDistinctVulnerabilities(service: String): Action[AnyContent] = Action.async {
+    vulnerabilitiesService.countDistinctVulnerabilities(service).map {
+      result => Ok(Json.toJson(result))
+    }
+  }
 }
 
