@@ -31,14 +31,6 @@ class VulnerabilitiesController @Inject()(
     vulnerabilitiesService: VulnerabilitiesService
 )(implicit ec: ExecutionContext) extends BackendController(cc) {
 
-  def vulnerabilities(service: Option[String], id: Option[String], description: Option[String], team: Option[String]): Action[AnyContent] = Action.async {
-    implicit val fmt: OFormat[Vulnerability] = Vulnerability.apiFormat
-    vulnerabilitiesService.allVulnerabilities(service, id, description, team).map {
-      result =>
-        Ok(Json.toJson(result))
-    }
-  }
-
   def distinctVulnerabilitySummaries(vulnerability: Option[String] = None, curationStatus: Option[String] = None, service: Option[String] = None, team: Option[String] = None): Action[AnyContent] =
     Action.async {
     implicit val fmt: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat

@@ -28,9 +28,6 @@ class VulnerabilitiesService @Inject() (
   vulnerabilitiesRepository: VulnerabilitiesRepository,
 )(implicit val ec: ExecutionContext) {
 
-  def allVulnerabilities(service: Option[String], id: Option[String], description: Option[String], team: Option[String]): Future[Seq[Vulnerability]] =
-    vulnerabilitiesRepository.search(service, id, description, team)
-
   def countDistinctVulnerabilities(service: String): Future[Int] = {
     // adds quotes for regex exact match
     val serviceWithQuotes = Some(s"\"$service\"")

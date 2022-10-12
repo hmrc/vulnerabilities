@@ -142,39 +142,6 @@ class VulnerabilitiesRepositorySpec
       ticket = Some("BDOG-3")
     )
 
-  "search" must {
-
-    "find all vulnerabilities" in {
-      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3)).toFuture().futureValue
-      val results = repository.search().futureValue
-      results must contain allOf(vulnerability1, vulnerability2, vulnerability3)
-    }
-
-    "find all vulnerabilities by team name" in {
-      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3)).toFuture().futureValue
-      val results = repository.search(team = Some("team2")).futureValue
-      results must contain only (vulnerability1, vulnerability2)
-    }
-
-    "find all vulnerabilities for a service" in {
-      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3)).toFuture().futureValue
-      val results = repository.search(service = Some("service1")).futureValue
-      results must contain only (vulnerability1)
-    }
-
-    "find all vulnerabilities by id" in {
-      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3)).toFuture().futureValue
-      val results = repository.search(id = Some("CVE-TEST-1")).futureValue
-      results must contain only (vulnerability1)
-    }
-
-    "find all vulnerabilities by description" in {
-      repository.collection.insertMany(Seq(vulnerability1, vulnerability2, vulnerability3)).toFuture().futureValue
-      val results = repository.search(description = Some("desc")).futureValue
-      results must contain allOf(vulnerability1, vulnerability2, vulnerability3)
-    }
-  }
-
   "distinctVulnerabilitySummary" must {
 
     val expectedDistinctVulnerabilities = Seq(
