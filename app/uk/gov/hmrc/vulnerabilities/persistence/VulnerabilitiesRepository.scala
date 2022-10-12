@@ -44,19 +44,6 @@ class VulnerabilitiesRepository @Inject()(
     IndexModel(Indexes.ascending("curationStatus"), IndexOptions().name("curationStatus").background(true)),
   ),
 ) {
-  def search(service: Option[String] = None, id: Option[String] = None, description: Option[String] = None, team: Option[String] = None): Future[Seq[Vulnerability]] = {
-    val filters = Seq(
-      service.map(s => Filters.equal("service", s)),
-           id.map(i => Filters.regex("id", i)),
-  description.map(d => Filters.regex("description", d)),
-         team.map(t => Filters.equal("teams", t))
-    ).flatten
-
-    filters match {
-      case Nil => collection.find().toFuture()
-      case more => collection.find(Filters.and(more: _*)).toFuture()
-    }
-  }
 
   // use a different view to allow distinctVulnerabilitiesSummary to return a different case class
   private val vcsCollection: MongoCollection[VulnerabilitySummary] =
