@@ -18,24 +18,24 @@ package uk.gov.hmrc.vulnerabilities.service
 
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.ActionRequired
 import uk.gov.hmrc.vulnerabilities.model.{Vulnerability, VulnerabilitySummary}
-import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitiesRepository
+import uk.gov.hmrc.vulnerabilities.persistence.{VulnerabilitiesRepository, VulnerabilitySummariesRepository}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class VulnerabilitiesService @Inject() (
-  vulnerabilitiesRepository: VulnerabilitiesRepository,
+ vulnerabilitySummariesRepository: VulnerabilitySummariesRepository
 )(implicit val ec: ExecutionContext) {
 
   def countDistinctVulnerabilities(service: String): Future[Int] = {
     // adds quotes for regex exact match
     val serviceWithQuotes = Some(s"\"$service\"")
-    vulnerabilitiesRepository.distinctVulnerabilitiesSummary(None, Some(ActionRequired.asString), serviceWithQuotes, None)
+    vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(None, Some(ActionRequired.asString), serviceWithQuotes, None)
       .map(_.map(vs => vs.distinctVulnerability.id).toSet.size)
   }
 
   def distinctVulnerabilitiesSummary(vulnerability: Option[String], curationStatus: Option[String], service: Option[String], team: Option[String]): Future[Seq[VulnerabilitySummary]] = {
-    vulnerabilitiesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team)
+    vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team)
   }
 }
