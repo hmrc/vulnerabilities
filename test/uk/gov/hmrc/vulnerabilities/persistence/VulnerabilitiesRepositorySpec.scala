@@ -20,7 +20,7 @@ import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, VulnerabilityOccurrence, VulnerabilitySummary}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -43,6 +43,10 @@ class VulnerabilitiesRepositorySpec
       distinctVulnerability = DistinctVulnerability(
         vulnerableComponentName = "component1",
         vulnerableComponentVersion = "1.0",
+        vulnerableComponents = Seq(
+          VulnerableComponent("component1", "1.0"),
+          VulnerableComponent("component1.1", "0.8")
+        ),
         id = "CVE-TEST-1",
         score = Some(1.0),
         description = "desc1",
@@ -54,8 +58,8 @@ class VulnerabilitiesRepositorySpec
         ticket = Some("BDOG-1")
       ),
       occurrences = Seq(
-        VulnerabilityOccurrence(service = "service1", serviceVersion = "1", componentPathInSlug = "a", teams = Seq("team1"), envs = Seq("development")),
-        VulnerabilityOccurrence(service = "service6", serviceVersion = "2.55", componentPathInSlug = "apache:x", teams = Seq("team2"), envs = Seq("staging", "production"))
+        VulnerabilityOccurrence(service = "service1", serviceVersion = "1", componentPathInSlug = "a", teams = Seq("team1"), envs = Seq("development"), vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0"),
+        VulnerabilityOccurrence(service = "service6", serviceVersion = "2.55", componentPathInSlug = "apache:x", teams = Seq("team2"), envs = Seq("staging", "production"), vulnerableComponentName = "component1.1", vulnerableComponentVersion = "0.8")
       ),
       teams = Seq("team1", "team2")
     )
@@ -65,6 +69,9 @@ class VulnerabilitiesRepositorySpec
       distinctVulnerability = DistinctVulnerability(
         vulnerableComponentName = "component2",
         vulnerableComponentVersion = "2.0",
+        vulnerableComponents = Seq(
+          VulnerableComponent("component2", "2.0"),
+        ),
         id = "CVE-TEST-2",
         score = Some(1.0),
         description = "desc2",
@@ -76,8 +83,8 @@ class VulnerabilitiesRepositorySpec
         ticket = Some("BDOG-2")
       ),
       occurrences = Seq(
-        VulnerabilityOccurrence(service = "service2", serviceVersion = "2", componentPathInSlug = "b", teams = Seq("team1"), envs = Seq("staging")),
-        VulnerabilityOccurrence(service = "helloWorld", serviceVersion = "2.51", componentPathInSlug = "apache:y", teams = Seq("team1", "team2"), envs = Seq("qa"))
+        VulnerabilityOccurrence(service = "service2", serviceVersion = "2", componentPathInSlug = "b", teams = Seq("team1"), envs = Seq("staging"), vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0"),
+        VulnerabilityOccurrence(service = "helloWorld", serviceVersion = "2.51", componentPathInSlug = "apache:y", teams = Seq("team1", "team2"), envs = Seq("qa"), vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0")
       ),
       teams = Seq("team1", "team2")
     )
@@ -86,6 +93,9 @@ class VulnerabilitiesRepositorySpec
     distinctVulnerability = DistinctVulnerability(
       vulnerableComponentName = "component3",
       vulnerableComponentVersion = "3.0",
+      vulnerableComponents = Seq(
+        VulnerableComponent("component3", "3.0")
+      ),
       id = "XRAY-TEST-1",
       score = Some(2.0),
       description = "desc3",
@@ -97,9 +107,9 @@ class VulnerabilitiesRepositorySpec
       ticket = Some("BDOG-3")
     ),
     occurrences = Seq(
-      VulnerabilityOccurrence(service = "service3",serviceVersion = "3", componentPathInSlug = "c", teams = Seq(), envs = Seq("development")),
-      VulnerabilityOccurrence(service = "service3",serviceVersion = "3.1",componentPathInSlug = "d", teams = Seq(), envs =Seq("production")),
-      VulnerabilityOccurrence(service = "service33",serviceVersion = "3",componentPathInSlug = "e",teams = Seq("team1"), envs =Seq("staging", "production")),
+      VulnerabilityOccurrence(service = "service3",serviceVersion = "3", componentPathInSlug = "c", teams = Seq(), envs = Seq("development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service3",serviceVersion = "3.1",componentPathInSlug = "d", teams = Seq(), envs =Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service33",serviceVersion = "3",componentPathInSlug = "e",teams = Seq("team1"), envs =Seq("staging", "production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
     ),
     teams = Seq("team1")
   )
@@ -109,19 +119,22 @@ class VulnerabilitiesRepositorySpec
     //Building blocks for VulnerabilitySummary expected results
     val expectedDistinctVulnerabilities = Seq(
       DistinctVulnerability(
-        vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0", id = "CVE-TEST-1",
+        vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0",
+        vulnerableComponents = Seq(VulnerableComponent("component1", "1.0"), VulnerableComponent("component1.1", "0.8")), id = "CVE-TEST-1",
         score = Some(1.0), description = "desc1", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
         curationStatus = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-1"),
         fixedVersions = None
       ),
       DistinctVulnerability(
-        vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0", id = "CVE-TEST-2",
+        vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0",
+        vulnerableComponents = Seq(VulnerableComponent("component2", "2.0")), id = "CVE-TEST-2",
         score = Some(1.0), description = "desc2", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
         curationStatus = Some(CurationStatus.NoActionRequired), ticket = Some("BDOG-2"),
         fixedVersions = Some(Seq("1", "2"))
       ),
       DistinctVulnerability(
-        vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0", id = "XRAY-TEST-1",
+        vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0",
+        vulnerableComponents = Seq(VulnerableComponent("component3", "3.0")), id = "XRAY-TEST-1",
         score = Some(2.0), description = "desc3", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
         curationStatus = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-3"),
         fixedVersions = None
@@ -130,13 +143,13 @@ class VulnerabilitiesRepositorySpec
 
     //Building blocks for VulnerabilitySummary expected results
     val expectedOccurrences = Seq(
-      VulnerabilityOccurrence(service = "service1"  , serviceVersion = "1"   , componentPathInSlug = "a",        teams = Seq("team1"),          envs = Seq("development")),
-      VulnerabilityOccurrence(service = "service2"  , serviceVersion = "2"   , componentPathInSlug = "b",        teams = Seq("team1"),          envs = Seq("staging")),
-      VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3"   , componentPathInSlug = "c",        teams = Seq(),                 envs = Seq("development")),
-      VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3.1" , componentPathInSlug = "d",        teams = Seq(),                 envs = Seq("production")),
-      VulnerabilityOccurrence(service = "service33" , serviceVersion = "3"   , componentPathInSlug = "e",        teams = Seq("team1"),          envs = Seq("staging", "production")),
-      VulnerabilityOccurrence(service = "service6"  , serviceVersion = "2.55", componentPathInSlug = "apache:x", teams = Seq("team2"),          envs = Seq("staging", "production")),
-      VulnerabilityOccurrence(service = "helloWorld", serviceVersion = "2.51", componentPathInSlug = "apache:y", teams = Seq("team1", "team2"), envs = Seq("qa"))
+      VulnerabilityOccurrence(service = "service1"  , serviceVersion = "1"   , componentPathInSlug = "a",        teams = Seq("team1"),          envs = Seq("development"), vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0"),
+      VulnerabilityOccurrence(service = "service2"  , serviceVersion = "2"   , componentPathInSlug = "b",        teams = Seq("team1"),          envs = Seq("staging"), vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0"),
+      VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3"   , componentPathInSlug = "c",        teams = Seq(),                 envs = Seq("development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3.1" , componentPathInSlug = "d",        teams = Seq(),                 envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service33" , serviceVersion = "3"   , componentPathInSlug = "e",        teams = Seq("team1"),          envs = Seq("staging", "production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service6"  , serviceVersion = "2.55", componentPathInSlug = "apache:x", teams = Seq("team2"),          envs = Seq("staging", "production"), vulnerableComponentName = "component1.1", vulnerableComponentVersion = "0.8"),
+      VulnerabilityOccurrence(service = "helloWorld", serviceVersion = "2.51", componentPathInSlug = "apache:y", teams = Seq("team1", "team2"), envs = Seq("qa"), vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0")
     )
 
     "default sort by descending score and ascending id" in {
