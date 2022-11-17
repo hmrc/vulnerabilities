@@ -1,0 +1,111 @@
+/*
+ * Copyright 2022 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package uk.gov.hmrc.vulnerabilities.service
+
+import akka.actor.ActorSystem
+import com.google.common.io.CharStreams
+import play.api.Logger
+import play.api.libs.json.Json
+import play.libs.Scala
+import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
+import uk.gov.hmrc.vulnerabilities.model.{Filter, Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus, Resource, ServiceVersionDeployments, Status, XrayFailure, XrayNoData, XrayRepo, XraySuccess}
+
+import java.util.zip.ZipInputStream
+import javax.inject.{Inject, Singleton}
+import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
+import scala.concurrent.{ExecutionContext, Future}
+import java.io.InputStream
+
+@Singleton
+class XrayService @Inject()(
+ xrayConnector: XrayConnector,
+ system       : ActorSystem
+)(implicit ec: ExecutionContext) {
+
+  private val logger = Logger(this.getClass)
+
+  def generateReports(svds: Seq[ServiceVersionDeployments]): Future[Seq[Option[Report]]] = {
+    implicit val rfmt = Report.apiFormat
+    val payloads = svds.map(createXrayPayload)
+      payloads.foldLeft(Future.successful(Seq.empty[Option[Report]])){(f, payload) =>
+        f.flatMap { r =>
+          for {
+            resp   <- xrayConnector.generateReport(payload)
+            status <- checkIfReportReady(resp, counter = 0)
+            report <- status match {
+              case XraySuccess => getReport(resp.reportID, payload.name)
+              case _           => {
+                logger.info(status.statusMessage)
+                Future(None)
+              }
+            }
+            deleted <- status match {
+              case XrayFailure => Future(ReportDelete(info = "Report not successfully generated, won't attempt to delete. This may require manual cleanup in UI"))
+              case _           => xrayConnector.deleteReport(resp.reportID)
+            }
+            _= logger.info(s"${deleted.info} for ${payload.name}")
+          } yield r :+ report
+        }
+      }
+  }
+
+  private def createXrayPayload(svd: ServiceVersionDeployments): ReportRequestPayload =
+    ReportRequestPayload(
+      name      = s"AppSec-report-${svd.serviceName}_${svd.version}",
+      resources = Resource(
+        Seq(
+          XrayRepo(name = "webstore-local")
+        )
+      ),
+      filters   = Filter(impactedArtifact = s"*/${svd.serviceName}_${svd.version}*")
+    )
+
+  private def getReport(reportId: Int, name: String): Future[Option[Report]] = {
+    implicit val rfmt = Report.apiFormat
+    for {
+      zip     <- xrayConnector.downloadReport(reportId, name)
+      text     = unzipReport(zip)
+      report   = text.map(t => Json.parse(t).as[Report])
+    } yield report
+  }
+
+  private def unzipReport(inputStream: InputStream): Option[String] = {
+    val zip = new ZipInputStream(inputStream)
+    Iterator.continually(zip.getNextEntry)
+      .takeWhile(_ != null)
+      .foldLeft(Option.empty[String])((found, entry) => {
+        Some(scala.io.Source.fromInputStream(zip).mkString)
+      })
+  }
+
+  private def checkIfReportReady(reportRequestResponse: ReportRequestResponse, counter: Int): Future[Status] = {
+    //Timeout after 30 secs
+    if (counter < 20) {
+      xrayConnector.checkStatus(reportRequestResponse.reportID).flatMap { rs => (rs.status, rs.rowCount) match {
+        case ("completed", rows) if rows > 0 => Future(XraySuccess)
+        case ("completed", _)                => Future(XrayNoData)
+        case _                               => akka.pattern.after(FiniteDuration(1500, MILLISECONDS), system.scheduler) {
+          checkIfReportReady(reportRequestResponse, counter + 1)
+        }
+      }}
+    } else {
+      Future(XrayFailure)
+    }
+  }
+
+
+}

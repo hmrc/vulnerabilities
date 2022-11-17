@@ -16,11 +16,13 @@
 
 package uk.gov.hmrc.vulnerabilities.controllers
 
+import play.api.Logging
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.connectors.ReleasesConnector
-import uk.gov.hmrc.vulnerabilities.model.{ServiceVersionDeployments, WhatsRunningWhere}
-import uk.gov.hmrc.vulnerabilities.service.WhatsRunningWhereService
+import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, XrayConnector}
+import uk.gov.hmrc.vulnerabilities.model.{Filter, ServiceVersionDeployments, WhatsRunningWhere}
+import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
+import uk.gov.hmrc.vulnerabilities.service.{WhatsRunningWhereService, XrayService}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
@@ -29,14 +31,23 @@ import scala.concurrent.ExecutionContext
 class UpdateVulnerabilitiesController @Inject()(
   cc: ControllerComponents,
   releasesConnector: ReleasesConnector,
-  whatsRunningWhereService: WhatsRunningWhereService
-)(implicit ec: ExecutionContext) extends BackendController(cc){
+  whatsRunningWhereService: WhatsRunningWhereService,
+  xrayService: XrayService,
+  rawReportsRepository: RawReportsRepository
+
+)(implicit ec: ExecutionContext) extends
+  BackendController(cc)
+  with Logging {
 
   def updateVulnerabilities: Action[AnyContent] = Action.async {
     //WIP - This will grow with each commit.
     for {
-      wrw         <- releasesConnector.getCurrentReleases
-      svDeps      = whatsRunningWhereService.getEnvsForServiceVersion(wrw)
-    } yield Ok("hi")
+      wrw             <- releasesConnector.getCurrentReleases
+      svDeps          = whatsRunningWhereService.getEnvsForServiceVersion(wrw)
+      _               = println(svDeps.length)
+      requestReports  <- xrayService.generateReports(svDeps)
+      insertedCount   <- rawReportsRepository.insertReports(requestReports.flatten)
+      _               = logger.info(s"Inserted ${insertedCount} documents into the rawReports collection")
+    } yield Ok(s"hi")
   }
 }
