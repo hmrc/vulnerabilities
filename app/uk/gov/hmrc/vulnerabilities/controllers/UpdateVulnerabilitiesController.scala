@@ -43,11 +43,13 @@ class UpdateVulnerabilitiesController @Inject()(
     //WIP - This will grow with each commit.
     for {
       wrw             <- releasesConnector.getCurrentReleases
-      svDeps          = whatsRunningWhereService.getEnvsForServiceVersion(wrw)
+      svDeps          = whatsRunningWhereService.getEnvsForServiceVersion(wrw).take(100)
       _               = println(svDeps.length)
       requestReports  <- xrayService.generateReports(svDeps)
       insertedCount   <- rawReportsRepository.insertReports(requestReports.flatten)
       _               = logger.info(s"Inserted ${insertedCount} documents into the rawReports collection")
+      unrefined       <- rawReportsRepository.getDistinctVulnerabilities
+      _               =println(unrefined)
     } yield Ok(s"hi")
   }
 }

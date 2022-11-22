@@ -20,7 +20,7 @@ import play.api.libs.functional.syntax.{toFunctionalBuilderOps, toInvariantFunct
 import play.api.libs.json.{Json, OFormat, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
-import java.time.Instant
+import java.time.{Instant, LocalDate, ZoneOffset}
 
 case class ReportRequestPayload(
  name: String,
@@ -100,22 +100,6 @@ object ReportStatus {
   }
 }
 
-case class Report(
- rows: Option[Seq[RawVulnerability]]
-)
-
-object Report {
-  val apiFormat = {
-    implicit val rvf = RawVulnerability.apiFormat
-    ((__ \ "rows").formatNullable[Seq[RawVulnerability]].inmap(Report.apply, unlift(Report.unapply)))
-  }
-
-  val mongoFormat = {
-    implicit val rvf = RawVulnerability.mongoFormat
-    ((__ \ "rows").formatNullable[Seq[RawVulnerability]].inmap(Report.apply, unlift(Report.unapply)))
-  }
-}
-
 case class ReportDelete(
  info: String
 )
@@ -123,6 +107,30 @@ case class ReportDelete(
 object ReportDelete {
   val apiFormat = {
     ((__ \ "info").format[String].inmap(ReportDelete.apply, unlift(ReportDelete.unapply)))
+  }
+}
+
+case class Report(
+ rows         : Option[Seq[RawVulnerability]],
+ generatedDate: Instant
+)
+
+object Report {
+  val generateDate: Instant = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC)
+
+  val apiFormat = {
+    implicit val rvf = RawVulnerability.apiFormat
+    ((__ \ "rows").formatNullable[Seq[RawVulnerability]]
+      ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDate), Some(_))
+      )(apply, unlift(unapply))
+  }
+
+  val mongoFormat = {
+    implicit val instantFormat = MongoJavatimeFormats.instantFormat
+    implicit val rvf = RawVulnerability.mongoFormat
+    ((__ \ "rows").formatNullable[Seq[RawVulnerability]]
+      ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDate), Some(_))
+      )(apply, unlift(unapply))
   }
 }
 
@@ -189,7 +197,7 @@ object RawVulnerability {
       ~ (__ \ "impacted_artifact"      ).format[String]
       ~ (__ \ "impact_path"            ).format[Seq[String]]
       ~ (__ \ "path"                   ).format[String]
-      ~ (__ \ "fixed_versions"          ).format[Seq[String]]
+      ~ (__ \ "fixed_versions"         ).format[Seq[String]]
       ~ (__ \ "published"              ).format[Instant]
       ~ (__ \ "artifact_scan_time"     ).format[Instant]
       ~ (__ \ "issue_id"               ).format[String]

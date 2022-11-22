@@ -17,10 +17,13 @@
 package uk.gov.hmrc.vulnerabilities.persistence
 
 import com.mongodb.client.model.Indexes
-import org.mongodb.scala.model.{IndexModel, IndexOptions}
+import org.mongodb.scala.MongoCollection
+import org.mongodb.scala.bson.{BsonArray, BsonDocument}
+import org.mongodb.scala.model.Aggregates.{group, project, unwind}
+import org.mongodb.scala.model.{Accumulators, IndexModel, IndexOptions}
 import uk.gov.hmrc.mongo.MongoComponent
-import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
-import uk.gov.hmrc.vulnerabilities.model.Report
+import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
+import uk.gov.hmrc.vulnerabilities.model.{Report, UnrefinedVulnerabilitySummary, VulnerabilitySummary}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -44,4 +47,40 @@ mongoComponent: MongoComponent
           .insertMany(reports)
           .toFuture()
           .map(res => res.getInsertedIds.size())
+
+      // use a different view to allow distinctVulnerabilitiesSummary to return a different case class
+      private val vcsCollection: MongoCollection[UnrefinedVulnerabilitySummary] =
+        CollectionFactory.collection(
+          mongoComponent.database,
+          "rawReports",
+          UnrefinedVulnerabilitySummary.reads
+        )
+
+      def getDistinctVulnerabilities: Future[Seq[UnrefinedVulnerabilitySummary]] =
+        vcsCollection.aggregate(
+          Seq(
+            unwind("$rows"),
+            unwind("$rows.cves"),
+            project(
+              BsonDocument(
+                "id" -> BsonDocument("$ifNull" -> BsonArray("$rows.cves.cve", "$rows.issue_id")),
+                "vuln" -> "$rows"
+              )
+            ),
+            group("$id", Accumulators.addToSet("vulns", "$vuln")),
+            project(
+              BsonDocument(
+                "distinctVulnerability" -> BsonDocument("$arrayElemAt" -> BsonArray("$vulns", 0)),
+                "occurrences" -> BsonDocument("$map" -> BsonDocument(
+                  "input" -> "$vulns",
+                  "as"    -> "v",
+                  "in"    -> BsonDocument(
+                    "vulnComponent" -> "$$v.vulnerable_component",
+                    "path"          -> "$$v.path"
+                  )
+                ))
+              )
+            )
+          )
+        ).toFuture()
 }
