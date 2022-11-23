@@ -17,12 +17,14 @@
 package uk.gov.hmrc.vulnerabilities.controllers
 
 import play.api.Logging
+import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, XrayConnector}
-import uk.gov.hmrc.vulnerabilities.model.{Filter, ServiceVersionDeployments, WhatsRunningWhere}
+import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector, XrayConnector}
+import uk.gov.hmrc.vulnerabilities.model.{Filter, ServiceVersionDeployments, VulnerabilitySummary, WhatsRunningWhere}
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
-import uk.gov.hmrc.vulnerabilities.service.{WhatsRunningWhereService, XrayService}
+import uk.gov.hmrc.vulnerabilities.service.{VulnerabilitiesService, WhatsRunningWhereService, XrayService}
+import uk.gov.hmrc.vulnerabilities.utils.AssessmentParser
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
@@ -31,9 +33,11 @@ import scala.concurrent.ExecutionContext
 class UpdateVulnerabilitiesController @Inject()(
   cc: ControllerComponents,
   releasesConnector: ReleasesConnector,
+  teamsAndRepositoriesConnector: TeamsAndRepositoriesConnector,
   whatsRunningWhereService: WhatsRunningWhereService,
   xrayService: XrayService,
-  rawReportsRepository: RawReportsRepository
+  rawReportsRepository: RawReportsRepository,
+  vulnerabilitiesService: VulnerabilitiesService
 
 )(implicit ec: ExecutionContext) extends
   BackendController(cc)
@@ -41,15 +45,19 @@ class UpdateVulnerabilitiesController @Inject()(
 
   def updateVulnerabilities: Action[AnyContent] = Action.async {
     //WIP - This will grow with each commit.
+    implicit val fmt = VulnerabilitySummary.apiFormat
     for {
       wrw             <- releasesConnector.getCurrentReleases
-      svDeps          = whatsRunningWhereService.getEnvsForServiceVersion(wrw).take(100)
-      _               = println(svDeps.length)
+      svDeps           = whatsRunningWhereService.getEnvsForServiceVersion(wrw).take(5)
+      _                = println(svDeps.length)
       requestReports  <- xrayService.generateReports(svDeps)
       insertedCount   <- rawReportsRepository.insertReports(requestReports.flatten)
-      _               = logger.info(s"Inserted ${insertedCount} documents into the rawReports collection")
+      _                = logger.info(s"Inserted ${insertedCount} documents into the rawReports collection")
       unrefined       <- rawReportsRepository.getDistinctVulnerabilities
-      _               =println(unrefined)
-    } yield Ok(s"hi")
+      reposWithTeams  <- teamsAndRepositoriesConnector.getCurrentReleases
+      refined          = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, svDeps)
+      assessments      = AssessmentParser.getAssessments()
+      finalSummaries   = vulnerabilitiesService.addInvestigationsToSummaries(refined, assessments)
+    } yield Ok(Json.toJson(finalSummaries))
   }
 }

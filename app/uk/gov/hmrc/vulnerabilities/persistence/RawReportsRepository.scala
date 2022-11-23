@@ -76,7 +76,8 @@ mongoComponent: MongoComponent
                   "as"    -> "v",
                   "in"    -> BsonDocument(
                     "vulnComponent" -> "$$v.vulnerable_component",
-                    "path"          -> "$$v.path"
+                    "path"          -> "$$v.path",
+                    "componentPhysicalPath" -> "$$v.component_physical_path"
                   )
                 ))
               )
