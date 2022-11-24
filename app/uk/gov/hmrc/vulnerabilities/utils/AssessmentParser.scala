@@ -18,49 +18,53 @@ package uk.gov.hmrc.vulnerabilities.utils
 
 import play.api.libs.functional.syntax.{toFunctionalBuilderOps, toInvariantFunctorOps, unlift}
 import play.api.libs.json.{Json, __}
+import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus
 
 import java.io.FileInputStream
 import java.time.Instant
-import scala.io.Source
+import javax.inject.{Inject, Singleton}
+import scala.concurrent.{ExecutionContext, Future}
 
-object AssessmentParser extends App{
+@Singleton
+class AssessmentParser @Inject() ()(implicit val ec: ExecutionContext) {
 
-  def getAssessments(): Map[String, Investigation] = {
-    implicit val fmt = Investigation.reads
+  def getAssessments(): Future[Map[String, Assessment]] = {
+    implicit val fmt = Assessment.reads
     val stream = new FileInputStream("app/uk/gov/hmrc/vulnerabilities/assets/investigations-idx.json")
-    val json = try {  Json.parse(stream) } finally { stream.close() }
-    json.as[Map[String, Investigation]]
+    val json = Future(Json.parse(stream))
+
+    json.map(_.as[Map[String, Assessment]])
   }
 }
 
-case class Investigation(
+case class Assessment(
   id            : String,
   assessment    : String,
   curationStatus: CurationStatus,
-  lastReviewed  : Date,
+  lastReviewed  : Instant,
   ticket        : String
 )
 
-object Investigation {
+object Assessment {
   val reads = {
-    implicit val df = Date.reads
     implicit val cf = CurationStatus.format
     ( (__ \ "id").format[String]
       ~ (__ \ "assessment").format[String]
       ~ (__ \ "curationStatus").format[CurationStatus]
-      ~ (__ \ "lastReviewed").format[Date]
+      ~ (__ \ "lastReviewed").format[Instant]
+      ~ (__ \ "ticket").format[String]
+      )(apply, unlift(unapply))
+  }
+
+  val mongoFormat = {
+    implicit val cf = CurationStatus.format
+    ( (__ \ "id").format[String]
+      ~ (__ \ "assessment").format[String]
+      ~ (__ \ "curationStatus").format[CurationStatus]
+      ~ (__ \ "lastReviewed").format[Instant]
       ~ (__ \ "ticket").format[String]
       )(apply, unlift(unapply))
   }
 }
 
-case class Date(
-                 date: Instant
-               )
-
-object Date {
-  val reads = {
-    ( (__ \ "$date").format[Instant]).inmap(Date.apply, unlift(Date.unapply))
-  }
-}

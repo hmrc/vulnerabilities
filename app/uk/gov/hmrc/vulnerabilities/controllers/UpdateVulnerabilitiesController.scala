@@ -22,7 +22,7 @@ import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector, XrayConnector}
 import uk.gov.hmrc.vulnerabilities.model.{Filter, ServiceVersionDeployments, VulnerabilitySummary, WhatsRunningWhere}
-import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
+import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.service.{VulnerabilitiesService, WhatsRunningWhereService, XrayService}
 import uk.gov.hmrc.vulnerabilities.utils.AssessmentParser
 
@@ -37,27 +37,40 @@ class UpdateVulnerabilitiesController @Inject()(
   whatsRunningWhereService: WhatsRunningWhereService,
   xrayService: XrayService,
   rawReportsRepository: RawReportsRepository,
-  vulnerabilitiesService: VulnerabilitiesService
+  vulnerabilitiesService: VulnerabilitiesService,
+  assessmentParser: AssessmentParser,
+  assessmentsRepository: AssessmentsRepository,
+  vulnerabilitySummariesRepository: VulnerabilitySummariesRepository
 
 )(implicit ec: ExecutionContext) extends
   BackendController(cc)
   with Logging {
 
   def updateVulnerabilities: Action[AnyContent] = Action.async {
-    //WIP - This will grow with each commit.
     implicit val fmt = VulnerabilitySummary.apiFormat
     for {
       wrw             <- releasesConnector.getCurrentReleases
-      svDeps           = whatsRunningWhereService.getEnvsForServiceVersion(wrw).take(5)
-      _                = println(svDeps.length)
+      svDeps           = whatsRunningWhereService.getEnvsForServiceVersion(wrw).take(1)
       requestReports  <- xrayService.generateReports(svDeps)
       insertedCount   <- rawReportsRepository.insertReports(requestReports.flatten)
       _                = logger.info(s"Inserted ${insertedCount} documents into the rawReports collection")
+      //When scheduler is implemented, need to add a date filter on generatedDate, so that the only
+      //new raw reports are transformed and added to final collection. Otherwise would get duplicates.
       unrefined       <- rawReportsRepository.getDistinctVulnerabilities
+      _=println(unrefined.size)
       reposWithTeams  <- teamsAndRepositoriesConnector.getCurrentReleases
       refined          = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, svDeps)
-      assessments      = AssessmentParser.getAssessments()
-      finalSummaries   = vulnerabilitiesService.addInvestigationsToSummaries(refined, assessments)
-    } yield Ok(Json.toJson(finalSummaries))
+      assessments     <- assessmentsRepository.getAssessments
+      finalAssessments = assessments.map(a => a.id -> a).toMap
+      finalSummaries   = vulnerabilitiesService.addInvestigationsToSummaries(refined, finalAssessments)
+      summariesCount  <- vulnerabilitySummariesRepository.insertSummaries(finalSummaries)
+    } yield Ok(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
+  }
+
+  def updateAssessments: Action[AnyContent] = Action.async {
+    for {
+      assessments <- assessmentParser.getAssessments()
+      insertCount <- assessmentsRepository.insertAssessments(assessments.values.toSeq)
+    } yield Ok(s"Inserted ${insertCount} documents into the assessments collection")
   }
 }

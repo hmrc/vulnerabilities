@@ -19,7 +19,7 @@ package uk.gov.hmrc.vulnerabilities.service
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.ActionRequired
 import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, ServiceVersionDeployments, UnrefinedVulnerabilityOccurrence, UnrefinedVulnerabilitySummary, Vulnerability, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent, WhatsRunningWhere}
 import uk.gov.hmrc.vulnerabilities.persistence.{VulnerabilitiesRepository, VulnerabilitySummariesRepository}
-import uk.gov.hmrc.vulnerabilities.utils.Investigation
+import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -84,7 +84,7 @@ class VulnerabilitiesService @Inject() (
     }
 
 
-  def addInvestigationsToSummaries(summaries: Seq[VulnerabilitySummary], investigations: Map[String, Investigation]): Seq[VulnerabilitySummary] = {
+  def addInvestigationsToSummaries(summaries: Seq[VulnerabilitySummary], investigations: Map[String, Assessment]): Seq[VulnerabilitySummary] = {
     summaries.map { vs =>
       investigations.get(vs.distinctVulnerability.id) match {
         case Some(inv) =>
