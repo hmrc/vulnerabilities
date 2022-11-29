@@ -79,7 +79,8 @@ class VulnerabilitiesService @Inject() (
           ticket = None
         ),
         occurrences = occs,
-        teams = occs.flatMap(_.teams).distinct
+        teams = occs.flatMap(_.teams).distinct,
+        generatedDate = u.generatedDate
       )
     }
 

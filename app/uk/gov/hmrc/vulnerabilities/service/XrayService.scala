@@ -63,7 +63,7 @@ class XrayService @Inject()(
       }
   }
 
-  private def createXrayPayload(svd: ServiceVersionDeployments): ReportRequestPayload =
+  def createXrayPayload(svd: ServiceVersionDeployments): ReportRequestPayload =
     ReportRequestPayload(
       name      = s"AppSec-report-${svd.serviceName}_${svd.version}",
       resources = Resource(

@@ -3,9 +3,5 @@
 GET        /api/vulnerabilities/distinct      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.distinctVulnerabilitySummaries(vulnerability: Option[String] ?= None, curationStatus: Option[String] ?= None, service: Option[String] ?= None, team: Option[String] ?= None)
 GET        /api/vulnerabilities/count         uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.getDistinctVulnerabilities(service: String)
 
-# WIP Route to test controller - will eventually be triggered internally via scheduler
-GET        /api/vulnerabilities/test/wrw      uk.gov.hmrc.vulnerabilities.controllers.UpdateVulnerabilitiesController.updateVulnerabilities
-
 # To be triggered locally to initially get the Assessments collection from downloaded JSON file
-
-GET        /api/vulnerabilities/test/inv      uk.gov.hmrc.vulnerabilities.controllers.UpdateVulnerabilitiesController.updateAssessments
+GET        /api/vulnerabilities/test/inv      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.updateAssessments

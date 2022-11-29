@@ -14,23 +14,21 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.vulnerabilities.controllers
+package uk.gov.hmrc.vulnerabilities.service
 
 import play.api.Logging
-import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector, XrayConnector}
-import uk.gov.hmrc.vulnerabilities.model.{Filter, ServiceVersionDeployments, VulnerabilitySummary, WhatsRunningWhere}
+import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector}
+import uk.gov.hmrc.vulnerabilities.model.VulnerabilitySummary
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilitySummariesRepository}
-import uk.gov.hmrc.vulnerabilities.service.{VulnerabilitiesService, WhatsRunningWhereService, XrayService}
 import uk.gov.hmrc.vulnerabilities.utils.AssessmentParser
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class UpdateVulnerabilitiesController @Inject()(
+class UpdateVulnerabilitiesService @Inject()(
   cc: ControllerComponents,
   releasesConnector: ReleasesConnector,
   teamsAndRepositoriesConnector: TeamsAndRepositoriesConnector,
@@ -38,7 +36,6 @@ class UpdateVulnerabilitiesController @Inject()(
   xrayService: XrayService,
   rawReportsRepository: RawReportsRepository,
   vulnerabilitiesService: VulnerabilitiesService,
-  assessmentParser: AssessmentParser,
   assessmentsRepository: AssessmentsRepository,
   vulnerabilitySummariesRepository: VulnerabilitySummariesRepository
 
@@ -46,7 +43,7 @@ class UpdateVulnerabilitiesController @Inject()(
   BackendController(cc)
   with Logging {
 
-  def updateVulnerabilities: Action[AnyContent] = Action.async {
+  def updateVulnerabilities: Future[Unit] = {
     implicit val fmt = VulnerabilitySummary.apiFormat
     for {
       wrw             <- releasesConnector.getCurrentReleases
@@ -54,23 +51,14 @@ class UpdateVulnerabilitiesController @Inject()(
       requestReports  <- xrayService.generateReports(svDeps)
       insertedCount   <- rawReportsRepository.insertReports(requestReports.flatten)
       _                = logger.info(s"Inserted ${insertedCount} documents into the rawReports collection")
-      //When scheduler is implemented, need to add a date filter on generatedDate, so that the only
-      //new raw reports are transformed and added to final collection. Otherwise would get duplicates.
-      unrefined       <- rawReportsRepository.getDistinctVulnerabilities
-      _=println(unrefined.size)
+      unrefined       <- rawReportsRepository.getNewDistinctVulnerabilities
+      _                =logger.info(s"Retrieved ${unrefined.size} unrefined vulnerability summaries")
       reposWithTeams  <- teamsAndRepositoriesConnector.getCurrentReleases
       refined          = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, svDeps)
       assessments     <- assessmentsRepository.getAssessments
       finalAssessments = assessments.map(a => a.id -> a).toMap
       finalSummaries   = vulnerabilitiesService.addInvestigationsToSummaries(refined, finalAssessments)
       summariesCount  <- vulnerabilitySummariesRepository.insertSummaries(finalSummaries)
-    } yield Ok(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
-  }
-
-  def updateAssessments: Action[AnyContent] = Action.async {
-    for {
-      assessments <- assessmentParser.getAssessments()
-      insertCount <- assessmentsRepository.insertAssessments(assessments.values.toSeq)
-    } yield Ok(s"Inserted ${insertCount} documents into the assessments collection")
+    } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
   }
 }

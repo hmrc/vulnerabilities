@@ -20,7 +20,7 @@ import play.api.libs.functional.syntax.{toFunctionalBuilderOps, toInvariantFunct
 import play.api.libs.json.{Json, OFormat, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
-import java.time.{Instant, LocalDate, ZoneOffset}
+import java.time.{Instant, LocalDate, LocalDateTime, ZoneOffset}
 
 case class ReportRequestPayload(
  name: String,
@@ -116,12 +116,12 @@ case class Report(
 )
 
 object Report {
-  val generateDate: Instant = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC)
+  def generateDateTime: Instant = LocalDateTime.now().toInstant(ZoneOffset.UTC)
 
   val apiFormat = {
     implicit val rvf = RawVulnerability.apiFormat
     ((__ \ "rows").formatNullable[Seq[RawVulnerability]]
-      ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDate), Some(_))
+      ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
       )(apply, unlift(unapply))
   }
 
@@ -129,7 +129,7 @@ object Report {
     implicit val instantFormat = MongoJavatimeFormats.instantFormat
     implicit val rvf = RawVulnerability.mongoFormat
     ((__ \ "rows").formatNullable[Seq[RawVulnerability]]
-      ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDate), Some(_))
+      ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
       )(apply, unlift(unapply))
   }
 }
