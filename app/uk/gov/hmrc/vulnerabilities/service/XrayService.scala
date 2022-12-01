@@ -23,6 +23,7 @@ import play.api.libs.json.Json
 import play.libs.Scala
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.model.{Filter, Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus, Resource, ServiceVersionDeployments, Status, XrayFailure, XrayNoData, XrayRepo, XraySuccess}
+import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
 import java.util.zip.ZipInputStream
 import javax.inject.{Inject, Singleton}
@@ -33,34 +34,46 @@ import java.io.InputStream
 @Singleton
 class XrayService @Inject()(
  xrayConnector: XrayConnector,
- system       : ActorSystem
+ system       : ActorSystem,
+ rawReportsRepository: RawReportsRepository
 )(implicit ec: ExecutionContext) {
 
   private val logger = Logger(this.getClass)
 
-  def generateReports(svds: Seq[ServiceVersionDeployments]): Future[Seq[Option[Report]]] = {
+  def generateAndInsertReports(svds: Seq[ServiceVersionDeployments]): Future[Unit] = {
     implicit val rfmt = Report.apiFormat
     val payloads = svds.map(createXrayPayload)
-      payloads.foldLeft(Future.successful(Seq.empty[Option[Report]])){(f, payload) =>
-        f.flatMap { r =>
-          for {
-            resp   <- xrayConnector.generateReport(payload)
-            status <- checkIfReportReady(resp, counter = 0)
-            report <- status match {
-              case XraySuccess => getReport(resp.reportID, payload.name)
-              case _           => {
-                logger.info(status.statusMessage)
-                Future(None)
-              }
+    payloads.foldLeft(Future.successful( Seq.empty[String] )){(processedPayloads, payload) =>
+      processedPayloads.flatMap { p =>
+        for {
+          resp <- xrayConnector.generateReport(payload)
+          status <- checkIfReportReady(resp, counter = 0)
+          report <- status match {
+            case XraySuccess => getReport(resp.reportID, payload.name)
+            case _ => {
+              logger.info(status.statusMessage)
+              Future(None)
             }
-            deleted <- status match {
-              case XrayFailure => Future(ReportDelete(info = "Report not successfully generated, won't attempt to delete. This may require manual cleanup in UI"))
-              case _           => xrayConnector.deleteReport(resp.reportID)
+          }
+          deleted <- status match {
+            case XrayFailure => Future(ReportDelete(info = "Report not successfully generated, won't attempt to delete. This may require manual cleanup in UI"))
+            case _ => xrayConnector.deleteReport(resp.reportID)
+          }
+          _ = logger.info(s"${deleted.info} for ${payload.name}")
+          _ = report match {
+            case Some(rep) => {
+              rawReportsRepository.insertReport(rep)
+              logger.info(s"Inserted report for ${payload.name} into rawReports repository")
             }
-            _= logger.info(s"${deleted.info} for ${payload.name}")
-          } yield r :+ report
-        }
+            case _ => logger.info(s"No report to insert for ${payload.name}")
+          }
+        } yield p :+ payload.name
       }
+    }.map{processed =>
+      logger.info(s"Finished processing ${processed.length} payloads. " +
+        s"Note this number may differ to the number of raw reports in the collection, as we don't download reports with no rows in.")
+      Future.unit
+    }
   }
 
   def createXrayPayload(svd: ServiceVersionDeployments): ReportRequestPayload =

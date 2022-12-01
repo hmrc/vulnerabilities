@@ -39,9 +39,8 @@ class XrayConnector @Inject() (
   materializer: Materializer)
 extends Logging{
 
-  private val username = "redacted"
   private val token = "redacted"
-  private val authHeaderValue = {s"Basic ${BaseEncoding.base64().encode(s"$username:$token".getBytes("UTF-8"))}"}
+  private val authHeaderValue = {s" ${BaseEncoding.base64().encode(s"$token".getBytes("UTF-8"))}"}
 
   private implicit val hc: HeaderCarrier = HeaderCarrier()
 
@@ -54,7 +53,7 @@ extends Logging{
       .post(url"https://artefacts.tax.service.gov.uk/xray/api/v1/reports/vulnerabilities")
       .withProxy
       .setHeader(
-        "Authorization" -> authHeaderValue,
+        "Authorization" -> s"Bearer $token",
         "Content-Type"  -> "application/json"
       ).withBody(Json.toJson(payload))
       .execute[ReportRequestResponse]
@@ -66,7 +65,7 @@ extends Logging{
       .get(url"https://artefacts.tax.service.gov.uk/xray/api/v1/reports/$id")
       .withProxy
       .setHeader(
-        "Authorization" -> authHeaderValue,
+        "Authorization" -> s"Bearer $token",
         "Content-Type"  -> "application/json"
       )
       .execute[ReportStatus]
@@ -79,7 +78,7 @@ extends Logging{
       .get(url"https://artefacts.tax.service.gov.uk/xray/api/v1/reports/export/$reportId?file_name=$filename&format=json")
       .withProxy
       .setHeader(
-        "Authorization" -> authHeaderValue,
+        "Authorization" -> s"Bearer $token",
         "Content-Type" -> "application/json"
       )
       .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
@@ -101,7 +100,7 @@ extends Logging{
         .delete(url"https://artefacts.tax.service.gov.uk/xray/api/v1/reports/$reportId")
         .withProxy
         .setHeader(
-          "Authorization" -> authHeaderValue,
+          "Authorization" -> s"Bearer $token",
           "Content-Type"  -> "application/json"
         ).execute[ReportDelete]
     }

@@ -25,7 +25,9 @@ class WhatsRunningWhereService @Inject()(){
 
   def getEnvsForServiceVersion(wrw: Seq[WhatsRunningWhere]): Seq[ServiceVersionDeployments] =
     wrw
-      .flatMap(wrw => wrw.deployments
+      .flatMap(wrw =>
+        removeIntegrationAndDevelopment(wrw)
+          .deployments
         .groupBy(_.version)
         .mapValues(deployments => deployments.map(_.environment))
         .map(versionAndEnvs =>
@@ -35,7 +37,13 @@ class WhatsRunningWhereService @Inject()(){
             versionAndEnvs._2
           )
         )
-      ).sortBy(sd => (sd.serviceName, sd.version))
+      )
+      .filterNot(_.environments.isEmpty)    //Remove any SVDs that were only deployed in Int/Dev
+      .sortBy(sd => (sd.serviceName, sd.version))
 
-
+   def removeIntegrationAndDevelopment(wrw: WhatsRunningWhere): WhatsRunningWhere =
+     wrw
+       .copy(deployments = wrw.deployments
+         .filterNot(dep => (dep.environment == "integration" || dep.environment == "development"))
+       )
 }

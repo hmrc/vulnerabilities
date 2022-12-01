@@ -3,5 +3,6 @@
 GET        /api/vulnerabilities/distinct      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.distinctVulnerabilitySummaries(vulnerability: Option[String] ?= None, curationStatus: Option[String] ?= None, service: Option[String] ?= None, team: Option[String] ?= None)
 GET        /api/vulnerabilities/count         uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.getDistinctVulnerabilities(service: String)
 
-# To be triggered locally to initially get the Assessments collection from downloaded JSON file
-GET        /api/vulnerabilities/test/inv      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.updateAssessments
+# Admin
+GET        /api/vulnerabilities/admin/updateAssessments      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.updateAssessments
+GET        /api/vulnerabilities/admin/reload                 uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.manualReload()

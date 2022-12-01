@@ -19,45 +19,54 @@ package uk.gov.hmrc.vulnerabilities.utils
 import akka.actor.ActorSystem
 import play.api.inject.ApplicationLifecycle
 import play.api.{Configuration, Logger}
-import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
+import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.vulnerabilities.config.{SchedulerConfig, SchedulerConfigs}
+import uk.gov.hmrc.vulnerabilities.persistence.{MongoLock, RawReportsRepository, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.service.UpdateVulnerabilitiesService
 
 import java.time.temporal.ChronoUnit
 import java.time.{Instant, LocalDateTime, ZoneOffset}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import scala.concurrent.duration.{DAYS, DurationInt, FiniteDuration}
+import scala.util.control.NonFatal
 
 @Singleton
 class Scheduler @Inject()(
- updateVulnerabilitiesService: UpdateVulnerabilitiesService,
- configuration: Configuration,
- rawReportsRepository: RawReportsRepository
+   updateVulnerabilitiesService: UpdateVulnerabilitiesService,
+   config: SchedulerConfigs,
+   vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
+   mongoLock:           MongoLock
 )( implicit
    actorSystem         : ActorSystem,
    applicationLifecycle: ApplicationLifecycle,
    ec                  : ExecutionContext
-) {
-  private val logger          = Logger(getClass)
-  private val rebuildInterval = configuration.get[FiniteDuration]("scheduler.interval")
-  private def getNow             = LocalDateTime.now().toInstant(ZoneOffset.UTC)
+) extends SchedulerUtils {
 
-  private def sevenDaysOld(latestData: Instant, now: Instant): Boolean = latestData.plus(7, ChronoUnit.DAYS).isAfter(now)
+  private val logger= Logger(getClass)
+  implicit val hc: HeaderCarrier = HeaderCarrier()
 
-  val cancellable = actorSystem.scheduler.scheduleWithFixedDelay(1.second, rebuildInterval) {
-    () => {
-      rawReportsRepository.getMostRecent.map(latest =>
+  private def getNow = LocalDateTime.now().toInstant(ZoneOffset.UTC)
+  private def sevenDaysOld(latestData: Instant, now: Instant): Boolean = latestData.isBefore(now.minus(7L, ChronoUnit.DAYS))
+
+  scheduleWithLock("Vulnerabilities data Reloader", config.dataReloadScheduler, mongoLock.dataReloadLock) {
+      vulnerabilitySummariesRepository.getMostRecent.map(latest =>
       if (sevenDaysOld(latest, getNow)) {
         logger.info("Data is older than 7 days - beginning data refresh")
         updateVulnerabilitiesService.updateVulnerabilities
       } else {
-        println(s"Latest: ${latest}")
+        println(latest)
         logger.info("Data has already been retrieved from Xray within the last 7 days. No need to update it.")
       }
       )
-    }
   }
 
-  applicationLifecycle.addStopHook(() => Future(cancellable.cancel()))
-
+  def manualReload: Future[Unit] = {
+    mongoLock.dataReloadLock
+      .withLock {
+        logger.info("Data refresh has been manually triggered")
+        updateVulnerabilitiesService.updateVulnerabilities
+      }
+      .map(_.getOrElse(logger.debug(s"The Reload process is locked for ${mongoLock.dataReloadLock.lockId}")))
+  }
 }

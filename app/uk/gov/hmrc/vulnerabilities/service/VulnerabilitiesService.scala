@@ -67,18 +67,18 @@ class VulnerabilitiesService @Inject() (
         distinctVulnerability = DistinctVulnerability(
           vulnerableComponentName = occs.head.vulnerableComponentName,
           vulnerableComponentVersion = occs.head.vulnerableComponentVersion,
-          vulnerableComponents = occs.map( o => VulnerableComponent(o.vulnerableComponentName, o.vulnerableComponentVersion)),
+          vulnerableComponents = occs.map( o => VulnerableComponent(o.vulnerableComponentName, o.vulnerableComponentVersion)).distinct,
           id = u.id,
-          score = u.distinctVulnerability.score,
+          score = u.score,
           description = u.distinctVulnerability.description,
           fixedVersions = u.distinctVulnerability.fixedVersions,
           references = u.distinctVulnerability.references,
           publishedDate = u.distinctVulnerability.publishedDate,
           assessment = None,
           curationStatus = None,
-          ticket = None
+          ticket = None,
         ),
-        occurrences = occs,
+        occurrences = occs.sortBy(_.service),
         teams = occs.flatMap(_.teams).distinct,
         generatedDate = u.generatedDate
       )

@@ -23,7 +23,7 @@ import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.vulnerabilities.model.{Vulnerability, VulnerabilitySummary}
 import uk.gov.hmrc.vulnerabilities.persistence.AssessmentsRepository
 import uk.gov.hmrc.vulnerabilities.service.VulnerabilitiesService
-import uk.gov.hmrc.vulnerabilities.utils.AssessmentParser
+import uk.gov.hmrc.vulnerabilities.utils.{AssessmentParser, Scheduler}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -33,7 +33,8 @@ class VulnerabilitiesController @Inject()(
     cc: ControllerComponents,
     vulnerabilitiesService: VulnerabilitiesService,
     assessmentParser: AssessmentParser,
-    assessmentsRepository: AssessmentsRepository
+    assessmentsRepository: AssessmentsRepository,
+    scheduler: Scheduler
 )(implicit ec: ExecutionContext) extends BackendController(cc)
 with Logging {
 
@@ -56,6 +57,11 @@ with Logging {
       assessments <- assessmentParser.getAssessments()
       insertCount <- assessmentsRepository.insertAssessments(assessments.values.toSeq)
     } yield Ok(s"Inserted ${insertCount} documents into the assessments collection")
+  }
+
+  def manualReload() = Action {
+    scheduler.manualReload
+    Accepted("Vulnerabilities data reload triggered.")
   }
 }
 

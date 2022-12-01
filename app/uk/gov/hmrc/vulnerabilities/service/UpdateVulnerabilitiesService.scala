@@ -17,12 +17,11 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import play.api.Logging
-import play.api.mvc.{Action, AnyContent, ControllerComponents}
+import play.api.mvc.ControllerComponents
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector}
 import uk.gov.hmrc.vulnerabilities.model.VulnerabilitySummary
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilitySummariesRepository}
-import uk.gov.hmrc.vulnerabilities.utils.AssessmentParser
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -47,18 +46,23 @@ class UpdateVulnerabilitiesService @Inject()(
     implicit val fmt = VulnerabilitySummary.apiFormat
     for {
       wrw             <- releasesConnector.getCurrentReleases
-      svDeps           = whatsRunningWhereService.getEnvsForServiceVersion(wrw).take(1)
-      requestReports  <- xrayService.generateReports(svDeps)
-      insertedCount   <- rawReportsRepository.insertReports(requestReports.flatten)
-      _                = logger.info(s"Inserted ${insertedCount} documents into the rawReports collection")
+      svDeps           = whatsRunningWhereService.getEnvsForServiceVersion(wrw)
+      _               <- xrayService.generateAndInsertReports(svDeps)
+      _                = logger.info(s"Finished generating and inserting reports into the rawReports collection")
       unrefined       <- rawReportsRepository.getNewDistinctVulnerabilities
-      _                =logger.info(s"Retrieved ${unrefined.size} unrefined vulnerability summaries")
+      _                = logger.info(s"Retrieved ${unrefined.length} unrefined vulnerability summaries")
       reposWithTeams  <- teamsAndRepositoriesConnector.getCurrentReleases
       refined          = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, svDeps)
       assessments     <- assessmentsRepository.getAssessments
       finalAssessments = assessments.map(a => a.id -> a).toMap
       finalSummaries   = vulnerabilitiesService.addInvestigationsToSummaries(refined, finalAssessments)
+      _                = logger.info("About to delete all documents from the vulnerabilitySummaries repository")
+      deletedCount    <- vulnerabilitySummariesRepository.deleteAllSummaries
+      _                = logger.info(s"Deleted ${deletedCount} documents from the vulnerabilitySummaries repository")
+      _                = logger.info(s"About to add ${finalSummaries.length} documents into the vulnerabilitySummaries repository")
       summariesCount  <- vulnerabilitySummariesRepository.insertSummaries(finalSummaries)
     } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
+  }.recoverWith{
+    case ex: Throwable => ex.printStackTrace(); Future.unit
   }
 }
