@@ -42,11 +42,13 @@ class UpdateVulnerabilitiesService @Inject()(
   BackendController(cc)
   with Logging {
 
-  def updateVulnerabilities: Future[Unit] = {
+  def updateVulnerabilities(): Future[Unit] = {
     implicit val fmt = VulnerabilitySummary.apiFormat
     for {
       wrw             <- releasesConnector.getCurrentReleases
       svDeps           = whatsRunningWhereService.getEnvsForServiceVersion(wrw)
+      //So we want something here to only download reports that don't exist in last 7 days in our raw reports collection
+      //Make it configurable.
       _               <- xrayService.generateAndInsertReports(svDeps)
       _                = logger.info(s"Finished generating and inserting reports into the rawReports collection")
       unrefined       <- rawReportsRepository.getNewDistinctVulnerabilities

@@ -47,25 +47,26 @@ class Scheduler @Inject()(
   implicit val hc: HeaderCarrier = HeaderCarrier()
 
   private def getNow = LocalDateTime.now().toInstant(ZoneOffset.UTC)
-  private def sevenDaysOld(latestData: Instant, now: Instant): Boolean = latestData.isBefore(now.minus(7L, ChronoUnit.DAYS))
+  private def sevenDaysOld(latestData: Instant, now: Instant): Boolean = !latestData.isBefore(now.minus(7L, ChronoUnit.DAYS))
 
   scheduleWithLock("Vulnerabilities data Reloader", config.dataReloadScheduler, mongoLock.dataReloadLock) {
-      vulnerabilitySummariesRepository.getMostRecent.map(latest =>
-      if (sevenDaysOld(latest, getNow)) {
-        logger.info("Data is older than 7 days - beginning data refresh")
-        updateVulnerabilitiesService.updateVulnerabilities
-      } else {
-        println(latest)
-        logger.info("Data has already been retrieved from Xray within the last 7 days. No need to update it.")
-      }
-      )
+    for {
+      latest <- vulnerabilitySummariesRepository.getMostRecent
+      _      <- if (sevenDaysOld(latest, getNow)) {
+                  logger.info("Data is older than 7 days - beginning data refresh")
+                  updateVulnerabilitiesService.updateVulnerabilities()
+                } else {
+                  logger.info("Data has already been retrieved from Xray within the last 7 days. No need to update it.")
+                  Future.unit
+                }
+    } yield ()
   }
 
   def manualReload: Future[Unit] = {
     mongoLock.dataReloadLock
       .withLock {
         logger.info("Data refresh has been manually triggered")
-        updateVulnerabilitiesService.updateVulnerabilities
+        updateVulnerabilitiesService.updateVulnerabilities()
       }
       .map(_.getOrElse(logger.debug(s"The Reload process is locked for ${mongoLock.dataReloadLock.lockId}")))
   }

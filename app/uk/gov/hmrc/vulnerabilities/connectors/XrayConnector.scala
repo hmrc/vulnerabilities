@@ -40,7 +40,6 @@ class XrayConnector @Inject() (
 extends Logging{
 
   private val token = "redacted"
-  private val authHeaderValue = {s" ${BaseEncoding.base64().encode(s"$token".getBytes("UTF-8"))}"}
 
   private implicit val hc: HeaderCarrier = HeaderCarrier()
 

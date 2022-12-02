@@ -25,8 +25,9 @@ object CurationStatus {
   case object InvestigationOngoing extends CurationStatus { override val asString = "INVESTIGATION_ONGOING"}
   case object NoActionRequired     extends CurationStatus { override val asString = "NO_ACTION_REQUIRED"}
   case object ActionRequired       extends CurationStatus { override val asString = "ACTION_REQUIRED"}
+  case object Uncurated            extends CurationStatus { override val asString = "UNCURATED"}
 
-  val values: List[CurationStatus] = List(InvestigationOngoing, NoActionRequired, ActionRequired)
+  val values: List[CurationStatus] = List(InvestigationOngoing, NoActionRequired, ActionRequired, Uncurated)
 
   def parse(s: String): Either[String, CurationStatus] =
     values
