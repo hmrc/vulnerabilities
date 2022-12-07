@@ -26,6 +26,7 @@ import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse, StringContextOp
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.vulnerabilities.model.{Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus, Status}
 import uk.gov.hmrc.http.HttpReads.Implicits._
+import uk.gov.hmrc.vulnerabilities.config.XrayConfig
 
 import java.io.InputStream
 import javax.inject.{Inject, Singleton}
@@ -33,13 +34,14 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class XrayConnector @Inject() (
-  httpClientV2: HttpClientV2
+  httpClientV2: HttpClientV2,
+  config: XrayConfig
 )(implicit
   ec: ExecutionContext,
   materializer: Materializer)
 extends Logging{
 
-  private val token = "redacted"
+  private val token = config.xrayToken
 
   private implicit val hc: HeaderCarrier = HeaderCarrier()
 
@@ -49,7 +51,7 @@ extends Logging{
     implicit val rfmt = ReportRequestResponse.apiFormat
 
     httpClientV2
-      .post(url"https://artefacts.tax.service.gov.uk/xray/api/v1/reports/vulnerabilities")
+      .post(url"${config.xrayBaseUrl}/vulnerabilities")
       .withProxy
       .setHeader(
         "Authorization" -> s"Bearer $token",
@@ -61,7 +63,7 @@ extends Logging{
   def checkStatus(id: Int): Future[ReportStatus] = {
     implicit val fmt = ReportStatus.apiFormat
     httpClientV2
-      .get(url"https://artefacts.tax.service.gov.uk/xray/api/v1/reports/$id")
+      .get(url"${config.xrayBaseUrl}/$id")
       .withProxy
       .setHeader(
         "Authorization" -> s"Bearer $token",
@@ -74,7 +76,7 @@ extends Logging{
     implicit val fmt = Report.apiFormat
 
     httpClientV2
-      .get(url"https://artefacts.tax.service.gov.uk/xray/api/v1/reports/export/$reportId?file_name=$filename&format=json")
+      .get(url"${config.xrayBaseUrl}/export/$reportId?file_name=$filename&format=json")
       .withProxy
       .setHeader(
         "Authorization" -> s"Bearer $token",
@@ -86,7 +88,7 @@ extends Logging{
           logger.info(s"Successfully downloaded the zipped report from Xray")
           Future.successful(source.runWith(StreamConverters.asInputStream()))
         case Left(error) =>
-          logger.error(s"Could not download zip for: https://artefacts.tax.service.gov.uk/xray/api/v1/reports/export/$reportId?file_name=$filename&format=json", error)
+          logger.error(s"Could not download zip for: ${config.xrayBaseUrl}/export/$reportId?file_name=$filename&format=json", error)
           throw error
       }
   }
@@ -96,7 +98,7 @@ extends Logging{
       implicit val rdf = ReportDelete.apiFormat
 
       httpClientV2
-        .delete(url"https://artefacts.tax.service.gov.uk/xray/api/v1/reports/$reportId")
+        .delete(url"${config.xrayBaseUrl}/$reportId")
         .withProxy
         .setHeader(
           "Authorization" -> s"Bearer $token",

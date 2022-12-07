@@ -53,7 +53,7 @@ class VulnerabilitiesService @Inject() (
           service = service,
           serviceVersion = serviceVersion,
           componentPathInSlug = occ.componentPhysicalPath,
-          teams = repoWithTeams.getOrElse(service, Seq.empty),
+          teams = repoWithTeams.getOrElse(service, Seq.empty).sorted,
           envs = svds
             .find(s => s.serviceName == service && s.version == serviceVersion)
             .getOrElse(ServiceVersionDeployments("", "", Seq.empty))
@@ -79,7 +79,7 @@ class VulnerabilitiesService @Inject() (
           ticket = None,
         ),
         occurrences = occs.sortBy(_.service),
-        teams = occs.flatMap(_.teams).distinct,
+        teams = occs.flatMap(_.teams).distinct.sorted,
         generatedDate = u.generatedDate
       )
     }

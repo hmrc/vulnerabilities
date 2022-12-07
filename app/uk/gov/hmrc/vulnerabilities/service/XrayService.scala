@@ -46,7 +46,7 @@ class XrayService @Inject()(
     payloads.foldLeft(Future.successful( Seq.empty[String] )){(processedPayloads, payload) =>
       processedPayloads.flatMap { p =>
         for {
-          resp <- xrayConnector.generateReport(payload)
+          resp   <- xrayConnector.generateReport(payload)
           status <- checkIfReportReady(resp, counter = 0)
           report <- status match {
             case XraySuccess => getReport(resp.reportID, payload.name)
@@ -57,10 +57,10 @@ class XrayService @Inject()(
           }
           deleted <- status match {
             case XrayFailure => Future(ReportDelete(info = "Report not successfully generated, won't attempt to delete. This may require manual cleanup in UI"))
-            case _ => xrayConnector.deleteReport(resp.reportID)
+            case _           => xrayConnector.deleteReport(resp.reportID)
           }
-          _ = logger.info(s"${deleted.info} for ${payload.name}")
-          _ = report match {
+          _       = logger.info(s"${deleted.info} for ${payload.name}")
+          _       = report match {
             case Some(rep) => {
               rawReportsRepository.insertReport(rep)
               logger.info(s"Inserted report for ${payload.name} into rawReports repository")
@@ -87,7 +87,7 @@ class XrayService @Inject()(
       filters   = Filter(impactedArtifact = s"*/${svd.serviceName}_${svd.version}*")
     )
 
-  private def getReport(reportId: Int, name: String): Future[Option[Report]] = {
+  def getReport(reportId: Int, name: String): Future[Option[Report]] = {
     implicit val rfmt = Report.apiFormat
     for {
       zip     <- xrayConnector.downloadReport(reportId, name)
@@ -96,7 +96,7 @@ class XrayService @Inject()(
     } yield report
   }
 
-  private def unzipReport(inputStream: InputStream): Option[String] = {
+   def unzipReport(inputStream: InputStream): Option[String] = {
     val zip = new ZipInputStream(inputStream)
     Iterator.continually(zip.getNextEntry)
       .takeWhile(_ != null)
@@ -105,13 +105,13 @@ class XrayService @Inject()(
       })
   }
 
-  private def checkIfReportReady(reportRequestResponse: ReportRequestResponse, counter: Int): Future[Status] = {
-    //Timeout after 30 secs
-    if (counter < 20) {
+  def checkIfReportReady(reportRequestResponse: ReportRequestResponse, counter: Int): Future[Status] = {
+    //Timeout after 15 secs
+    if (counter < 15) {
       xrayConnector.checkStatus(reportRequestResponse.reportID).flatMap { rs => (rs.status, rs.rowCount) match {
-        case ("completed", rows) if rows > 0 => Future(XraySuccess)
-        case ("completed", _)                => Future(XrayNoData)
-        case _                               => akka.pattern.after(FiniteDuration(1500, MILLISECONDS), system.scheduler) {
+        case ("completed", Some(rows)) if rows > 0 => Future(XraySuccess)
+        case ("completed", _)                      => Future(XrayNoData)
+        case _                                     => akka.pattern.after(FiniteDuration(1000, MILLISECONDS), system.scheduler) {
           checkIfReportReady(reportRequestResponse, counter + 1)
         }
       }}

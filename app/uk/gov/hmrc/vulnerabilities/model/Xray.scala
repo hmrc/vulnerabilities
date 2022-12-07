@@ -89,13 +89,13 @@ object ReportRequestResponse {
 
 case class ReportStatus(
  status  : String,
- rowCount: Int
+ rowCount: Option[Int]
 )
 
 object ReportStatus {
   val apiFormat = {
     ( (__ \ "status" ).format[String]
-    ~ (__ \ "number_of_rows").format[Int]
+    ~ (__ \ "number_of_rows").formatNullable[Int]
     )(apply, unlift(unapply))
   }
 }
