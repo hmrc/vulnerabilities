@@ -46,8 +46,8 @@ class Scheduler @Inject()(
   private val logger= Logger(getClass)
   implicit val hc: HeaderCarrier = HeaderCarrier()
 
-  private def getNow = LocalDateTime.now().toInstant(ZoneOffset.UTC)
-  private def sevenDaysOld(latestData: Instant, now: Instant): Boolean = !latestData.isBefore(now.minus(7L, ChronoUnit.DAYS))
+  def getNow = LocalDateTime.now().toInstant(ZoneOffset.UTC)
+  def sevenDaysOld(latestData: Instant, now: Instant): Boolean = latestData.isBefore(now.minus(config.dataReloadScheduler.dataCutOff, ChronoUnit.DAYS))
 
   scheduleWithLock("Vulnerabilities data Reloader", config.dataReloadScheduler, mongoLock.dataReloadLock) {
     for {

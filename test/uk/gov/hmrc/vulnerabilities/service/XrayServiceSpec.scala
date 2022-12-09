@@ -27,6 +27,7 @@ import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
+import uk.gov.hmrc.vulnerabilities.config.{SchedulerConfig, SchedulerConfigs}
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
 import uk.gov.hmrc.vulnerabilities.model.{CVE, Filter, RawVulnerability, Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus, Resource, ServiceVersionDeployments, XrayFailure, XrayNoData, XrayRepo, XraySuccess}
@@ -45,7 +46,8 @@ class XrayServiceSpec extends AnyWordSpec
   with IntegrationPatience
   with Matchers {
 
-  override protected def repository = new RawReportsRepository(mongoComponent)
+  val schedulerConfigs = mock[SchedulerConfigs]
+  override protected def repository = new RawReportsRepository(mongoComponent, schedulerConfigs)
 
   "XrayService" when {
     "creating an xray payload" should {
@@ -130,7 +132,6 @@ class XrayServiceSpec extends AnyWordSpec
                |}""".stripMargin) willBe returned by spy.unzipReport(any())
 
         val res = spy.getReport(1, "AppSec-report-service1_1.0.4").futureValue.map(rep => rep.copy(generatedDate = now))
-        println(res.get)
         res.get shouldBe report1
       }
     }

@@ -21,7 +21,7 @@ import play.api.libs.json.{Json, OFormat}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.vulnerabilities.model.{Vulnerability, VulnerabilitySummary}
-import uk.gov.hmrc.vulnerabilities.persistence.AssessmentsRepository
+import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.service.VulnerabilitiesService
 import uk.gov.hmrc.vulnerabilities.utils.{AssessmentParser, Scheduler}
 
@@ -34,7 +34,8 @@ class VulnerabilitiesController @Inject()(
     vulnerabilitiesService: VulnerabilitiesService,
     assessmentParser: AssessmentParser,
     assessmentsRepository: AssessmentsRepository,
-    scheduler: Scheduler
+    scheduler: Scheduler,
+    vulnerabilitySummariesRepository: VulnerabilitySummariesRepository
 )(implicit ec: ExecutionContext) extends BackendController(cc)
 with Logging {
 
@@ -62,6 +63,13 @@ with Logging {
   def manualReload() = Action {
     scheduler.manualReload
     Accepted("Vulnerabilities data reload triggered.")
+  }
+
+  def testResult: Action[AnyContent] = Action.async {
+    vulnerabilitySummariesRepository.getVulnerabilitySummaries.map {
+      implicit val fmt = VulnerabilitySummary.apiFormat
+      res => Ok(Json.toJson(res))
+    }
   }
 }
 

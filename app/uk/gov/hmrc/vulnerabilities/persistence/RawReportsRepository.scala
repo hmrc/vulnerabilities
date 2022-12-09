@@ -21,21 +21,24 @@ import org.mongodb.scala.MongoCollection
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNull}
 import org.mongodb.scala.model.Aggregates.{`match`, group, project, unwind}
 import org.mongodb.scala.model.{Accumulators, Filters, IndexModel, IndexOptions}
-
+import play.api.Configuration
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
+import uk.gov.hmrc.vulnerabilities.config.{SchedulerConfigs}
 import uk.gov.hmrc.vulnerabilities.model.{Report, UnrefinedVulnerabilitySummary}
 
 import java.time.temporal.ChronoUnit
 import java.time.{LocalDateTime, ZoneOffset}
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 
 
 
 @Singleton
 class RawReportsRepository @Inject()(
-mongoComponent: MongoComponent
+mongoComponent: MongoComponent,
+schedulerConfigs: SchedulerConfigs
 )(implicit ec: ExecutionContext
 ) extends PlayMongoRepository(
     collectionName = "rawReports",
@@ -52,6 +55,12 @@ mongoComponent: MongoComponent
           .map(_ => ())
       }
 
+      def countReports: Future[Int] =
+        collection.find().toFuture.map(_.length)
+
+      def getReportsInLastXDays: Future[Seq[Report]] =
+        collection.find(Filters.gt("generatedDate", recent)).toFuture()
+
       // use a different view to allow distinctVulnerabilitiesSummary to return a different case class
       private val vcsCollection: MongoCollection[UnrefinedVulnerabilitySummary] =
         CollectionFactory.collection(
@@ -60,7 +69,7 @@ mongoComponent: MongoComponent
           UnrefinedVulnerabilitySummary.reads
         )
 
-      private def recent = LocalDateTime.now().minus(1, ChronoUnit.DAYS)
+      def recent = LocalDateTime.now().minus(schedulerConfigs.dataReloadScheduler.dataCutOff, ChronoUnit.DAYS)
       //Only transform data added to rawReports within last 24 hours
       //This stops out of date, and since fixed reports being transformed into vulnerability summaries
       //Works as the scheduler runs every 7 days
@@ -73,7 +82,7 @@ mongoComponent: MongoComponent
       def getNewDistinctVulnerabilities: Future[Seq[UnrefinedVulnerabilitySummary]] =
         vcsCollection.aggregate(
           Seq(
-            `match`(Filters.gte("generatedDate", recent)),
+            `match`(Filters.gt("generatedDate", recent)),
             unwind("$rows"),
             unwind("$rows.cves"),
             project(

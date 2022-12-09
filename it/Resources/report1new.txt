@@ -1,0 +1,25 @@
+{"total_rows": 1,
+  "rows": [
+    {
+      "cves": [{"cve": "CVE-2022-12345","cvss_v3_score": 8.0,"cvss_v3_vector": "test"}],
+      "cvss3_max_score": 8.0,
+      "summary": "This is an exploit",
+      "severity": "High",
+      "severity_source": "Source",
+      "vulnerable_component": "gav://com.testxml.test.core:test-bind:1.5.9",
+      "component_physical_path": "Service1-0.835.0/some/physical/path",
+      "impacted_artifact": "fooBar",
+      "impact_path": ["hello","world"],
+      "path": "test/slugs/Service1/Service1_0.835.0_0.0.1.tgz",
+      "fixed_versions": ["1.6.0"],
+      "published": "2022-01-01T00:00:00Z",
+      "artifact_scan_time": "2022-01-01T00:00:00Z",
+      "issue_id": "XRAY-000003",
+      "package_type": "maven",
+      "provider": "test",
+      "description": "This is an exploit",
+      "references": ["foo.com","bar.net"],
+      "project_keys": []
+    }
+  ]
+}

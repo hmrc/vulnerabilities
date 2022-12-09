@@ -18,7 +18,11 @@ package uk.gov.hmrc.vulnerabilities.service
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import uk.gov.hmrc.vulnerabilities.model.{Deployment, ServiceVersionDeployments, WhatsRunningWhere}
+import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
+import uk.gov.hmrc.vulnerabilities.model.{CVE, Deployment, RawVulnerability, Report, ServiceVersionDeployments, WhatsRunningWhere}
+
+import java.time.{Instant, LocalDateTime, ZoneOffset}
+import java.time.temporal.ChronoUnit
 
 
 
@@ -27,13 +31,8 @@ class WhatsRunningWhereServiceSpec extends AnyWordSpec with Matchers {
   "WhatsRunningWhereService" when {
     "getting envs for service version" should {
       "Transform each WRW deployment into a unique ServiceVersionDeployment, and sort by (name, version)" in new Setup {
-        val expectedResult = Seq(
-          ServiceVersionDeployments(serviceName = "service1", version = "1.0", environments = Seq("production")),
-          ServiceVersionDeployments(serviceName = "service1", version = "1.1", environments = Seq("qa")),
-          ServiceVersionDeployments(serviceName = "service2", version = "1.9.6", environments = Seq("qa")),
-          ServiceVersionDeployments(serviceName = "service2", version = "1.9.8", environments = Seq("externaltest")),
-          ServiceVersionDeployments(serviceName = "service3", version = "1.22", environments = Seq("staging", "production")),
-        )
+        val expectedResult = Seq(svd1, svd2, svd3, svd4, svd5)
+
 
         val result = whatsRunningWhereService.getEnvsForServiceVersion(connectorResponseHigherEnvs)
 
@@ -43,20 +42,25 @@ class WhatsRunningWhereServiceSpec extends AnyWordSpec with Matchers {
       }
 
       "Remove integration & development Deployments, and filter out empty ServiceVersionDeployments" in new Setup {
-        val expectedResult = Seq(
-          ServiceVersionDeployments(serviceName = "service1", version = "1.0", environments = Seq("production")),
-          ServiceVersionDeployments(serviceName = "service1", version = "1.1", environments = Seq("qa")),
-          ServiceVersionDeployments(serviceName = "service2", version = "1.9.6", environments = Seq("qa")),
-          ServiceVersionDeployments(serviceName = "service2", version = "1.9.8", environments = Seq("externaltest")),
-          ServiceVersionDeployments(serviceName = "service3", version = "1.22", environments = Seq("staging", "production")),
-          ServiceVersionDeployments(serviceName = "service5", version = "1.29", environments = Seq("production", "externaltest")),
-        )
+        val expectedResult = Seq(svd1, svd2, svd3, svd4, svd5, svd6)
 
         val result = whatsRunningWhereService.getEnvsForServiceVersion(connectorResponseAllEnvs)
 
         result.length shouldBe 6
         result should contain theSameElementsInOrderAs expectedResult
         result.last.environments shouldBe Seq("production", "externaltest")
+      }
+
+
+    }
+
+    "removeSVDIfRecentReportExists" should {
+      "filter out any SVDs that have same serviceName & Version as a recent report" in new Setup {
+        val result = whatsRunningWhereService.removeSVDIfRecentReportExists(Seq(svd1, svd2, svd3, svd4, svd5), (Seq(report1)))
+
+        result.length shouldBe 4
+        result shouldBe Seq(svd1, svd3, svd4, svd5)
+
 
       }
     }
@@ -73,10 +77,45 @@ class WhatsRunningWhereServiceSpec extends AnyWordSpec with Matchers {
     val wrw5 =  WhatsRunningWhere(serviceName = "service5",
       deployments = Seq(Deployment(environment = "integration", version = "1.29"), Deployment(environment = "production", version = "1.29"), Deployment(environment = "externaltest", version = "1.29")))
 
+    val svd1 = ServiceVersionDeployments(serviceName = "service1", version = "1.0", environments = Seq("production"))
+    val svd2 = ServiceVersionDeployments(serviceName = "service1", version = "1.1", environments = Seq("qa"))
+    val svd3 = ServiceVersionDeployments(serviceName = "service2", version = "1.9.6", environments = Seq("qa"))
+    val svd4 = ServiceVersionDeployments(serviceName = "service2", version = "1.9.8", environments = Seq("externaltest"))
+    val svd5 = ServiceVersionDeployments(serviceName = "service3", version = "1.22", environments = Seq("staging", "production"))
+    val svd6 = ServiceVersionDeployments(serviceName = "service5", version = "1.29", environments = Seq("production", "externaltest"))
 
     val connectorResponseHigherEnvs   = Seq(wrw1, wrw2, wrw3)
     val connectorResponseAllEnvs      = Seq(wrw1, wrw2, wrw3, wrw4, wrw5)
 
     val whatsRunningWhereService = new WhatsRunningWhereService
+
+    private val now: Instant = LocalDateTime.now().toInstant(ZoneOffset.UTC)
+
+    val report1: Report =
+      Report(
+        rows = Some(Seq(
+          RawVulnerability(
+            cves = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
+            cvss3MaxScore = Some(8.0),
+            summary = "This is an exploit",
+            severity = "High",
+            severitySource = "Source",
+            vulnerableComponent = "gav://com.testxml.test.core:test-bind:1.5.9",
+            componentPhysicalPath = "service1-1.1/some/physical/path",
+            impactedArtifact = "fooBar",
+            impactPath = Seq("hello", "world"),
+            path = "test/slugs/service1/service1_1.1_0.0.1.tgz",
+            fixedVersions = Seq("1.6.0"),
+            published = now.minus(14, ChronoUnit.DAYS),
+            artifactScanTime = now.minus(1, ChronoUnit.HOURS),
+            issueId = "XRAY-000003",
+            packageType = "maven",
+            provider = "test",
+            description = "This is an exploit",
+            references = Seq("foo.com", "bar.net"),
+            projectKeys = Seq()
+          ))),
+        generatedDate = now
+      )
   }
 }

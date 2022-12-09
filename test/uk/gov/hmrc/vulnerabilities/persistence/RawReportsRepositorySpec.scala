@@ -16,15 +16,18 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
+import org.mockito.MockitoSugar.mock
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
+import play.api.Configuration
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
+import uk.gov.hmrc.vulnerabilities.config.{SchedulerConfig, SchedulerConfigs}
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
 import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report}
 
 import java.time.temporal.ChronoUnit
-import java.time.{Instant}
+import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 
 
@@ -35,7 +38,15 @@ class RawReportsRepositorySpec
     with CleanMongoCollectionSupport
     with IntegrationPatience {
 
-  override protected def repository = new RawReportsRepository(mongoComponent)
+  val configuration: Configuration = Configuration(
+    "data.refresh-cutoff"    -> "7 days",
+    "scheduler.initialDelay" -> "2 seconds",
+    "scheduler.interval"     -> "3 hours",
+    "scheduler.enabled"      -> "true"
+  )
+
+  val schedulerConfigs = new SchedulerConfigs(configuration)
+  override protected def repository = new RawReportsRepository(mongoComponent, schedulerConfigs)
   private val now: Instant = UnrefinedVulnerabilitySummariesData.now
 
   "getNewDistinctVulnerabilities" must {
@@ -56,14 +67,24 @@ class RawReportsRepositorySpec
       resSorted must contain theSameElementsInOrderAs (Seq(expected1, expected2, expected3))
     }
 
-    "Only transform reports generated in the last 24 hours" in new Setup {
-      repository.collection.insertMany(Seq(report1, report2, report3, report4)).toFuture().futureValue
+    "Transform reports generated up to 6 days and 23 hours ago, but not reports generated 7 days ago" in new Setup {
+      repository.collection.insertMany(Seq(report1, report2, report3, report4, report5)).toFuture().futureValue
 
       val result = repository.getNewDistinctVulnerabilities.futureValue
-      val resSorted = result.map(res => res.copy(occurrences = res.occurrences.sortBy(_.path))).sortBy(_.id)
+      val resSorted = result.map(res => res.id).sorted
 
-      resSorted.length mustBe 3
-      resSorted must contain theSameElementsInOrderAs (Seq(expected1, expected2, expected3))
+      resSorted.length mustBe 4
+      resSorted mustBe (Seq("CVE-2021-99999", "CVE-2022-12345", "XRAY-000004", "XRAY-000006"))
+    }
+  }
+
+  "getReportsInLastXDays" must {
+    "Only return reports generated 6 days and 23 hours ago, but not reports generated 7 days ago" in new Setup {
+      repository.collection.insertMany(Seq(report1, report2, report3, report4, report5)).toFuture().futureValue
+
+      val result = Seq(report1, report2, report3, report5)
+      result.length mustBe 4
+      result must contain theSameElementsAs(Seq(report1, report2, report3, report5))
     }
   }
 
@@ -196,7 +217,34 @@ class RawReportsRepositorySpec
             references = Seq("foo.com", "bar.net"),
             projectKeys = Seq()
           ))),
-        generatedDate = now.minus(3, ChronoUnit.DAYS)
+        generatedDate = now.minus(7, ChronoUnit.DAYS)
+      )
+
+    lazy val report5: Report =
+      Report(
+        rows = Some(Seq(
+          RawVulnerability(
+            cves = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
+            cvss3MaxScore = None,
+            summary = "This is an exploit",
+            severity = "High",
+            severitySource = "Source",
+            vulnerableComponent = "gav://com.testxml.test.core:test-bind:1.9.0",
+            componentPhysicalPath = "service6-6.0.4/some/physical/path",
+            impactedArtifact = "fooBar",
+            impactPath = Seq("hello", "world"),
+            path = "test/slugs/service6/service6_5.0.4_0.0.1.tgz",
+            fixedVersions = Seq("1.8.1"),
+            published = now.minus(14, ChronoUnit.DAYS),
+            artifactScanTime = now.minus(1, ChronoUnit.HOURS),
+            issueId = "XRAY-000006",
+            packageType = "maven",
+            provider = "test",
+            description = "This is an exploit",
+            references = Seq("foo.com", "bar.net"),
+            projectKeys = Seq()
+          ))),
+        generatedDate = now.minus(167, ChronoUnit.HOURS)
       )
   }
 }

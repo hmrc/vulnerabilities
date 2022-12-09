@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
-import uk.gov.hmrc.vulnerabilities.model.{ServiceVersionDeployments, WhatsRunningWhere}
+import uk.gov.hmrc.vulnerabilities.model.{Report, ServiceVersionDeployments, WhatsRunningWhere}
 
 import javax.inject.{Inject, Singleton}
 
@@ -42,8 +42,14 @@ class WhatsRunningWhereService @Inject()(){
       .sortBy(sd => (sd.serviceName, sd.version))
 
    def removeIntegrationAndDevelopment(wrw: WhatsRunningWhere): WhatsRunningWhere =
-     wrw
-       .copy(deployments = wrw.deployments
+     wrw.copy(deployments = wrw.deployments
          .filterNot(dep => (dep.environment == "integration" || dep.environment == "development"))
        )
+
+  def removeSVDIfRecentReportExists(svds: Seq[ServiceVersionDeployments], recentReports: Seq[Report]): Seq[ServiceVersionDeployments] = {
+    val reportNames    = recentReports.flatMap(rep => rep.rows.map(_.head.path.split("/")(2)))
+    val reportVersions = recentReports.flatMap(rep => rep.rows.map(_.head.path.split("_")(1)))
+
+    svds.filterNot(svd => reportNames.contains(svd.serviceName) && reportVersions.contains(svd.version))
+  }
 }

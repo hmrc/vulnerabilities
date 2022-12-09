@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.model
 
+import play.api.Configuration
 import play.api.libs.functional.syntax.{toFunctionalBuilderOps, toInvariantFunctorOps, unlift}
 import play.api.libs.json.{Json, OFormat, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
