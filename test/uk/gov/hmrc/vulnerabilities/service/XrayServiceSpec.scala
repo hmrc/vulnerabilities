@@ -82,10 +82,13 @@ class XrayServiceSpec extends AnyWordSpec
       "Generate a payload, request a report, download the report, and insert the report into the rawReportsrepository for each svd sequentially" in new Setup {
         val res = spy.generateAndInsertReports(Seq(svd1, svd3))
 
-        val collectionRes = res.flatMap(_ => repository.collection.find().toFuture()).futureValue
+        Thread.sleep(3000)
 
-        collectionRes.length shouldBe 2
-        collectionRes should contain theSameElementsAs Seq(report1, report3)
+        val collectionRes = res.flatMap(_ => repository.collection.find().toFuture())
+        val finalRes = collectionRes.futureValue.sortBy(_.rows.get.length).map(rep => rep.copy(rows = rep.rows.map(_.sortBy(_.cves.head.cveId))))
+
+        finalRes.length shouldBe 2
+        finalRes should contain theSameElementsAs Seq(report1, report3)
       }
     }
 
@@ -93,10 +96,13 @@ class XrayServiceSpec extends AnyWordSpec
       "Not attempt to download the empty report, or insert it Into the collection " in new Setup {
         val res = spy.generateAndInsertReports(Seq(svd1, svd2, svd3))
 
-        val collectionRes = res.flatMap(_ => repository.collection.find().toFuture()).futureValue
+        Thread.sleep(3000)
 
-        collectionRes.length shouldBe 2
-        collectionRes should contain theSameElementsAs Seq(report1, report3)
+        val collectionRes = res.flatMap(_ => repository.collection.find().toFuture())
+        val finalRes = collectionRes.futureValue.sortBy(_.rows.get.length).map(rep => rep.copy(rows = rep.rows.map(_.sortBy(_.cves.head.cveId))))
+
+        finalRes.length shouldBe 2
+        finalRes should contain theSameElementsAs Seq(report1, report3)
       }
     }
   }
@@ -205,7 +211,7 @@ class XrayServiceSpec extends AnyWordSpec
 
 
     val payload1 = ReportRequestPayload(name = s"AppSec-report-service1_1.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service1_1.0*"))
-    val payload2 = ReportRequestPayload(name = s"AppSec-report-service2_2.0", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service2_2.0*"))
+    val payload2 = ReportRequestPayload(name = s"AppSec-report-service2_2.0",   resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service2_2.0*"))
     val payload3 = ReportRequestPayload(name = s"AppSec-report-service3_3.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service3_3.0*"))
 
     val reportRequestResponse1 = ReportRequestResponse(reportID = 1, status = "pending")

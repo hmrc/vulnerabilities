@@ -19,6 +19,7 @@ package uk.gov.hmrc.vulnerabilities.persistence
 import org.mockito.MockitoSugar.mock
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.must.Matchers
+import org.scalatest.time.Millisecond
 import org.scalatest.wordspec.AnyWordSpecLike
 import play.api.Configuration
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
@@ -50,7 +51,6 @@ class RawReportsRepositorySpec
   private val now: Instant = UnrefinedVulnerabilitySummariesData.now
 
   "getNewDistinctVulnerabilities" must {
-
     //Create expected results
     val expected1 = UnrefinedVulnerabilitySummariesData.unrefined1
     val expected2 = UnrefinedVulnerabilitySummariesData.unrefined2
@@ -181,8 +181,8 @@ class RawReportsRepositorySpec
             impactPath = Seq("hello", "world"),
             path = "test/slugs/service4/service4_4.0.4_0.0.1.tgz",
             fixedVersions = Seq("1.8.1"),
-            published = now.minus(14, ChronoUnit.DAYS),
-            artifactScanTime = now.minus(1, ChronoUnit.HOURS),
+            published = now.minus(14, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS),
+            artifactScanTime = now.minus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS),
             issueId = "XRAY-000004",
             packageType = "maven",
             provider = "test",
