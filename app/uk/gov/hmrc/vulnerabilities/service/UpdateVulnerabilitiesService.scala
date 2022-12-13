@@ -56,10 +56,7 @@ class UpdateVulnerabilitiesService @Inject()(
       finalSummaries   = vulnerabilitiesService.addInvestigationsToSummaries(refined, finalAssessments)
       _                = logger.info("About to delete all documents from the vulnerabilitySummaries repository")
       //Update final Collection
-      deletedCount    <- vulnerabilitySummariesRepository.deleteAllSummaries()
-      _                = logger.info(s"Deleted ${deletedCount} documents from the vulnerabilitySummaries repository")
-      _                = logger.info(s"About to add ${finalSummaries.length} documents into the vulnerabilitySummaries repository")
-      summariesCount  <- vulnerabilitySummariesRepository.insertSummaries(finalSummaries)
+      summariesCount  <- vulnerabilitySummariesRepository.deleteOldAndInsertNewSummaries(finalSummaries)
     } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
   }.recoverWith{
     case ex: Throwable => logger.error(ex.getMessage); Future.unit

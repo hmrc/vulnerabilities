@@ -78,6 +78,8 @@ class VulnerabilitiesRepositorySpec
     )
 
     "default sort by descending score and ascending id" in new Setup {
+      repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
+
       val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(0), expectedOccurrences(5)), Seq("team1", "team2"), oneMinAgo)
       val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(1), Seq(expectedOccurrences(6), expectedOccurrences(1)), Seq("team1", "team2"), now)
       val expected3 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"), fourDaysAgo)
@@ -90,6 +92,8 @@ class VulnerabilitiesRepositorySpec
     }
 
     "filter by id" in new Setup {
+      repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
+
 
       val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"), fourDaysAgo)
 
@@ -102,6 +106,8 @@ class VulnerabilitiesRepositorySpec
     }
 
     "filter by curationStatus" in new Setup {
+      repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
+
       val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(0), expectedOccurrences(5)), Seq("team1", "team2"), oneMinAgo)
       val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"), fourDaysAgo)
 
@@ -113,6 +119,8 @@ class VulnerabilitiesRepositorySpec
     }
 
     "filter by service name" in new Setup {
+      repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
+
       val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(0)), Seq("team1", "team2"), generatedDate = oneMinAgo)
 
       val results = repository.distinctVulnerabilitiesSummary(None, None, service = Some("ice1"), None).futureValue
@@ -123,6 +131,8 @@ class VulnerabilitiesRepositorySpec
     }
 
     "filter by team" in new Setup {
+      repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
+
       val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(5)), Seq("team1", "team2"), oneMinAgo)
       val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(1), Seq(expectedOccurrences(6)), Seq("team1", "team2"), now)
 
@@ -134,6 +144,8 @@ class VulnerabilitiesRepositorySpec
     }
 
     "filter by all four parameters" in new Setup {
+      repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
+
       val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(4)), Seq("team1"), fourDaysAgo)
 
       val results1 = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), curationStatus = Some(CurationStatus.ActionRequired.asString), service = Some("3"), team = Some("team2")).futureValue
@@ -148,6 +160,8 @@ class VulnerabilitiesRepositorySpec
     }
 
     "return only unique teams" in new Setup {
+      repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
+
       val results = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), None, None, None).futureValue
 
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
@@ -157,6 +171,8 @@ class VulnerabilitiesRepositorySpec
     }
 
     "Do an exact match on service when searchTerm is quoted" in new Setup {
+      repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
+
       val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3)), Seq("team1"), fourDaysAgo)
       val results = repository.distinctVulnerabilitiesSummary(None, None, Some("\"service3\""), None).futureValue
 
@@ -171,12 +187,15 @@ class VulnerabilitiesRepositorySpec
 
   "getMostRecent" must {
     "Return the dateTime Instant of the most recently generated document" in new Setup {
+      repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
+
       val result = repository.getMostRecent.futureValue
 
       result mustBe now
     }
 
     "Return a default Instant that is 8 days old, if there are no documents in the collection" in {
+
       val result = repository.getMostRecent.futureValue
 
       result mustBe < (now.minus(7, ChronoUnit.DAYS))
@@ -184,10 +203,27 @@ class VulnerabilitiesRepositorySpec
     }
   }
 
+  "deleteOldAndInsertNewSummaries" must {
+    "delete the existing summary, and add a new summary to the collection" in new Setup {
+
+      val intermediateRes = for {
+        _   <- repository.collection.insertOne(vulnerabilitySummary1).toFuture()
+        res <- repository.collection.find().toFuture()
+      } yield res
+
+      intermediateRes.futureValue.length mustBe 1
+
+      val finalRes = for {
+        _   <- repository.deleteOldAndInsertNewSummaries(Seq(vulnerabilitySummary2, vulnerabilitySummary3))
+        res <- repository.collection.find().toFuture()
+      } yield res
+
+      finalRes.futureValue.length mustBe 2
+      finalRes.futureValue.map(res => res.distinctVulnerability.id).sorted mustBe Seq("CVE-TEST-2", "XRAY-TEST-1")
+    }
+  }
+
   trait Setup {
-
-    repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
-
     //Three vals below populate the test Mongo collection in each test case.
     lazy val vulnerabilitySummary1 =
       VulnerabilitySummary(

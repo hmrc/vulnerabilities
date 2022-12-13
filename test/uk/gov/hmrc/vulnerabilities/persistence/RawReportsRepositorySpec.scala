@@ -60,7 +60,7 @@ class RawReportsRepositorySpec
     "Transform raw XRAY reports into UnrefinedVulnerabilitySummaries, and default to issueID if no CVEid exists" in new Setup {
       repository.collection.insertMany(Seq(report1, report2, report3)).toFuture().futureValue
 
-      val result = repository.getNewDistinctVulnerabilities.futureValue
+      val result = repository.getNewDistinctVulnerabilities().futureValue
       val resSorted = result.map(res => res.copy(occurrences = res.occurrences.sortBy(_.path))).sortBy(_.id)
 
       resSorted.length mustBe 3
@@ -70,7 +70,7 @@ class RawReportsRepositorySpec
     "Transform reports generated up to 6 days and 23 hours ago, but not reports generated 7 days ago" in new Setup {
       repository.collection.insertMany(Seq(report1, report2, report3, report4, report5)).toFuture().futureValue
 
-      val result = repository.getNewDistinctVulnerabilities.futureValue
+      val result = repository.getNewDistinctVulnerabilities().futureValue
       val resSorted = result.map(res => res.id).sorted
 
       resSorted.length mustBe 4

@@ -4,21 +4,19 @@ import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, containing, stubFor, urlMatching, urlPathMatching}
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig
-import org.mockito.MockitoSugar.when
-import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll}
+
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
-import play.api.Application
-import play.api.inject.guice.GuiceApplicationBuilder
+
 import play.api.libs.ws.WSClient
 import uk.gov.hmrc.integration.ServiceSpec
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.Uncurated
-import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, ReportRequestResponse, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
-import java.time.{LocalDateTime, ZoneOffset}
 
 class SomeReportsAlreadyExistIntegrationSpec
   extends AnyWordSpec
