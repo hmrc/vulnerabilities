@@ -17,18 +17,21 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import akka.actor.ActorSystem
+import cats.data.{EitherT, OptionT}
 import play.api.Logger
 import play.api.libs.json.Json
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
-import uk.gov.hmrc.vulnerabilities.model.{Filter, Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, Resource, ServiceVersionDeployments, Status, XrayFailure, XrayNoData, XrayRepo, XraySuccess}
+import uk.gov.hmrc.vulnerabilities.model.{Filter, RawVulnerability, Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, Resource, ServiceVersionDeployments, Status, XrayNoData, XrayNotReady, XrayRepo, XraySuccess}
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
 import java.util.zip.ZipInputStream
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import java.io.InputStream
 import cats.implicits._
+import uk.gov.hmrc.http.HeaderCarrier
+
 
 @Singleton
 class XrayService @Inject()(
@@ -39,38 +42,38 @@ class XrayService @Inject()(
 
   private val logger = Logger(this.getClass)
 
-  def generateAndInsertReports(svds: Seq[ServiceVersionDeployments]): Future[Unit] = {
+  def processReports(svds: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier): Future[Unit] = {
     val payloads = svds.map(createXrayPayload).toList
-    payloads.foldLeftM(Seq.empty[String]){(processedPayloads, payload) =>
-        for {
-          resp   <- xrayConnector.generateReport(payload)
-          status <- checkIfReportReady(resp, counter = 0)
-          report <- status match {
-            case XraySuccess => getReport(resp.reportID, payload.name)
-            case _ => {
-              logger.info(status.statusMessage)
-              Future.successful(None)
-            }
-          }
-          deleted <- status match {
-            case XrayFailure => Future.successful(ReportDelete(info = "Report not successfully generated, won't attempt to delete. This may require manual cleanup in UI"))
-            case _           => xrayConnector.deleteReport(resp.reportID)
-          }
-          _       = logger.info(s"${deleted.info} for ${payload.name}")
-          _       = report match {
-            case Some(rep) => {
-              rawReportsRepository.insertReport(rep)
-              logger.info(s"Inserted report for ${payload.name} into rawReports repository")
-            }
-            case _ => logger.info(s"No report to insert for ${payload.name}")
-          }
-        } yield processedPayloads :+ payload.name
-    }.map{processed =>
-      logger.info(s"Finished processing ${processed.length} payloads. " +
+    payloads.foldLeftM(0){(acc, payload) =>
+      val maxRetries = 3
+      def go(count: Int): Future[Int] =
+        generateReport(payload).value.flatMap {
+          case Left(XrayNoData)   => Future.successful(acc)
+          case Left(XrayNotReady) => if (count > 0) go(count - 1) else Future.failed[Int](new RuntimeException(s"Tried to generate and download report $maxRetries times. Scheduler will cancel, and resume from this point the next time it runs. Manual cleanup will be required in the UI."))
+          case Right(report)      => rawReportsRepository.insertReport(report, payload.name).map{_ => acc + 1}
+      }
+      go(maxRetries)
+    }.map { processedCount =>
+        logger.info(s"Finished processing $processedCount / ${payloads.size} payloads. " +
         s"Note this number may differ to the number of raw reports in the collection, as we don't download reports with no rows in.")
       Future.unit
     }
   }
+
+  private def generateReport(payload: ReportRequestPayload)(implicit hc: HeaderCarrier): EitherT[Future, Status, Report] =
+        for {
+          resp    <- EitherT.liftF(xrayConnector.generateReport(payload))
+          status  <- EitherT.liftF(checkIfReportReady(resp))
+          report  <- status match {
+            case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, payload.name), XrayNoData: Status)
+            case XrayNoData   => for {
+                                  deleted   <- EitherT.liftF(xrayConnector.deleteReportFromXray((resp.reportID)))
+                                  _         =  logger.info(s"${status.statusMessage} ${deleted.info}")
+                                  res       <- EitherT.leftT[Future, Report](XrayNoData: Status)
+                                 } yield res
+            case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)
+          }
+        } yield report
 
   def createXrayPayload(svd: ServiceVersionDeployments): ReportRequestPayload =
     ReportRequestPayload(
@@ -83,36 +86,40 @@ class XrayService @Inject()(
       filters   = Filter(impactedArtifact = s"*/${svd.serviceName}_${svd.version}*")
     )
 
-  def getReport(reportId: Int, name: String): Future[Option[Report]] = {
+  def getReport(reportId: Int, name: String)(implicit hc: HeaderCarrier): Future[Option[Report]] = {
     implicit val rfmt = Report.apiFormat
     for {
       zip     <- xrayConnector.downloadReport(reportId, name)
+      _       <- xrayConnector.deleteReportFromXray(reportId)
+      _        = logger.info("Report has been deleted from the Xray UI")
       text     = unzipReport(zip)
       report   = text.map(t => Json.parse(t).as[Report])
+      _        = zip.close()
     } yield report
   }
 
    def unzipReport(inputStream: InputStream): Option[String] = {
     val zip = new ZipInputStream(inputStream)
-    Iterator.continually(zip.getNextEntry)
+    try { Iterator.continually(zip.getNextEntry)
       .takeWhile(_ != null)
-      .foldLeft(Option.empty[String])((found, entry) => {
-        Some(scala.io.Source.fromInputStream(zip).mkString)
-      })
-  }
+      .foldLeft(Option.empty[String])((found, entry) => {Some(scala.io.Source.fromInputStream(zip).mkString)})
+    } finally {
+     zip.close()
+    }
+   }
 
-  def checkIfReportReady(reportRequestResponse: ReportRequestResponse, counter: Int): Future[Status] = {
+  def checkIfReportReady(reportRequestResponse: ReportRequestResponse, counter: Int = 0)(implicit hc: HeaderCarrier): Future[Status] = {
     //Timeout after 15 secs
     if (counter < 15) {
       xrayConnector.checkStatus(reportRequestResponse.reportID).flatMap { rs => (rs.status, rs.rowCount) match {
         case ("completed", Some(rows)) if rows > 0 => Future.successful(XraySuccess)
         case ("completed", _)                      => Future.successful(XrayNoData)
-        case _                                     => akka.pattern.after(FiniteDuration(1000, MILLISECONDS), system.scheduler) {
+        case _                                     => akka.pattern.after(1000.millis, system.scheduler) {
           checkIfReportReady(reportRequestResponse, counter + 1)
         }
       }}
     } else {
-      Future.successful(XrayFailure)
+      Future.successful(XrayNotReady)
     }
   }
 

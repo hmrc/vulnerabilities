@@ -103,7 +103,7 @@ class XrayConnectorSpec
           aResponse().withBody(s"""{"info": "Report successfully deleted"}""")
         ))
 
-        val res = connector.deleteReport(reportId = 1).futureValue
+        val res = connector.deleteReportFromXray(reportId = 1).futureValue
         res mustBe ReportDelete(info = "Report successfully deleted")
 
       }

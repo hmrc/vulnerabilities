@@ -28,11 +28,11 @@ case object XraySuccess extends Status {
 
 case object XrayNoData extends Status {
   override val statusCode = 1
-  override val statusMessage = "There were no rows in this report, will not attempt to download"
+  override val statusMessage = "There were no rows in this report, will not attempt to download report."
 }
 
-case object XrayFailure extends Status {
+case object XrayNotReady extends Status {
   override val statusCode = 2
-  override val statusMessage = "No report was generated within the timeout limit, will not attempt to download"
+  override val statusMessage = "No report was generated within the timeout limit, will not attempt to download or delete from the XRAY UI. Manual cleanup may be required."
 }
 

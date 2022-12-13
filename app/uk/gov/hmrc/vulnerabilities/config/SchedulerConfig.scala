@@ -26,7 +26,6 @@ case class SchedulerConfig(
   enabled: Boolean,
   frequency: FiniteDuration,
   initialDelay: FiniteDuration,
-  dataCutOff: Int
 )
 
 object SchedulerConfig {
@@ -36,14 +35,12 @@ object SchedulerConfig {
      enabledKey: String,
      frequencyKey: String,
      initialDelayKey: String,
-     dataCutOffKey: String
    ): SchedulerConfig =
     SchedulerConfig(
       enabledKey,
       enabled = configuration.get[Boolean](enabledKey),
       frequency = configuration.get[FiniteDuration](frequencyKey),
       initialDelay = configuration.get[FiniteDuration](initialDelayKey),
-      dataCutOff = configuration.get[FiniteDuration](dataCutOffKey).toDays.toInt
     )
 }
 
@@ -55,6 +52,5 @@ class SchedulerConfigs @Inject() (configuration: Configuration) {
     enabledKey = "scheduler.enabled",
     frequencyKey = "scheduler.interval",
     initialDelayKey = "scheduler.initialDelay",
-    dataCutOffKey = "data.refresh-cutoff"
   )
 }

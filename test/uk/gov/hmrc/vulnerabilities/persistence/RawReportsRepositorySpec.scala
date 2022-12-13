@@ -41,13 +41,9 @@ class RawReportsRepositorySpec
 
   val configuration: Configuration = Configuration(
     "data.refresh-cutoff"    -> "7 days",
-    "scheduler.initialDelay" -> "2 seconds",
-    "scheduler.interval"     -> "3 hours",
-    "scheduler.enabled"      -> "true"
   )
 
-  val schedulerConfigs = new SchedulerConfigs(configuration)
-  override protected def repository = new RawReportsRepository(mongoComponent, schedulerConfigs)
+  override protected def repository = new RawReportsRepository(mongoComponent, configuration)
   private val now: Instant = UnrefinedVulnerabilitySummariesData.now
 
   "getNewDistinctVulnerabilities" must {
@@ -92,7 +88,7 @@ class RawReportsRepositorySpec
 
    lazy val report1: Report =
       Report(
-        rows = Some(Seq(
+        rows = Seq(
           RawVulnerability(
             cves = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
             cvss3MaxScore = Some(8.0),
@@ -113,13 +109,13 @@ class RawReportsRepositorySpec
             description = "This is an exploit",
             references = Seq("foo.com", "bar.net"),
             projectKeys = Seq()
-        ))),
+        )),
         generatedDate = now
       )
 
     lazy val report2: Report =
       Report(
-        rows = Some(Seq(
+        rows = Seq(
           RawVulnerability(
             cves = Seq(CVE(cveId = Some("CVE-2021-99999"), cveV3Score = Some(7.0), cveV3Vector = Some("test2"))),
             cvss3MaxScore = Some(7.0),
@@ -162,13 +158,13 @@ class RawReportsRepositorySpec
             references = Seq("foo.com", "bar.net"),
             projectKeys = Seq()
           )
-        )),
+        ),
         generatedDate = now
       )
 
     lazy val report3: Report =
       Report(
-        rows = Some(Seq(
+        rows = Seq(
           RawVulnerability(
             cves = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
             cvss3MaxScore = None,
@@ -189,13 +185,13 @@ class RawReportsRepositorySpec
             description = "This is an exploit",
             references = Seq("foo.com", "bar.net"),
             projectKeys = Seq()
-          ))),
+          )),
         generatedDate = now
       )
 
     lazy val report4: Report =
       Report(
-        rows = Some(Seq(
+        rows = Seq(
           RawVulnerability(
             cves = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
             cvss3MaxScore = None,
@@ -216,13 +212,13 @@ class RawReportsRepositorySpec
             description = "This is an exploit",
             references = Seq("foo.com", "bar.net"),
             projectKeys = Seq()
-          ))),
+          )),
         generatedDate = now.minus(7, ChronoUnit.DAYS)
       )
 
     lazy val report5: Report =
       Report(
-        rows = Some(Seq(
+        rows = Seq(
           RawVulnerability(
             cves = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
             cvss3MaxScore = None,
@@ -243,7 +239,7 @@ class RawReportsRepositorySpec
             description = "This is an exploit",
             references = Seq("foo.com", "bar.net"),
             projectKeys = Seq()
-          ))),
+          )),
         generatedDate = now.minus(167, ChronoUnit.HOURS)
       )
   }

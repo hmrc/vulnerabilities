@@ -43,9 +43,7 @@ extends Logging{
 
   private val token = config.xrayToken
 
-  private implicit val hc: HeaderCarrier = HeaderCarrier()
-
-  def generateReport(payload: ReportRequestPayload): Future[ReportRequestResponse] = {
+  def generateReport(payload: ReportRequestPayload)(implicit hc: HeaderCarrier): Future[ReportRequestResponse] = {
 
     implicit val pfmt = ReportRequestPayload.apiFormat
     implicit val rfmt = ReportRequestResponse.apiFormat
@@ -60,7 +58,7 @@ extends Logging{
       .execute[ReportRequestResponse]
   }
 
-  def checkStatus(id: Int): Future[ReportStatus] = {
+  def checkStatus(id: Int)(implicit hc: HeaderCarrier): Future[ReportStatus] = {
     implicit val fmt = ReportStatus.apiFormat
     httpClientV2
       .get(url"${config.xrayBaseUrl}/$id")
@@ -72,7 +70,7 @@ extends Logging{
       .execute[ReportStatus]
   }
 
-  def downloadReport(reportId: Int, filename: String): Future[InputStream] = {
+  def downloadReport(reportId: Int, filename: String)(implicit hc: HeaderCarrier): Future[InputStream] = {
     implicit val fmt = Report.apiFormat
 
     httpClientV2
@@ -94,7 +92,7 @@ extends Logging{
   }
 
 
-    def deleteReport(reportId: Int): Future[ReportDelete] = {
+    def deleteReportFromXray(reportId: Int)(implicit hc: HeaderCarrier): Future[ReportDelete] = {
       implicit val rdf = ReportDelete.apiFormat
 
       httpClientV2

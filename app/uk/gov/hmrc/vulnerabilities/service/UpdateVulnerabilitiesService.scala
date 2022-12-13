@@ -17,6 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import play.api.Logging
+import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector}
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilitySummariesRepository}
 
@@ -37,14 +38,14 @@ class UpdateVulnerabilitiesService @Inject()(
 )(implicit ec: ExecutionContext) extends
   Logging {
 
-  def updateVulnerabilities(): Future[Unit] = {
+  def updateVulnerabilities()(implicit hc: HeaderCarrier): Future[Unit] = {
     for {
       wrw             <- releasesConnector.getCurrentReleases()
       svDeps           = whatsRunningWhereService.getEnvsForServiceVersion(wrw)
       //Only download reports that don't exist in last 7 days in our raw reports collection
       recentReports   <- rawReportsRepository.getReportsInLastXDays()
       outOfDateSVDeps  = whatsRunningWhereService.removeSVDIfRecentReportExists(svDeps, recentReports)
-      _               <- xrayService.generateAndInsertReports(outOfDateSVDeps)
+      _               <- xrayService.processReports(outOfDateSVDeps)
       _                = logger.info(s"Finished generating and inserting reports into the rawReports collection")
       //Transform raw reports to Vulnerability Summaries
       unrefined       <- rawReportsRepository.getNewDistinctVulnerabilities()
@@ -58,7 +59,5 @@ class UpdateVulnerabilitiesService @Inject()(
       //Update final Collection
       summariesCount  <- vulnerabilitySummariesRepository.deleteOldAndInsertNewSummaries(finalSummaries)
     } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
-  }.recoverWith{
-    case ex: Throwable => logger.error(ex.getMessage); Future.unit
   }
 }

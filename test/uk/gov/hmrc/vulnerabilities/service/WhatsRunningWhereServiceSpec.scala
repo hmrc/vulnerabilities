@@ -18,10 +18,9 @@ package uk.gov.hmrc.vulnerabilities.service
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
 import uk.gov.hmrc.vulnerabilities.model.{CVE, Deployment, RawVulnerability, Report, ServiceVersionDeployments, WhatsRunningWhere}
 
-import java.time.{Instant, LocalDateTime, ZoneOffset}
+import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 
@@ -60,7 +59,13 @@ class WhatsRunningWhereServiceSpec extends AnyWordSpec with Matchers {
 
         result.length shouldBe 4
         result shouldBe Seq(svd1, svd3, svd4, svd5)
+      }
 
+      "Not filter out SVDs that have EITHER a common serviceName OR serviceVersion with a report, but not BOTH." in new Setup {
+        val result = whatsRunningWhereService.removeSVDIfRecentReportExists(Seq(svd1, svd2, svd3, svd4, svd5), (Seq(report2)))
+
+        result.length shouldBe 5
+        result shouldBe Seq(svd1, svd2, svd3, svd4, svd5)
 
       }
     }
@@ -89,11 +94,11 @@ class WhatsRunningWhereServiceSpec extends AnyWordSpec with Matchers {
 
     val whatsRunningWhereService = new WhatsRunningWhereService
 
-    private val now: Instant = LocalDateTime.now().toInstant(ZoneOffset.UTC)
+    private val now: Instant = Instant.now()
 
     val report1: Report =
       Report(
-        rows = Some(Seq(
+        rows = Seq(
           RawVulnerability(
             cves = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
             cvss3MaxScore = Some(8.0),
@@ -114,7 +119,35 @@ class WhatsRunningWhereServiceSpec extends AnyWordSpec with Matchers {
             description = "This is an exploit",
             references = Seq("foo.com", "bar.net"),
             projectKeys = Seq()
-          ))),
+          )),
+        generatedDate = now
+      )
+
+    //Report should contain a serviceName from one SVD, and a service version from another SVD, and should not filter out either.
+    val report2: Report =
+      Report(
+        rows = Seq(
+          RawVulnerability(
+            cves = Seq(CVE(cveId = Some("CVE-2021-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
+            cvss3MaxScore = Some(8.0),
+            summary = "This is an exploit",
+            severity = "High",
+            severitySource = "Source",
+            vulnerableComponent = "gav://com.testxml.test.core:test-bind:1.5.9",
+            componentPhysicalPath = "service2-1.22/some/physical/path",
+            impactedArtifact = "fooBar",
+            impactPath = Seq("hello", "world"),
+            path = "test/slugs/service2/service2_1.22_0.0.1.tgz",
+            fixedVersions = Seq("1.6.0"),
+            published = now.minus(14, ChronoUnit.DAYS),
+            artifactScanTime = now.minus(1, ChronoUnit.HOURS),
+            issueId = "XRAY-000004",
+            packageType = "maven",
+            provider = "test",
+            description = "This is an exploit",
+            references = Seq("foo.com", "bar.net"),
+            projectKeys = Seq()
+          )),
         generatedDate = now
       )
   }

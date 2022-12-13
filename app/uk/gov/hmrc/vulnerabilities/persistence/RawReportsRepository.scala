@@ -21,14 +21,16 @@ import org.mongodb.scala.MongoCollection
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNull}
 import org.mongodb.scala.model.Aggregates.{`match`, group, project, unwind}
 import org.mongodb.scala.model.{Accumulators, Filters, IndexModel, IndexOptions}
+import play.api.{Configuration, Logger}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.model.{Report, UnrefinedVulnerabilitySummary}
 
 import java.time.temporal.ChronoUnit
-import java.time.LocalDateTime
+import java.time.Instant
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 
 
@@ -36,7 +38,7 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class RawReportsRepository @Inject()(
 mongoComponent: MongoComponent,
-schedulerConfigs: SchedulerConfigs
+configuration: Configuration
 )(implicit ec: ExecutionContext
 ) extends PlayMongoRepository(
     collectionName = "rawReports",
@@ -45,12 +47,15 @@ schedulerConfigs: SchedulerConfigs
     indexes        = Seq(IndexModel(Indexes.descending("generatedDate"), IndexOptions().name("generatedDate").background(true)))
 )
     {
+      private val dataCutOff = configuration.get[FiniteDuration]("data.refresh-cutoff").toMillis.toInt
+      private val logger = Logger(this.getClass)
 
-      def insertReport(report: Report): Future[Unit] = {
+
+      def insertReport(report: Report, name: String): Future[Unit] = {
         collection
           .insertOne(report)
           .toFuture()
-          .map(_ => ())
+          .map(_ => logger.info(s"Inserted report for $name into rawReports repository"))
       }
 
       def getReportsInLastXDays(): Future[Seq[Report]] =
@@ -64,7 +69,7 @@ schedulerConfigs: SchedulerConfigs
           UnrefinedVulnerabilitySummary.reads
         )
 
-      def recent() = LocalDateTime.now().minus(schedulerConfigs.dataReloadScheduler.dataCutOff, ChronoUnit.DAYS)
+      def recent() = Instant.now().minus(dataCutOff, ChronoUnit.MILLIS)
       //Only transform data added to rawReports within last X Days
       //This stops out of date, and since fixed reports being transformed into vulnerability summaries
 

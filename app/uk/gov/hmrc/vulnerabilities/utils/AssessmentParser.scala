@@ -31,8 +31,9 @@ class AssessmentParser @Inject() ()(implicit val ec: ExecutionContext) {
 
   def getAssessments(): Future[Map[String, Assessment]] = {
     implicit val fmt = Assessment.reads
+
     val stream = new FileInputStream("app/uk/gov/hmrc/vulnerabilities/assets/investigations-idx.json")
-    val json = Future(Json.parse(stream))
+    val json = Future(try { Json.parse(stream) } finally { stream.close() } )
 
     json.map(_.as[Map[String, Assessment]])
   }

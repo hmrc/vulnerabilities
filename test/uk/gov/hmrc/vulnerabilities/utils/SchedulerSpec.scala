@@ -26,7 +26,7 @@ import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.persistence.{MongoLock, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.service.UpdateVulnerabilitiesService
 
-import java.time.{LocalDateTime, ZoneOffset}
+import java.time.Instant
 import java.time.temporal.ChronoUnit
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -46,23 +46,23 @@ class SchedulerSpec extends AnyWordSpec{
 
   val schedulerConfigs = new SchedulerConfigs(configuration)
 
-  val scheduler = new Scheduler(mock[UpdateVulnerabilitiesService], schedulerConfigs, mock[VulnerabilitySummariesRepository], mock[MongoLock])
+  val scheduler = new Scheduler(mock[UpdateVulnerabilitiesService], schedulerConfigs, mock[VulnerabilitySummariesRepository], mock[MongoLock], configuration)
 
 
   "sevenDaysOld" when {
     "given a date 6 days and 23 hours prior to it" should {
       "return false" in {
-        val res = scheduler.sevenDaysOld(LocalDateTime.now().minus(167, ChronoUnit.HOURS).toInstant(ZoneOffset.UTC), scheduler.getNow)
+        val res = scheduler.sevenDaysOld(Instant.now().minus(167, ChronoUnit.HOURS), scheduler.getNow)
         res mustBe false
       }
     }
 
     "given a date 7 days and 1 minute prior to it" should {
       "return true" in {
-        val res = scheduler.sevenDaysOld(LocalDateTime.now()
+        val res = scheduler.sevenDaysOld(Instant.now()
           .minus(168, ChronoUnit.HOURS)
           .minus(1, ChronoUnit.MINUTES)
-          .toInstant(ZoneOffset.UTC), scheduler.getNow)
+        , scheduler.getNow)
         res mustBe true
       }
     }

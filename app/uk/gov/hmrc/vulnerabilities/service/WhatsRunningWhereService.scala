@@ -27,9 +27,8 @@ class WhatsRunningWhereService @Inject()(){
     wrw
       .flatMap(wrw =>
         removeIntegrationAndDevelopment(wrw)
-          .deployments
-        .groupBy(_.version)
-        .mapValues(deployments => deployments.map(_.environment))
+        .deployments
+        .groupMap(_.version)(_.environment)
         .map(versionAndEnvs =>
           ServiceVersionDeployments(
             wrw.serviceName,
@@ -46,10 +45,7 @@ class WhatsRunningWhereService @Inject()(){
          .filterNot(dep => (dep.environment == "integration" || dep.environment == "development"))
        )
 
-  def removeSVDIfRecentReportExists(svds: Seq[ServiceVersionDeployments], recentReports: Seq[Report]): Seq[ServiceVersionDeployments] = {
-    val reportNames    = recentReports.flatMap(rep => rep.rows.map(_.head.path.split("/")(2)))
-    val reportVersions = recentReports.flatMap(rep => rep.rows.map(_.head.path.split("_")(1)))
+  def removeSVDIfRecentReportExists(svds: Seq[ServiceVersionDeployments], recentReports: Seq[Report]): Seq[ServiceVersionDeployments] =
+    svds.filterNot(svd =>recentReports.exists(rep =>rep.nameAndVersion().contains(svd.serviceName + "_" + svd.version)))
 
-    svds.filterNot(svd => reportNames.contains(svd.serviceName) && reportVersions.contains(svd.version))
-  }
 }

@@ -60,13 +60,13 @@ with Logging {
     } yield Ok(s"Inserted ${insertCount} documents into the assessments collection")
   }
 
-  def manualReload() = Action {
-    scheduler.manualReload
+  def manualReload() = Action { implicit request =>
+    scheduler.manualReload()
     Accepted("Vulnerabilities data reload triggered.")
   }
 
   def testResult: Action[AnyContent] = Action.async {
-    vulnerabilitySummariesRepository.getVulnerabilitySummaries.map {
+    vulnerabilitySummariesRepository.getVulnerabilitySummaries().map {
       implicit val fmt = VulnerabilitySummary.apiFormat
       res => Ok(Json.toJson(res))
     }

@@ -16,12 +16,11 @@
 
 package uk.gov.hmrc.vulnerabilities.model
 
-import play.api.Configuration
 import play.api.libs.functional.syntax.{toFunctionalBuilderOps, toInvariantFunctorOps, unlift}
-import play.api.libs.json.{Json, OFormat, __}
+import play.api.libs.json.{OFormat, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
-import java.time.{Instant, LocalDate, LocalDateTime, ZoneOffset}
+import java.time.Instant
 
 case class ReportRequestPayload(
  name: String,
@@ -112,16 +111,20 @@ object ReportDelete {
 }
 
 case class Report(
- rows         : Option[Seq[RawVulnerability]],
+ rows         : Seq[RawVulnerability],
  generatedDate: Instant
-)
+){
+  def serviceName()   : String = rows.headOption.map(_.path.split("/")(2)).getOrElse("")
+  def serviceVersion(): String = rows.headOption.map(_.path.split("_")(1)).getOrElse("")
+  def nameAndVersion(): String = serviceName() + "_" + serviceVersion()
+}
 
 object Report {
-  def generateDateTime: Instant = LocalDateTime.now().toInstant(ZoneOffset.UTC)
+  def generateDateTime: Instant = Instant.now()
 
   val apiFormat = {
     implicit val rvf = RawVulnerability.apiFormat
-    ((__ \ "rows").formatNullable[Seq[RawVulnerability]]
+    ((__ \ "rows").format[Seq[RawVulnerability]]
       ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
       )(apply, unlift(unapply))
   }
@@ -129,7 +132,7 @@ object Report {
   val mongoFormat = {
     implicit val instantFormat = MongoJavatimeFormats.instantFormat
     implicit val rvf = RawVulnerability.mongoFormat
-    ((__ \ "rows").formatNullable[Seq[RawVulnerability]]
+    ((__ \ "rows").format[Seq[RawVulnerability]]
       ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
       )(apply, unlift(unapply))
   }

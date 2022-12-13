@@ -146,7 +146,7 @@ class SomeReportsAlreadyExistIntegrationSpec
       )
 
       //Test occurs below
-      collection.insertReport(StubResponses.alreadyDownloadedReport)
+      collection.insertReport(StubResponses.alreadyDownloadedReport,  "AppSec-report-Service5_5.0.4")
 
       Thread.sleep(15000) //Takes roughly 12.5 secs for scheduler to autostart, and run through entire process.
       wireMockServer.stop()     //Otherwise wiremock attempts to find stub for below request

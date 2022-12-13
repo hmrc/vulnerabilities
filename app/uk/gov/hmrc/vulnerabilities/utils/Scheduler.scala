@@ -20,23 +20,23 @@ import akka.actor.ActorSystem
 import play.api.inject.ApplicationLifecycle
 import play.api.{Configuration, Logger}
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.vulnerabilities.config.{SchedulerConfig, SchedulerConfigs}
-import uk.gov.hmrc.vulnerabilities.persistence.{MongoLock, RawReportsRepository, VulnerabilitySummariesRepository}
+import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
+import uk.gov.hmrc.vulnerabilities.persistence.{MongoLock, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.service.UpdateVulnerabilitiesService
 
 import java.time.temporal.ChronoUnit
-import java.time.{Instant, LocalDateTime, ZoneOffset}
+import java.time.Instant
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.duration.{DAYS, DurationInt, FiniteDuration}
-import scala.util.control.NonFatal
 
 @Singleton
 class Scheduler @Inject()(
-   updateVulnerabilitiesService: UpdateVulnerabilitiesService,
-   config: SchedulerConfigs,
+   updateVulnerabilitiesService    : UpdateVulnerabilitiesService,
+   config                          : SchedulerConfigs,
    vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
-   mongoLock:           MongoLock
+   mongoLock                       :     MongoLock,
+   configuration                   : Configuration
 )( implicit
    actorSystem         : ActorSystem,
    applicationLifecycle: ApplicationLifecycle,
@@ -44,12 +44,14 @@ class Scheduler @Inject()(
 ) extends SchedulerUtils {
 
   private val logger= Logger(getClass)
-  implicit val hc: HeaderCarrier = HeaderCarrier()
 
-  def getNow = LocalDateTime.now().toInstant(ZoneOffset.UTC)
-  def sevenDaysOld(latestData: Instant, now: Instant): Boolean = latestData.isBefore(now.minus(config.dataReloadScheduler.dataCutOff, ChronoUnit.DAYS))
+  private val dataCutOff = configuration.get[FiniteDuration]("data.refresh-cutoff").toMillis.toInt
+
+  def getNow: Instant = Instant.now()
+  def sevenDaysOld(latestData: Instant, now: Instant): Boolean = latestData.isBefore(now.minus(dataCutOff, ChronoUnit.MILLIS))
 
   scheduleWithLock("Vulnerabilities data Reloader", config.dataReloadScheduler, mongoLock.dataReloadLock) {
+    implicit val hc: HeaderCarrier = HeaderCarrier()
     for {
       latest <- vulnerabilitySummariesRepository.getMostRecent()
       _      <- if (sevenDaysOld(latest, getNow)) {
@@ -62,12 +64,12 @@ class Scheduler @Inject()(
     } yield ()
   }
 
-  def manualReload: Future[Unit] = {
+  def manualReload()(implicit hc: HeaderCarrier): Future[Unit] = {
     mongoLock.dataReloadLock
       .withLock {
         logger.info("Data refresh has been manually triggered")
         updateVulnerabilitiesService.updateVulnerabilities()
       }
-      .map(_.getOrElse(logger.debug(s"The Reload process is locked for ${mongoLock.dataReloadLock.lockId}")))
+      .map(_.getOrElse(logger.info(s"The Reload process is locked for ${mongoLock.dataReloadLock.lockId}")))
   }
 }

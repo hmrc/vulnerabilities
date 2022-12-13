@@ -23,11 +23,13 @@ import org.mockito.MockitoSugar.when
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import play.api.Configuration
+import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
-import uk.gov.hmrc.vulnerabilities.model.{CVE, Filter, RawVulnerability, Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus, Resource, ServiceVersionDeployments, XrayFailure, XrayNoData, XrayRepo, XraySuccess}
+import uk.gov.hmrc.vulnerabilities.model.{CVE, Filter, RawVulnerability, Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus, Resource, ServiceVersionDeployments, XrayNotReady, XrayNoData, XrayRepo, XraySuccess}
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
 import java.io.ByteArrayInputStream
@@ -44,8 +46,13 @@ class XrayServiceSpec extends AnyWordSpec
   with Matchers {
 
   val schedulerConfigs = mock[SchedulerConfigs]
-  override protected def repository = new RawReportsRepository(mongoComponent, schedulerConfigs)
+  val configuration: Configuration = Configuration(
+    "data.refresh-cutoff"    -> "7 days",
+  )
 
+  implicit val hc: HeaderCarrier = HeaderCarrier()
+
+  override protected def repository = new RawReportsRepository(mongoComponent, configuration)
   "XrayService" when {
     "creating an xray payload" should {
       "Transform a serviceVersionDeployments into a ReportRequestPayload" in {
@@ -74,15 +81,15 @@ class XrayServiceSpec extends AnyWordSpec
     }
   }
 
-  "generateAndInsertReports" when {
+  "processReports" when {
     "given a list of service version deployments" should {
       "Generate a payload, request a report, download the report, and insert the report into the rawReportsrepository for each svd sequentially" in new Setup {
-        val res = spy.generateAndInsertReports(Seq(svd1, svd3))
+        val res = spy.processReports(Seq(svd1, svd3))
 
         Thread.sleep(3000)
 
         val collectionRes = res.flatMap(_ => repository.collection.find().toFuture())
-        val finalRes = collectionRes.futureValue.sortBy(_.rows.get.length).map(rep => rep.copy(rows = rep.rows.map(_.sortBy(_.cves.head.cveId))))
+        val finalRes = collectionRes.futureValue.sortBy(_.rows.length).map(rep => rep.copy(rows = rep.rows.sortBy(_.cves.head.cveId)))
 
         finalRes.length shouldBe 2
         finalRes should contain theSameElementsAs Seq(report1, report3)
@@ -91,15 +98,27 @@ class XrayServiceSpec extends AnyWordSpec
 
     "given a list of service version deployments, one of which doesn't have any rows to Download from Xray" should {
       "Not attempt to download the empty report, or insert it Into the collection " in new Setup {
-        val res = spy.generateAndInsertReports(Seq(svd1, svd2, svd3))
+        val res = spy.processReports(Seq(svd1, svd2, svd3))
 
         Thread.sleep(3000)
 
         val collectionRes = res.flatMap(_ => repository.collection.find().toFuture())
-        val finalRes = collectionRes.futureValue.sortBy(_.rows.get.length).map(rep => rep.copy(rows = rep.rows.map(_.sortBy(_.cves.head.cveId))))
+        val finalRes = collectionRes.futureValue.sortBy(_.rows.length).map(rep => rep.copy(rows = rep.rows.sortBy(_.cves.head.cveId)))
 
         finalRes.length shouldBe 2
         finalRes should contain theSameElementsAs Seq(report1, report3)
+      }
+    }
+
+    "given a list of service version deployments, the first of which returns an XrayNotReady" should {
+      "Eventually raise an exception, and halt the execution flow, meaning no payloads are processed and added to the collection" in new Setup {
+        val exceptionF = {spy.processReports(Seq(svd4, svd1, svd2, svd3))}
+
+        Thread.sleep(3000)
+
+        exceptionF.map(res => res shouldBe a [RuntimeException])
+        val colRes = repository.collection.find().toFuture()
+        colRes.futureValue.length shouldBe 0
       }
     }
   }
@@ -175,12 +194,12 @@ class XrayServiceSpec extends AnyWordSpec
       "eventually return an XrayFailure" in {
 
         when(xrayConnector.checkStatus(id = 3)).thenReturn(Future(ReportStatus(status = "creating", rowCount = None)))
-        val resF = service.checkIfReportReady((ReportRequestResponse(3, "pending")), 0)
+        val resF = service.checkIfReportReady((ReportRequestResponse(3, "pending")))
 
         Thread.sleep(16000) //as it should return XrayFailure after 15 loops of 1 second
 
         val res = resF.futureValue
-        res shouldBe XrayFailure
+        res shouldBe XrayNotReady
       }
     }
   }
@@ -204,33 +223,40 @@ class XrayServiceSpec extends AnyWordSpec
     val svd1 = ServiceVersionDeployments(serviceName = "service1", version = "1.0", environments = Seq("production"))
     val svd2 = ServiceVersionDeployments(serviceName = "service2", version = "2.0", environments = Seq("production"))
     val svd3 = ServiceVersionDeployments(serviceName = "service3", version = "3.0", environments = Seq("production"))
+    val svd4 = ServiceVersionDeployments(serviceName = "service4", version = "4.0", environments = Seq("production"))
     val svds = Seq(svd1, svd2, svd3)
 
 
     val payload1 = ReportRequestPayload(name = s"AppSec-report-service1_1.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service1_1.0*"))
     val payload2 = ReportRequestPayload(name = s"AppSec-report-service2_2.0",   resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service2_2.0*"))
     val payload3 = ReportRequestPayload(name = s"AppSec-report-service3_3.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service3_3.0*"))
+    val payload4 = ReportRequestPayload(name = s"AppSec-report-service4_4.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service4_4.0*"))
+
 
     val reportRequestResponse1 = ReportRequestResponse(reportID = 1, status = "pending")
     val reportRequestResponse2 = ReportRequestResponse(reportID = 2, status = "pending")
     val reportRequestResponse3 = ReportRequestResponse(reportID = 3, status = "pending")
+    val reportRequestResponse4 = ReportRequestResponse(reportID = 4, status = "pending")
 
     //mock createXrayPayload
     payload1 willBe returned by spy.createXrayPayload(svd1)
     payload2 willBe returned by spy.createXrayPayload(svd2)
     payload3 willBe returned by spy.createXrayPayload(svd3)
+    payload4 willBe returned by spy.createXrayPayload(svd4)
 
     //mock checkXrayResponse
     Future(XraySuccess) willBe returned by spy.checkIfReportReady(reportRequestResponse1, anyInt())
     Future(XrayNoData)  willBe returned by spy.checkIfReportReady(reportRequestResponse2, anyInt())
     Future(XraySuccess) willBe returned by spy.checkIfReportReady(reportRequestResponse3, anyInt())
+    Future(XrayNotReady) willBe returned by spy.checkIfReportReady(reportRequestResponse4, anyInt())
 
     //mock xray Connector
     when(xrayConnector.generateReport(payload1)).thenReturn(Future(reportRequestResponse1))
     when(xrayConnector.generateReport(payload2)).thenReturn(Future(reportRequestResponse2))
     when(xrayConnector.generateReport(payload3)).thenReturn(Future(reportRequestResponse3))
+    when(xrayConnector.generateReport(payload4)).thenReturn(Future(reportRequestResponse4))
 
-    when(xrayConnector.deleteReport(anyInt())).thenReturn(Future(ReportDelete("Report successfully deleted")))
+    when(xrayConnector.deleteReportFromXray(anyInt())(any[HeaderCarrier])).thenReturn(Future(ReportDelete("Report successfully deleted")))
 
     //mock getReport
 
@@ -239,7 +265,7 @@ class XrayServiceSpec extends AnyWordSpec
 
     lazy val report1: Report =
       Report(
-        rows = Some(Seq(
+        rows = Seq(
           RawVulnerability(
             cves = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
             cvss3MaxScore = Some(8.0), summary = "This is an exploit", severity = "High", severitySource = "Source",
@@ -247,13 +273,13 @@ class XrayServiceSpec extends AnyWordSpec
             impactedArtifact = "fooBar", impactPath = Seq("hello", "world"), path = "test/slugs/service1/service1_1.0.4_0.0.1.tgz", fixedVersions = Seq("1.6.0"),
             published = before, artifactScanTime = before,
             issueId = "XRAY-000003", packageType = "maven", provider = "test", description = "This is an exploit", references = Seq("foo.com", "bar.net"), projectKeys = Seq()
-          ))),
+          )),
         generatedDate = now
       )
 
     lazy val report3: Report =
       Report(
-        rows = Some(Seq(
+        rows = Seq(
           RawVulnerability(
             cves = Seq(CVE(cveId = Some("CVE-2021-99999"), cveV3Score = Some(7.0), cveV3Vector = Some("test2"))),
             cvss3MaxScore = Some(7.0), summary = "This is an exploit", severity = "High", severitySource = "Source",
@@ -270,7 +296,7 @@ class XrayServiceSpec extends AnyWordSpec
             fixedVersions = Seq("1.6.0"), published = now.minus(14, ChronoUnit.DAYS), artifactScanTime = now.minus(1, ChronoUnit.HOURS),
             issueId = "XRAY-000003", packageType = "maven", provider = "test", description = "This is an exploit", references = Seq("foo.com", "bar.net"), projectKeys = Seq()
           )
-        )),
+        ),
         generatedDate = now
       )
 

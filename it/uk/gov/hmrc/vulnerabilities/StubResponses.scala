@@ -2,14 +2,13 @@ package uk.gov.hmrc.vulnerabilities
 
 import uk.gov.hmrc.vulnerabilities.model.{CVE, Filter, RawVulnerability, Report, ReportRequestPayload, Resource, XrayRepo}
 
-import java.io.{BufferedInputStream, FileInputStream}
 import java.nio.file.{Files, Paths}
 import java.time.{Instant, LocalDateTime, ZoneOffset}
 import java.time.temporal.ChronoUnit
 
 object StubResponses {
 
-  private val now: Instant = LocalDateTime.now().toInstant(ZoneOffset.UTC)
+  private val now: Instant = Instant.now()
 
 
   val wrwBody =
@@ -88,7 +87,7 @@ object StubResponses {
 
   val alreadyDownloadedReport =
   Report(
-    rows = Some(Seq(
+    rows = Seq(
       RawVulnerability(
         cves = Seq(CVE(cveId = Some("CVE-999-999"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
         cvss3MaxScore = Some(8.0),
@@ -109,10 +108,9 @@ object StubResponses {
         description = "This is an exploit",
         references = Seq("foo.com", "bar.net"),
         projectKeys = Seq()
-      ))),
+      )),
     generatedDate = now.minus(167, ChronoUnit.HOURS)
   )
-
 }
 
 object generatedValues {

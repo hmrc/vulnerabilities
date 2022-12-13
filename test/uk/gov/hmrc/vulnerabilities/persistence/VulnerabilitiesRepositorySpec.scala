@@ -189,14 +189,14 @@ class VulnerabilitiesRepositorySpec
     "Return the dateTime Instant of the most recently generated document" in new Setup {
       repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
 
-      val result = repository.getMostRecent.futureValue
+      val result = repository.getMostRecent().futureValue
 
       result mustBe now
     }
 
     "Return a default Instant that is 8 days old, if there are no documents in the collection" in {
 
-      val result = repository.getMostRecent.futureValue
+      val result = repository.getMostRecent().futureValue
 
       result mustBe < (now.minus(7, ChronoUnit.DAYS))
       result mustBe > (now.minus(9, ChronoUnit.DAYS))
