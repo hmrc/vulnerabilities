@@ -17,12 +17,10 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import akka.actor.ActorSystem
-import com.google.common.io.CharStreams
 import play.api.Logger
 import play.api.libs.json.Json
-import play.libs.Scala
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
-import uk.gov.hmrc.vulnerabilities.model.{Filter, Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus, Resource, ServiceVersionDeployments, Status, XrayFailure, XrayNoData, XrayRepo, XraySuccess}
+import uk.gov.hmrc.vulnerabilities.model.{Filter, Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, Resource, ServiceVersionDeployments, Status, XrayFailure, XrayNoData, XrayRepo, XraySuccess}
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
 import java.util.zip.ZipInputStream
@@ -30,6 +28,7 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
 import scala.concurrent.{ExecutionContext, Future}
 import java.io.InputStream
+import cats.implicits._
 
 @Singleton
 class XrayService @Inject()(
@@ -41,10 +40,8 @@ class XrayService @Inject()(
   private val logger = Logger(this.getClass)
 
   def generateAndInsertReports(svds: Seq[ServiceVersionDeployments]): Future[Unit] = {
-    implicit val rfmt = Report.apiFormat
-    val payloads = svds.map(createXrayPayload)
-    payloads.foldLeft(Future.successful( Seq.empty[String] )){(processedPayloads, payload) =>
-      processedPayloads.flatMap { p =>
+    val payloads = svds.map(createXrayPayload).toList
+    payloads.foldLeftM(Seq.empty[String]){(processedPayloads, payload) =>
         for {
           resp   <- xrayConnector.generateReport(payload)
           status <- checkIfReportReady(resp, counter = 0)
@@ -52,11 +49,11 @@ class XrayService @Inject()(
             case XraySuccess => getReport(resp.reportID, payload.name)
             case _ => {
               logger.info(status.statusMessage)
-              Future(None)
+              Future.successful(None)
             }
           }
           deleted <- status match {
-            case XrayFailure => Future(ReportDelete(info = "Report not successfully generated, won't attempt to delete. This may require manual cleanup in UI"))
+            case XrayFailure => Future.successful(ReportDelete(info = "Report not successfully generated, won't attempt to delete. This may require manual cleanup in UI"))
             case _           => xrayConnector.deleteReport(resp.reportID)
           }
           _       = logger.info(s"${deleted.info} for ${payload.name}")
@@ -67,8 +64,7 @@ class XrayService @Inject()(
             }
             case _ => logger.info(s"No report to insert for ${payload.name}")
           }
-        } yield p :+ payload.name
-      }
+        } yield processedPayloads :+ payload.name
     }.map{processed =>
       logger.info(s"Finished processing ${processed.length} payloads. " +
         s"Note this number may differ to the number of raw reports in the collection, as we don't download reports with no rows in.")
@@ -109,14 +105,14 @@ class XrayService @Inject()(
     //Timeout after 15 secs
     if (counter < 15) {
       xrayConnector.checkStatus(reportRequestResponse.reportID).flatMap { rs => (rs.status, rs.rowCount) match {
-        case ("completed", Some(rows)) if rows > 0 => Future(XraySuccess)
-        case ("completed", _)                      => Future(XrayNoData)
+        case ("completed", Some(rows)) if rows > 0 => Future.successful(XraySuccess)
+        case ("completed", _)                      => Future.successful(XrayNoData)
         case _                                     => akka.pattern.after(FiniteDuration(1000, MILLISECONDS), system.scheduler) {
           checkIfReportReady(reportRequestResponse, counter + 1)
         }
       }}
     } else {
-      Future(XrayFailure)
+      Future.successful(XrayFailure)
     }
   }
 

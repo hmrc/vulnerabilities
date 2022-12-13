@@ -17,10 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import play.api.Logging
-import play.api.mvc.ControllerComponents
-import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector}
-import uk.gov.hmrc.vulnerabilities.model.VulnerabilitySummary
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilitySummariesRepository}
 
 import javax.inject.{Inject, Singleton}
@@ -28,7 +25,6 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class UpdateVulnerabilitiesService @Inject()(
-  cc: ControllerComponents,
   releasesConnector: ReleasesConnector,
   teamsAndRepositoriesConnector: TeamsAndRepositoriesConnector,
   whatsRunningWhereService: WhatsRunningWhereService,
@@ -39,35 +35,33 @@ class UpdateVulnerabilitiesService @Inject()(
   vulnerabilitySummariesRepository: VulnerabilitySummariesRepository
 
 )(implicit ec: ExecutionContext) extends
-  BackendController(cc)
-  with Logging {
+  Logging {
 
   def updateVulnerabilities(): Future[Unit] = {
-    implicit val fmt = VulnerabilitySummary.apiFormat
     for {
-      wrw             <- releasesConnector.getCurrentReleases
+      wrw             <- releasesConnector.getCurrentReleases()
       svDeps           = whatsRunningWhereService.getEnvsForServiceVersion(wrw)
       //Only download reports that don't exist in last 7 days in our raw reports collection
-      recentReports    <- rawReportsRepository.getReportsInLastXDays
+      recentReports   <- rawReportsRepository.getReportsInLastXDays()
       outOfDateSVDeps  = whatsRunningWhereService.removeSVDIfRecentReportExists(svDeps, recentReports)
       _               <- xrayService.generateAndInsertReports(outOfDateSVDeps)
       _                = logger.info(s"Finished generating and inserting reports into the rawReports collection")
       //Transform raw reports to Vulnerability Summaries
-      unrefined       <- rawReportsRepository.getNewDistinctVulnerabilities
+      unrefined       <- rawReportsRepository.getNewDistinctVulnerabilities()
       _                = logger.info(s"Retrieved ${unrefined.length} unrefined vulnerability summaries")
-      reposWithTeams  <- teamsAndRepositoriesConnector.getCurrentReleases
+      reposWithTeams  <- teamsAndRepositoriesConnector.getCurrentReleases()
       refined          = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, svDeps)
-      assessments     <- assessmentsRepository.getAssessments
+      assessments     <- assessmentsRepository.getAssessments()
       finalAssessments = assessments.map(a => a.id -> a).toMap
       finalSummaries   = vulnerabilitiesService.addInvestigationsToSummaries(refined, finalAssessments)
       _                = logger.info("About to delete all documents from the vulnerabilitySummaries repository")
       //Update final Collection
-      deletedCount    <- vulnerabilitySummariesRepository.deleteAllSummaries
+      deletedCount    <- vulnerabilitySummariesRepository.deleteAllSummaries()
       _                = logger.info(s"Deleted ${deletedCount} documents from the vulnerabilitySummaries repository")
       _                = logger.info(s"About to add ${finalSummaries.length} documents into the vulnerabilitySummaries repository")
       summariesCount  <- vulnerabilitySummariesRepository.insertSummaries(finalSummaries)
     } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
   }.recoverWith{
-    case ex: Throwable => ex.printStackTrace(); Future.unit
+    case ex: Throwable => logger.error(ex.getMessage); Future.unit
   }
 }

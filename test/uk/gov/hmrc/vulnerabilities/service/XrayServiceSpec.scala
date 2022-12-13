@@ -19,21 +19,18 @@ package uk.gov.hmrc.vulnerabilities.service
 import akka.actor.ActorSystem
 import org.mockito.ArgumentMatchers.{any, anyInt}
 import org.mockito.{IdiomaticMockito, Mockito}
-import org.mockito.IdiomaticMockito.returned
-import org.mockito.Mockito.spy
-import org.mockito.MockitoSugar.{doReturn, mock, when}
-import org.mockito.WhenMacro.RealMethod.willBe
+import org.mockito.MockitoSugar.when
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
-import uk.gov.hmrc.vulnerabilities.config.{SchedulerConfig, SchedulerConfigs}
+import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
 import uk.gov.hmrc.vulnerabilities.model.{CVE, Filter, RawVulnerability, Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus, Resource, ServiceVersionDeployments, XrayFailure, XrayNoData, XrayRepo, XraySuccess}
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
-import java.io.{ByteArrayInputStream, InputStream}
+import java.io.ByteArrayInputStream
 import java.time.{Instant, LocalDateTime, ZoneOffset}
 import java.time.temporal.ChronoUnit
 import scala.concurrent.ExecutionContext.Implicits.global

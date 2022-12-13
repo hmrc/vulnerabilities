@@ -51,7 +51,7 @@ class Scheduler @Inject()(
 
   scheduleWithLock("Vulnerabilities data Reloader", config.dataReloadScheduler, mongoLock.dataReloadLock) {
     for {
-      latest <- vulnerabilitySummariesRepository.getMostRecent
+      latest <- vulnerabilitySummariesRepository.getMostRecent()
       _      <- if (sevenDaysOld(latest, getNow)) {
                   logger.info("Data is older than 7 days - beginning data refresh")
                   updateVulnerabilitiesService.updateVulnerabilities()

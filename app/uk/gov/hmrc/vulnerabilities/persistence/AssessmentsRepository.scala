@@ -18,7 +18,6 @@ package uk.gov.hmrc.vulnerabilities.persistence
 
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
-import uk.gov.hmrc.vulnerabilities.model.Report
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
 import javax.inject.{Inject, Singleton}
@@ -41,6 +40,6 @@ class AssessmentsRepository @Inject()(
       .toFuture()
       .map(res => res.getInsertedIds.size())
 
-  def getAssessments: Future[Seq[Assessment]] =
+  def getAssessments(): Future[Seq[Assessment]] =
     collection.find().toFuture()
 }

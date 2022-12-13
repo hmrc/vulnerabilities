@@ -33,7 +33,7 @@ class TeamsAndRepositoriesConnector @Inject()(
   private implicit val hc: HeaderCarrier = HeaderCarrier()
   private val url = servicesConfig.baseUrl("teams-and-repositories")
 
-  def getCurrentReleases(implicit ec: ExecutionContext): Future[Map[String, Seq[String]]] =
+  def getCurrentReleases()(implicit ec: ExecutionContext): Future[Map[String, Seq[String]]] =
 
     httpClientV2.get(url"$url/api/repository_teams")
       .execute[HttpResponse]

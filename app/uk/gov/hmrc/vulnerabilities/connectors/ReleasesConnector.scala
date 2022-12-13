@@ -33,7 +33,7 @@ class ReleasesConnector @Inject()(
   private implicit val hc: HeaderCarrier = HeaderCarrier()
   private val url = servicesConfig.baseUrl("releases-api")
 
-  def getCurrentReleases(implicit ec: ExecutionContext): Future[Seq[WhatsRunningWhere]] = {
+  def getCurrentReleases()(implicit ec: ExecutionContext): Future[Seq[WhatsRunningWhere]] = {
     implicit val fmt = WhatsRunningWhere.apiFormat
 
     httpClientV2.get(url"$url/releases-api/whats-running-where")

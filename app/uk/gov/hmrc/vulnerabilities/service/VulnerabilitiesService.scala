@@ -17,8 +17,8 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, Uncurated}
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, ServiceVersionDeployments, UnrefinedVulnerabilityOccurrence, UnrefinedVulnerabilitySummary, Vulnerability, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent, WhatsRunningWhere}
-import uk.gov.hmrc.vulnerabilities.persistence.{VulnerabilitiesRepository, VulnerabilitySummariesRepository}
+import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, ServiceVersionDeployments, UnrefinedVulnerabilitySummary, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
 import javax.inject.{Inject, Singleton}

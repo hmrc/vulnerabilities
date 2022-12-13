@@ -21,16 +21,14 @@ import org.mongodb.scala.MongoCollection
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNull}
 import org.mongodb.scala.model.Aggregates.{`match`, group, project, unwind}
 import org.mongodb.scala.model.{Accumulators, Filters, IndexModel, IndexOptions}
-import play.api.Configuration
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.config.{SchedulerConfigs}
+import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.model.{Report, UnrefinedVulnerabilitySummary}
 
 import java.time.temporal.ChronoUnit
-import java.time.{LocalDateTime, ZoneOffset}
+import java.time.LocalDateTime
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 
 
@@ -55,11 +53,8 @@ schedulerConfigs: SchedulerConfigs
           .map(_ => ())
       }
 
-      def countReports: Future[Int] =
-        collection.find().toFuture.map(_.length)
-
-      def getReportsInLastXDays: Future[Seq[Report]] =
-        collection.find(Filters.gt("generatedDate", recent)).toFuture()
+      def getReportsInLastXDays(): Future[Seq[Report]] =
+        collection.find(Filters.gt("generatedDate", recent())).toFuture()
 
       // use a different view to allow distinctVulnerabilitiesSummary to return a different case class
       private val vcsCollection: MongoCollection[UnrefinedVulnerabilitySummary] =
@@ -69,20 +64,14 @@ schedulerConfigs: SchedulerConfigs
           UnrefinedVulnerabilitySummary.reads
         )
 
-      def recent = LocalDateTime.now().minus(schedulerConfigs.dataReloadScheduler.dataCutOff, ChronoUnit.DAYS)
-      //Only transform data added to rawReports within last 24 hours
+      def recent() = LocalDateTime.now().minus(schedulerConfigs.dataReloadScheduler.dataCutOff, ChronoUnit.DAYS)
+      //Only transform data added to rawReports within last X Days
       //This stops out of date, and since fixed reports being transformed into vulnerability summaries
-      //Works as the scheduler runs every 7 days
 
-      //TO-DO:
-      // It would be neater if each scheduler run assigned a random 'job id' to all raw reports inserted in the collection
-      // This could be passed through the Service for comprehension, and used as a filter in `getNewDistinctVulnerabilities` below
-      // This would be better than a time cut off - as we are able to hit a manual reload endpoint, outside of the schedule window.
-
-      def getNewDistinctVulnerabilities: Future[Seq[UnrefinedVulnerabilitySummary]] =
+      def getNewDistinctVulnerabilities(): Future[Seq[UnrefinedVulnerabilitySummary]] =
         vcsCollection.aggregate(
           Seq(
-            `match`(Filters.gt("generatedDate", recent)),
+            `match`(Filters.gt("generatedDate", recent())),
             unwind("$rows"),
             unwind("$rows.cves"),
             project(
