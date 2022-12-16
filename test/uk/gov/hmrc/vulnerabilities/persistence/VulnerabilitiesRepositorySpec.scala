@@ -80,9 +80,9 @@ class VulnerabilitiesRepositorySpec
     "default sort by descending score and ascending id" in new Setup {
       repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
 
-      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(0), expectedOccurrences(5)), Seq("team1", "team2"), oneMinAgo)
-      val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(1), Seq(expectedOccurrences(6), expectedOccurrences(1)), Seq("team1", "team2"), now)
-      val expected3 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"), fourDaysAgo)
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(0), expectedOccurrences(5)), Seq("team1", "team2"), Some(oneMinAgo))
+      val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(1), Seq(expectedOccurrences(6), expectedOccurrences(1)), Seq("team1", "team2"), Some(now))
+      val expected3 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"), Some(fourDaysAgo))
 
       val results = repository.distinctVulnerabilitiesSummary(None, None, None, None).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
@@ -95,7 +95,7 @@ class VulnerabilitiesRepositorySpec
       repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
 
 
-      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"), fourDaysAgo)
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"), Some(fourDaysAgo))
 
       val results = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), None, None, None).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
@@ -108,8 +108,8 @@ class VulnerabilitiesRepositorySpec
     "filter by curationStatus" in new Setup {
       repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
 
-      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(0), expectedOccurrences(5)), Seq("team1", "team2"), oneMinAgo)
-      val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"), fourDaysAgo)
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(0), expectedOccurrences(5)), Seq("team1", "team2"), Some(oneMinAgo))
+      val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3), expectedOccurrences(4)), Seq("team1"), Some(fourDaysAgo))
 
       val results = repository.distinctVulnerabilitiesSummary(None, curationStatus = Some(CurationStatus.ActionRequired.asString), None, None).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
@@ -121,7 +121,7 @@ class VulnerabilitiesRepositorySpec
     "filter by service name" in new Setup {
       repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
 
-      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(0)), Seq("team1", "team2"), generatedDate = oneMinAgo)
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(0)), Seq("team1", "team2"), generatedDate = Some(oneMinAgo))
 
       val results = repository.distinctVulnerabilitiesSummary(None, None, service = Some("ice1"), None).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
@@ -133,8 +133,8 @@ class VulnerabilitiesRepositorySpec
     "filter by team" in new Setup {
       repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
 
-      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(5)), Seq("team1", "team2"), oneMinAgo)
-      val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(1), Seq(expectedOccurrences(6)), Seq("team1", "team2"), now)
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(0), Seq(expectedOccurrences(5)), Seq("team1", "team2"), Some(oneMinAgo))
+      val expected2 = VulnerabilitySummary(expectedDistinctVulnerabilities(1), Seq(expectedOccurrences(6)), Seq("team1", "team2"), Some(now))
 
       val results = repository.distinctVulnerabilitiesSummary(None, None, None, team = Some("team2")).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
@@ -146,7 +146,7 @@ class VulnerabilitiesRepositorySpec
     "filter by all four parameters" in new Setup {
       repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
 
-      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(4)), Seq("team1"), fourDaysAgo)
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(4)), Seq("team1"), Some(fourDaysAgo))
 
       val results1 = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), curationStatus = Some(CurationStatus.ActionRequired.asString), service = Some("3"), team = Some("team2")).futureValue
       val results2 = repository.distinctVulnerabilitiesSummary(id = Some("XRAY"), curationStatus = Some(CurationStatus.ActionRequired.asString), service = Some("3"), team = Some("team1")).futureValue
@@ -173,7 +173,7 @@ class VulnerabilitiesRepositorySpec
     "Do an exact match on service when searchTerm is quoted" in new Setup {
       repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
 
-      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3)), Seq("team1"), fourDaysAgo)
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(2), Seq(expectedOccurrences(2), expectedOccurrences(3)), Seq("team1"), Some(fourDaysAgo))
       val results = repository.distinctVulnerabilitiesSummary(None, None, Some("\"service3\""), None).futureValue
 
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
@@ -249,7 +249,7 @@ class VulnerabilitiesRepositorySpec
           VulnerabilityOccurrence(service = "service6", serviceVersion = "2.55", componentPathInSlug = "apache:x", teams = Seq("team2"), envs = Seq("staging", "production"), vulnerableComponentName = "component1.1", vulnerableComponentVersion = "0.8")
         ),
         teams = Seq("team1", "team2"),
-        generatedDate = oneMinAgo
+        generatedDate = Some(oneMinAgo)
       )
 
     lazy val vulnerabilitySummary2 =
@@ -275,7 +275,7 @@ class VulnerabilitiesRepositorySpec
           VulnerabilityOccurrence(service = "helloWorld", serviceVersion = "2.51", componentPathInSlug = "apache:y", teams = Seq("team1", "team2"), envs = Seq("qa"), vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0")
         ),
         teams = Seq("team1", "team2"),
-        generatedDate = now
+        generatedDate = Some(now)
       )
 
     lazy val vulnerabilitySummary3 = VulnerabilitySummary(
@@ -301,7 +301,7 @@ class VulnerabilitiesRepositorySpec
         VulnerabilityOccurrence(service = "service33",serviceVersion = "3",componentPathInSlug = "e",teams = Seq("team1"), envs =Seq("staging", "production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
       ),
       teams = Seq("team1"),
-      generatedDate = fourDaysAgo
+      generatedDate = Some(fourDaysAgo)
     )
 
   }

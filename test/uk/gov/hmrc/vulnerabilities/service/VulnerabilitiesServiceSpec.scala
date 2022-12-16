@@ -133,7 +133,7 @@ class VulnerabilitiesServiceSpec extends AnyWordSpec with Matchers {
         )
       ),
       teams = Seq("Team1", "TeamA"),
-      generatedDate = UnrefinedVulnerabilitySummariesData.now
+      generatedDate = Some(UnrefinedVulnerabilitySummariesData.now)
       )
 
     val vuln2 = VulnerabilitySummary(
@@ -160,7 +160,7 @@ class VulnerabilitiesServiceSpec extends AnyWordSpec with Matchers {
         )
       ),
       teams = Seq("Team1", "Team4", "TeamA", "TeamF"),
-      generatedDate = UnrefinedVulnerabilitySummariesData.now
+      generatedDate = Some(UnrefinedVulnerabilitySummariesData.now)
     )
 
     val vuln3 = VulnerabilitySummary(
@@ -184,7 +184,7 @@ class VulnerabilitiesServiceSpec extends AnyWordSpec with Matchers {
         ),
       ),
       teams = Seq.empty,
-      generatedDate = UnrefinedVulnerabilitySummariesData.now
+      generatedDate = Some(UnrefinedVulnerabilitySummariesData.now)
     )
 
   }

@@ -80,7 +80,7 @@ class VulnerabilitiesService @Inject() (
         ),
         occurrences           = occs.sortBy(o => (o.service, o.serviceVersion)),
         teams                 = occs.flatMap(_.teams).distinct.sorted,
-        generatedDate         = u.generatedDate
+        generatedDate         = Some(u.generatedDate)
       )
     }
 

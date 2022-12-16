@@ -121,7 +121,7 @@ class SomeReportsAlreadyExistIntegrationSpec
           VulnerabilityOccurrence("Service1","0.836.0","Service1-0.836.0/some/physical/path",Seq("Team1", "Team2"),Seq("production"),"gav://com.testxml.test.core:test-bind","1.5.9")
         ),
         teams = List("Team1", "Team2"),
-        generatedDate = StubResponses.startOfYear
+        generatedDate = Some(StubResponses.startOfYear)
       )
 
       val expectedResult2 = VulnerabilitySummary(
@@ -142,7 +142,7 @@ class SomeReportsAlreadyExistIntegrationSpec
           VulnerabilityOccurrence("Service5","5.0.4","Service5-5.0.4/some/physical/path",Seq(),Seq("staging", "production"),"gav://com.testxml.test.core:test-bind","1.5.9"),
         ),
         teams = Seq(),
-        generatedDate = StubResponses.startOfYear
+        generatedDate = Some(StubResponses.startOfYear)
       )
 
       //Test occurs below
@@ -154,7 +154,7 @@ class SomeReportsAlreadyExistIntegrationSpec
         .url(resource("/vulnerabilities/api/vulnerabilities/testResult"))
         .get.futureValue
 
-      val result = response.json.as[Seq[VulnerabilitySummary]].map(_.copy(generatedDate = StubResponses.startOfYear)).sortBy(_.distinctVulnerability.id)
+      val result = response.json.as[Seq[VulnerabilitySummary]].map(_.copy(generatedDate = Some(StubResponses.startOfYear))).sortBy(_.distinctVulnerability.id)
       //update the results generated date as otherwise it would be dynamic - it would be the time of test
 
       result.length shouldBe 2

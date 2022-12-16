@@ -122,7 +122,7 @@ class HappyPathIntegrationSpec
           VulnerabilityOccurrence("Service1","0.836.0","Service1-0.836.0/some/physical/path",Seq("Team1", "Team2"),Seq("production"),"gav://com.testxml.test.core:test-bind","1.5.9")
         ),
         teams = List("Team1", "Team2"),
-        generatedDate = StubResponses.startOfYear
+        generatedDate = Some(StubResponses.startOfYear)
       )
 
       //Test occurs below
@@ -133,7 +133,7 @@ class HappyPathIntegrationSpec
         .url(resource("/vulnerabilities/api/vulnerabilities/testResult"))
         .get.futureValue
 
-      val result = response.json.as[Seq[VulnerabilitySummary]].map(_.copy(generatedDate = StubResponses.startOfYear))
+      val result = response.json.as[Seq[VulnerabilitySummary]].map(_.copy(generatedDate = Some(StubResponses.startOfYear)))
       //update the results generated date as otherwise it would be dynamic - it would be the time of test
 
       result.length shouldBe 1
