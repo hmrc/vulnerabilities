@@ -16,9 +16,10 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
-import uk.gov.hmrc.vulnerabilities.model.CurationStatus.ActionRequired
-import uk.gov.hmrc.vulnerabilities.model.{Vulnerability, VulnerabilitySummary}
-import uk.gov.hmrc.vulnerabilities.persistence.{VulnerabilitiesRepository, VulnerabilitySummariesRepository}
+import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, Uncurated}
+import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, ServiceVersionDeployments, UnrefinedVulnerabilitySummary, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
+import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -38,4 +39,61 @@ class VulnerabilitiesService @Inject() (
   def distinctVulnerabilitiesSummary(vulnerability: Option[String], curationStatus: Option[String], service: Option[String], team: Option[String]): Future[Seq[VulnerabilitySummary]] = {
     vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team)
   }
+
+  def convertToVulnerabilitySummary(
+    unrefined: Seq[UnrefinedVulnerabilitySummary],
+    repoWithTeams: Map[String, Seq[String]],
+    svds: Seq[ServiceVersionDeployments]
+  ): Seq[VulnerabilitySummary] =
+    unrefined.map{u =>
+      val occs = u.occurrences.map{ occ =>
+        val service = occ.path.split("/")(2)
+        val serviceVersion = occ.path.split("_")(1)
+        VulnerabilityOccurrence(
+          service                    = service,
+          serviceVersion             = serviceVersion,
+          componentPathInSlug        = occ.componentPhysicalPath,
+          teams                      = repoWithTeams.getOrElse(service, Seq.empty).sorted,
+          envs                       = svds
+            .find(s => s.serviceName == service && s.version == serviceVersion)
+            .getOrElse(ServiceVersionDeployments("", "", Seq.empty))
+            .environments,
+          vulnerableComponentName    = occ.vulnComponent.split(":").dropRight(1).mkString(":"),
+          vulnerableComponentVersion = occ.vulnComponent.split(":").last
+        )
+      }
+
+      VulnerabilitySummary(
+        distinctVulnerability = DistinctVulnerability(
+          vulnerableComponentName    = occs.head.vulnerableComponentName,
+          vulnerableComponentVersion = occs.head.vulnerableComponentVersion,
+          vulnerableComponents       = occs.map( o => VulnerableComponent(o.vulnerableComponentName, o.vulnerableComponentVersion)).distinct.sortBy(o => (o.component, o.version)),
+          id                         = u.id,
+          score                      = u.score,
+          description                = u.distinctVulnerability.description,
+          fixedVersions              = u.distinctVulnerability.fixedVersions,
+          references                 = u.distinctVulnerability.references,
+          publishedDate              = u.distinctVulnerability.publishedDate,
+          assessment                 = None,
+          curationStatus             = None,
+          ticket                     = None,
+        ),
+        occurrences           = occs.sortBy(o => (o.service, o.serviceVersion)),
+        teams                 = occs.flatMap(_.teams).distinct.sorted,
+        generatedDate         = u.generatedDate
+      )
+    }
+
+
+  def addInvestigationsToSummaries(summaries: Seq[VulnerabilitySummary], investigations: Map[String, Assessment]): Seq[VulnerabilitySummary] =
+    summaries.map { vs =>
+      investigations.get(vs.distinctVulnerability.id) match {
+        case Some(inv) => vs.copy(distinctVulnerability = vs.distinctVulnerability
+              .copy(assessment = Some(inv.assessment), curationStatus = Some(inv.curationStatus), ticket = Some(inv.ticket)
+              ))
+        case None => vs.copy(distinctVulnerability = vs.distinctVulnerability
+            .copy(curationStatus = Some(Uncurated))
+        )
+      }
+    }
 }

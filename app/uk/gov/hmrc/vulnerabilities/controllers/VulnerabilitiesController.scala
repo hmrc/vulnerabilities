@@ -16,20 +16,28 @@
 
 package uk.gov.hmrc.vulnerabilities.controllers
 
+import play.api.Logging
 import play.api.libs.json.{Json, OFormat}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.vulnerabilities.model.{Vulnerability, VulnerabilitySummary}
+import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.service.VulnerabilitiesService
+import uk.gov.hmrc.vulnerabilities.utils.{AssessmentParser, Scheduler}
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton()
 class VulnerabilitiesController @Inject()(
     cc: ControllerComponents,
-    vulnerabilitiesService: VulnerabilitiesService
-)(implicit ec: ExecutionContext) extends BackendController(cc) {
+    vulnerabilitiesService: VulnerabilitiesService,
+    assessmentParser: AssessmentParser,
+    assessmentsRepository: AssessmentsRepository,
+    scheduler: Scheduler,
+    vulnerabilitySummariesRepository: VulnerabilitySummariesRepository
+)(implicit ec: ExecutionContext) extends BackendController(cc)
+with Logging {
 
   def distinctVulnerabilitySummaries(vulnerability: Option[String] = None, curationStatus: Option[String] = None, service: Option[String] = None, team: Option[String] = None): Action[AnyContent] =
     Action.async {
@@ -42,6 +50,25 @@ class VulnerabilitiesController @Inject()(
   def getDistinctVulnerabilities(service: String): Action[AnyContent] = Action.async {
     vulnerabilitiesService.countDistinctVulnerabilities(service).map {
       result => Ok(Json.toJson(result))
+    }
+  }
+
+  def updateAssessments: Action[AnyContent] = Action.async {
+    for {
+      assessments <- assessmentParser.getAssessments()
+      insertCount <- assessmentsRepository.insertAssessments(assessments.values.toSeq)
+    } yield Ok(s"Inserted ${insertCount} documents into the assessments collection")
+  }
+
+  def manualReload() = Action { implicit request =>
+    scheduler.manualReload()
+    Accepted("Vulnerabilities data reload triggered.")
+  }
+
+  def testResult: Action[AnyContent] = Action.async {
+    vulnerabilitySummariesRepository.getVulnerabilitySummaries().map {
+      implicit val fmt = VulnerabilitySummary.apiFormat
+      res => Ok(Json.toJson(res))
     }
   }
 }

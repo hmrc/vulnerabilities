@@ -16,29 +16,29 @@
 
 package uk.gov.hmrc.vulnerabilities.connectors
 
-import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
+import uk.gov.hmrc.http.HttpReadsInstances.readFromJson
+import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.WhatsRunningWhere
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class ReleasesConnector @Inject()(
-   servicesConfig: ServicesConfig,
-   httpClientV2: HttpClientV2
+class TeamsAndRepositoriesConnector @Inject()(
+ servicesConfig: ServicesConfig,
+ httpClientV2: HttpClientV2
 )(implicit ec: ExecutionContext)
 {
   private implicit val hc: HeaderCarrier = HeaderCarrier()
-  private val url = servicesConfig.baseUrl("releases-api")
+  private val url = servicesConfig.baseUrl("teams-and-repositories")
 
-  def getCurrentReleases()(implicit ec: ExecutionContext): Future[Seq[WhatsRunningWhere]] = {
-    implicit val fmt = WhatsRunningWhere.apiFormat
+  def getCurrentReleases()(implicit ec: ExecutionContext): Future[Map[String, Seq[String]]] =
 
-    httpClientV2.get(url"$url/releases-api/whats-running-where")
-      .execute[Seq[WhatsRunningWhere]]
-  }
+    httpClientV2.get(url"$url/api/repository_teams")
+      .execute[HttpResponse]
+      .map(_.json.as[Map[String, Seq[String]]])
+
 
 
 }
