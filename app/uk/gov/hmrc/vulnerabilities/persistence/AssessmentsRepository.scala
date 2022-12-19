@@ -28,7 +28,7 @@ class AssessmentsRepository @Inject()(
                                       mongoComponent: MongoComponent
                                     )(implicit ec: ExecutionContext
                                     ) extends PlayMongoRepository(
-  collectionName = "Assessments",
+  collectionName = "assessments",
   mongoComponent = mongoComponent,
   domainFormat   = Assessment.mongoFormat,
   indexes        = Seq()

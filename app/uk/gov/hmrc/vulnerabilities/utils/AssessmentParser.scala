@@ -60,6 +60,8 @@ object Assessment {
 
   val mongoFormat = {
     implicit val cf = CurationStatus.format
+    implicit val instantFormat = MongoJavatimeFormats.instantFormat
+
     ( (__ \ "id").format[String]
       ~ (__ \ "assessment").format[String]
       ~ (__ \ "curationStatus").format[CurationStatus]
