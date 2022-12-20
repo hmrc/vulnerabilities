@@ -20,7 +20,8 @@ import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.vulnerabilities.model.Environment.{Development, Production, QA, Staging}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, VulnerabilityCount, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -38,6 +39,56 @@ class VulnerabilitiesRepositorySpec
   private val now = Instant.now().truncatedTo(ChronoUnit.MILLIS)
   private val oneMinAgo = now.minus(1, ChronoUnit.MINUTES)
   private val fourDaysAgo = now.minus(4, ChronoUnit.DAYS)
+
+  private val vulnerabilitySummary4 = VulnerabilitySummary(
+    distinctVulnerability = DistinctVulnerability(
+      vulnerableComponentName = "component3",
+      vulnerableComponentVersion = "3.0",
+      vulnerableComponents = Seq(
+        VulnerableComponent("component3", "3.0")
+      ),
+      id = "XRAY-TEST-2",
+      score = Some(2.0),
+      description = "desc3",
+      fixedVersions = None,
+      references = Seq("test", "test"),
+      publishedDate = now,
+      assessment = Some(""),
+      curationStatus = Some(CurationStatus.ActionRequired),
+      ticket = Some("BDOG-3")
+    ),
+    occurrences = Seq(
+      VulnerabilityOccurrence(service = "service3",serviceVersion = "3", componentPathInSlug = "c", teams = Seq(), envs = Seq("production", "development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service1",serviceVersion = "3.1",componentPathInSlug = "d", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service6",serviceVersion = "3",componentPathInSlug = "e",teams = Seq("team1"), envs = Seq("staging", "production", "qa"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+    ),
+    teams = Seq("team1")
+  )
+
+  private val vulnerabilitySummary5 = VulnerabilitySummary(
+    distinctVulnerability = DistinctVulnerability(
+      vulnerableComponentName = "component3",
+      vulnerableComponentVersion = "3.0",
+      vulnerableComponents = Seq(
+        VulnerableComponent("component3", "3.0")
+      ),
+      id = "XRAY-TEST-3",
+      score = Some(2.0),
+      description = "desc3",
+      fixedVersions = None,
+      references = Seq("test", "test"),
+      publishedDate = now,
+      assessment = Some(""),
+      curationStatus = Some(CurationStatus.NoActionRequired),
+      ticket = Some("BDOG-3")
+    ),
+    occurrences = Seq(
+      VulnerabilityOccurrence(service = "service3",serviceVersion = "3", componentPathInSlug = "c", teams = Seq(), envs = Seq("production", "development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service1",serviceVersion = "3.1",componentPathInSlug = "d", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service6",serviceVersion = "3",componentPathInSlug = "e",teams = Seq("team1"), envs = Seq("staging", "production", "qa"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+    ),
+    teams = Seq("team1")
+  )
 
   "distinctVulnerabilitySummary" must {
 
@@ -194,6 +245,60 @@ class VulnerabilitiesRepositorySpec
       resultsSorted must contain theSameElementsAs Seq(expected1)
       resultsSorted.head.occurrences.length mustBe 2 //Shouldn't pick up 'Service33'
 
+    }
+  }
+
+  "vulnerabilitiesCount" must {
+    val repositoryInsert = repository.collection.insertMany(
+      Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3, vulnerabilitySummary4, vulnerabilitySummary5)
+    )
+
+    "return counts for a service" in {
+      val expected = Seq(
+        VulnerabilityCount("service3", Development.asString, CurationStatus.ActionRequired, 2),
+        VulnerabilityCount("service3", Development.asString ,CurationStatus.NoActionRequired, 1),
+        VulnerabilityCount("service3", Production.asString, CurationStatus.ActionRequired, 2),
+        VulnerabilityCount("service3", Production.asString, CurationStatus.NoActionRequired, 1)
+      )
+
+      repositoryInsert.toFuture().futureValue
+      val result = repository.vulnerabilitiesCount(service = Some("\"service3\""), None, None)
+      result.futureValue must contain theSameElementsAs expected
+    }
+
+    "return counts for all services owned by a team" in {
+      val expected = Seq(
+        VulnerabilityCount("service6", Staging.asString, CurationStatus.ActionRequired, 1),
+        VulnerabilityCount("service6", Production.asString, CurationStatus.ActionRequired, 1),
+        VulnerabilityCount("helloWorld", QA.asString, CurationStatus.NoActionRequired, 1)
+      )
+
+      repositoryInsert.toFuture().futureValue
+      val result = repository.vulnerabilitiesCount(None, team = Some("team2"), None)
+      result.futureValue must contain theSameElementsAs expected
+    }
+
+    "return counts for an environment" in {
+      val expected = Seq(
+        VulnerabilityCount("helloWorld", QA.asString, CurationStatus.NoActionRequired, 1),
+        VulnerabilityCount("service6", QA.asString, CurationStatus.NoActionRequired, 1),
+        VulnerabilityCount("service6", QA.asString, CurationStatus.ActionRequired, 1)
+      )
+
+      repositoryInsert.toFuture().futureValue
+      val result = repository.vulnerabilitiesCount(None, None, environment = Some(QA))
+      result.futureValue must contain theSameElementsAs expected
+    }
+
+    "return counts with all filters applied" in {
+      val expected =  Seq(
+        VulnerabilityCount("service6", Production.asString, CurationStatus.ActionRequired, 1),
+        VulnerabilityCount("service6", Production.asString, CurationStatus.NoActionRequired, 1)
+      )
+
+      repositoryInsert.toFuture().futureValue
+      val result = repository.vulnerabilitiesCount(service = Some("\"service6\""), team = Some("team1"), environment = Some(Production))
+      result.futureValue must contain theSameElementsAs expected
     }
   }
 

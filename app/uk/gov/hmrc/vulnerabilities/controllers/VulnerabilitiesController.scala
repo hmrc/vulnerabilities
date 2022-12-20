@@ -78,5 +78,12 @@ with Logging {
       res => Ok(Json.toJson(res))
     }
   }
+
+  def getVulnerabilityCountsPerService(service: Option[String], team: Option[String], environment: Option[Environment]): Action[AnyContent] = Action.async {
+    implicit val vcf: OFormat[VulnerabilityCount] = VulnerabilityCount.mongoFormat
+    vulnerabilitiesService.vulnerabilitiesCountPerService(service, team, environment).map {
+      result => Ok(Json.toJson(result))
+    }
+  }
 }
 
