@@ -32,12 +32,12 @@ class VulnerabilitiesService @Inject() (
   def countDistinctVulnerabilities(service: String): Future[Int] = {
     // adds quotes for regex exact match
     val serviceWithQuotes = Some(s"\"$service\"")
-    vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(None, Some(ActionRequired.asString), serviceWithQuotes, None)
+    vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(None, Some(ActionRequired.asString), serviceWithQuotes, None, None)
       .map(_.map(vs => vs.distinctVulnerability.id).toSet.size)
   }
 
-  def distinctVulnerabilitiesSummary(vulnerability: Option[String], curationStatus: Option[String], service: Option[String], team: Option[String]): Future[Seq[VulnerabilitySummary]] = {
-    vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team)
+  def distinctVulnerabilitiesSummary(vulnerability: Option[String], curationStatus: Option[String], service: Option[String], team: Option[String], component: Option[String]): Future[Seq[VulnerabilitySummary]] = {
+    vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team, component)
   }
 
   def convertToVulnerabilitySummary(

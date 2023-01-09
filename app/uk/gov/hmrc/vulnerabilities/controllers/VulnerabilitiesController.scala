@@ -39,10 +39,16 @@ class VulnerabilitiesController @Inject()(
 )(implicit ec: ExecutionContext) extends BackendController(cc)
 with Logging {
 
-  def distinctVulnerabilitySummaries(vulnerability: Option[String] = None, curationStatus: Option[String] = None, service: Option[String] = None, team: Option[String] = None): Action[AnyContent] =
+  def distinctVulnerabilitySummaries(
+                                      vulnerability: Option[String] = None,
+                                      curationStatus: Option[String] = None,
+                                      service: Option[String] = None,
+                                      team: Option[String] = None,
+                                      component: Option[String] = None
+                                    ): Action[AnyContent] =
     Action.async {
     implicit val fmt: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
-    vulnerabilitiesService.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team).map {
+    vulnerabilitiesService.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team, component).map {
       result => Ok(Json.toJson(result))
     }
   }
