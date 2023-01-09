@@ -19,12 +19,11 @@ package uk.gov.hmrc.vulnerabilities.connectors
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
-import com.google.common.io.BaseEncoding
-import play.api.{Logger, Logging}
+import play.api.Logging
 import play.api.libs.json.Json
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse, StringContextOps, UpstreamErrorResponse}
+import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.vulnerabilities.model.{Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus, Status}
+import uk.gov.hmrc.vulnerabilities.model.{Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus}
 import uk.gov.hmrc.http.HttpReads.Implicits._
 import uk.gov.hmrc.vulnerabilities.config.XrayConfig
 

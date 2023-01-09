@@ -17,11 +17,11 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import akka.actor.ActorSystem
-import cats.data.{EitherT, OptionT}
+import cats.data.{EitherT}
 import play.api.Logger
 import play.api.libs.json.Json
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
-import uk.gov.hmrc.vulnerabilities.model.{Filter, RawVulnerability, Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, Resource, ServiceVersionDeployments, Status, XrayNoData, XrayNotReady, XrayRepo, XraySuccess}
+import uk.gov.hmrc.vulnerabilities.model._
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
 import java.util.zip.ZipInputStream

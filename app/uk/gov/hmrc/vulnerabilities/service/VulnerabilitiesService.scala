@@ -36,7 +36,13 @@ class VulnerabilitiesService @Inject() (
       .map(_.map(vs => vs.distinctVulnerability.id).toSet.size)
   }
 
-  def distinctVulnerabilitiesSummary(vulnerability: Option[String], curationStatus: Option[String], service: Option[String], team: Option[String], component: Option[String]): Future[Seq[VulnerabilitySummary]] = {
+  def distinctVulnerabilitiesSummary(
+    vulnerability  : Option[String],
+    curationStatus : Option[String],
+    service        : Option[String],
+    team           : Option[String],
+    component      : Option[String]
+  ): Future[Seq[VulnerabilitySummary]] = {
     vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team, component)
   }
 
