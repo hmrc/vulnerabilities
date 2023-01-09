@@ -24,7 +24,6 @@ import org.mongodb.scala.model.{Accumulators, Filters, IndexModel, IndexOptions}
 import play.api.{Configuration, Logger}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.model.{Report, UnrefinedVulnerabilitySummary}
 
 import java.time.temporal.ChronoUnit
@@ -32,8 +31,6 @@ import java.time.Instant
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
-
-
 
 @Singleton
 class RawReportsRepository @Inject()(

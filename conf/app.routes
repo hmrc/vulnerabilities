@@ -1,6 +1,6 @@
 # microservice specific routes
 
-GET        /api/vulnerabilities/distinct      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.distinctVulnerabilitySummaries(vulnerability: Option[String] ?= None, curationStatus: Option[String] ?= None, service: Option[String] ?= None, team: Option[String] ?= None)
+GET        /api/vulnerabilities/distinct      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.distinctVulnerabilitySummaries(vulnerability: Option[String], curationStatus: Option[String], service: Option[String], team: Option[String], component: Option[String])
 GET        /api/vulnerabilities/count         uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.getDistinctVulnerabilities(service: String)
 
 # Admin
