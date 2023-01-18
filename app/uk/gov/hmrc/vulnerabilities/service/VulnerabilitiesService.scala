@@ -16,11 +16,8 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
-import uk.gov.hmrc.vulnerabilities.model.CurationStatus.ActionRequired
-import uk.gov.hmrc.vulnerabilities.model.{Environment, VulnerabilityCount, VulnerabilitySummary}
-import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, Uncurated}
-import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, ServiceVersionDeployments, UnrefinedVulnerabilitySummary, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.vulnerabilities.model._
 import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
