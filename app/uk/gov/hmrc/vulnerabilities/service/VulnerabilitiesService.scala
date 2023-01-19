@@ -17,7 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, Uncurated}
-import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, ServiceVersionDeployments, UnrefinedVulnerabilitySummary, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.vulnerabilities.model._
 import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
@@ -52,6 +52,11 @@ class VulnerabilitiesService @Inject() (
   ): Future[Seq[VulnerabilitySummary]] = {
     vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team, component)
   }
+
+  def vulnerabilitiesCountPerService(service: Option[String], team: Option[String], environment: Option[Environment]): Future[Seq[VulnerabilityCount]] = {
+    vulnerabilitySummariesRepository.vulnerabilitiesCount(service, team, environment)
+  }
+
 
   def convertToVulnerabilitySummary(
     unrefined: Seq[UnrefinedVulnerabilitySummary],

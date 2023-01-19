@@ -1,3 +1,4 @@
+import play.sbt.routes.RoutesKeys
 import uk.gov.hmrc.DefaultBuildSettings.integrationTestSettings
 import uk.gov.hmrc.sbtdistributables.SbtDistributablesPlugin.publishingSettings
 
@@ -9,6 +10,9 @@ lazy val microservice = Project(appName, file("."))
     majorVersion                     := 0,
     scalaVersion                     := "2.13.8",
     libraryDependencies              ++= AppDependencies.compile ++ AppDependencies.test,
+    RoutesKeys.routesImport ++= Seq(
+      "uk.gov.hmrc.vulnerabilities.model.Environment"
+    )
   )
   .settings(publishingSettings: _*)
   .settings(PlayKeys.playDefaultPort := 8857)
