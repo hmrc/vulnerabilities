@@ -31,7 +31,7 @@ object Environment {
 
   val values: List[Environment] =
   // this list is sorted
-    List(QA, Staging, ExternalTest, Production)
+    List(Integration, Development, QA, Staging, ExternalTest, Production)
 
   def parse(s: String): Option[Environment] =
     values.find(_.asString == s)
