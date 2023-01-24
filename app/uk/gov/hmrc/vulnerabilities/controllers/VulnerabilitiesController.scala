@@ -17,10 +17,10 @@
 package uk.gov.hmrc.vulnerabilities.controllers
 
 import play.api.Logging
-import play.api.libs.json.{Json, OFormat}
+import play.api.libs.json.{Json, OFormat, Writes}
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.model.{Environment, VulnerabilityCount, VulnerabilitySummary}
+import uk.gov.hmrc.vulnerabilities.model.{Environment, TotalVulnerabilityCount, VulnerabilitySummary}
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.service.VulnerabilitiesService
 import uk.gov.hmrc.vulnerabilities.utils.{AssessmentParser, Scheduler}
@@ -80,7 +80,7 @@ with Logging {
   }
 
   def getVulnerabilityCountsPerService(service: Option[String], team: Option[String], environment: Option[Environment]): Action[AnyContent] = Action.async {
-    implicit val vcf: OFormat[VulnerabilityCount] = VulnerabilityCount.mongoFormat
+    implicit val tvw: Writes[TotalVulnerabilityCount] = TotalVulnerabilityCount.writes
     vulnerabilitiesService.vulnerabilitiesCountPerService(service, team, environment).map {
       result => Ok(Json.toJson(result))
     }

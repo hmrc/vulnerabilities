@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
-import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, Uncurated}
+import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
 import uk.gov.hmrc.vulnerabilities.model._
 import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
@@ -53,8 +53,21 @@ class VulnerabilitiesService @Inject() (
     vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team, component)
   }
 
-  def vulnerabilitiesCountPerService(service: Option[String], team: Option[String], environment: Option[Environment]): Future[Seq[VulnerabilityCount]] = {
-    vulnerabilitySummariesRepository.vulnerabilitiesCount(service, team, environment)
+  def vulnerabilitiesCountPerService(service: Option[String], team: Option[String], environment: Option[Environment]): Future[Seq[TotalVulnerabilityCount]] = {
+    vulnerabilitySummariesRepository.vulnerabilitiesCount(service, team, environment).map(totalCountsPerService)
+  }
+
+  def totalCountsPerService(filteredCounts: Seq[VulnerabilityCount]): Seq[TotalVulnerabilityCount] = {
+    filteredCounts.foldLeft(Map.empty[String, TotalVulnerabilityCount])((acc, cur) => {
+      val record = acc.getOrElse(cur.service, TotalVulnerabilityCount(cur.service, 0, 0, 0, 0))
+      val updatedRecord = cur.curationStatus match {
+        case ActionRequired       => record.copy(actionRequired = record.actionRequired + cur.count)
+        case NoActionRequired     => record.copy(noActionRequired = record.noActionRequired + cur.count)
+        case InvestigationOngoing => record.copy(investigationOngoing = record.investigationOngoing + cur.count)
+        case Uncurated            => record.copy(uncurated = record.investigationOngoing + cur.count)
+      }
+      acc + (cur.service -> updatedRecord)
+    }).values.toSeq.sortBy(_.service)
   }
 
 
