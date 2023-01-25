@@ -20,8 +20,8 @@ import org.mockito.MockitoSugar.mock
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
-import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, NoActionRequired, Uncurated}
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, Deployment, DistinctVulnerability, ServiceVersionDeployments, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent, WhatsRunningWhere}
+import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
+import uk.gov.hmrc.vulnerabilities.model._
 import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
@@ -83,8 +83,19 @@ class VulnerabilitiesServiceSpec extends AnyWordSpec with Matchers {
       }
     }
 
+    "VulnerabilitiesService.totalCountsPerService" should {
+      "sum the number of vulnerabilities for each curation status and return TotalVulnerabilityCount objects" in new Setup {
 
+        val totalVulnerabilityCounts = Seq(
+          TotalVulnerabilityCount("service-one", actionRequired = 40, noActionRequired = 20, investigationOngoing = 4, uncurated = 0),
+          TotalVulnerabilityCount("service-two", actionRequired = 40, noActionRequired = 20, investigationOngoing = 0, uncurated = 0),
+        )
+
+        vulnerabilitiesService.totalCountsPerService(vulnerabilityCounts) shouldBe totalVulnerabilityCounts
+      }
+    }
   }
+
   trait Setup {
 
     val unrefined1 = UnrefinedVulnerabilitySummariesData.unrefined1
@@ -187,5 +198,36 @@ class VulnerabilitiesServiceSpec extends AnyWordSpec with Matchers {
       generatedDate = UnrefinedVulnerabilitySummariesData.now
     )
 
+    val vulnerabilityCounts = Seq(
+      VulnerabilityCount("service-one", "production",   ActionRequired, 10),
+      VulnerabilityCount("service-one", "staging",      ActionRequired, 10),
+      VulnerabilityCount("service-one", "qa",           ActionRequired, 10),
+      VulnerabilityCount("service-one", "externalTest", ActionRequired, 10),
+
+      VulnerabilityCount("service-two", "production",   ActionRequired, 10),
+      VulnerabilityCount("service-two", "staging",      ActionRequired, 10),
+      VulnerabilityCount("service-two", "qa",           ActionRequired, 10),
+      VulnerabilityCount("service-two", "externalTest", ActionRequired, 10),
+
+      VulnerabilityCount("service-one", "production",   NoActionRequired, 5),
+      VulnerabilityCount("service-one", "staging",      NoActionRequired, 5),
+      VulnerabilityCount("service-one", "qa",           NoActionRequired, 5),
+      VulnerabilityCount("service-one", "externalTest", NoActionRequired, 5),
+
+      VulnerabilityCount("service-two", "production",   NoActionRequired, 5),
+      VulnerabilityCount("service-two", "staging",      NoActionRequired, 5),
+      VulnerabilityCount("service-two", "qa",           NoActionRequired, 5),
+      VulnerabilityCount("service-two", "externalTest", NoActionRequired, 5),
+
+      VulnerabilityCount("service-one", "production",   InvestigationOngoing, 1),
+      VulnerabilityCount("service-one", "staging",      InvestigationOngoing, 1),
+      VulnerabilityCount("service-one", "qa",           InvestigationOngoing, 1),
+      VulnerabilityCount("service-one", "externalTest", InvestigationOngoing, 1),
+
+      VulnerabilityCount("service-two", "production",   InvestigationOngoing, 0),
+      VulnerabilityCount("service-two", "staging",      InvestigationOngoing, 0),
+      VulnerabilityCount("service-two", "qa",           InvestigationOngoing, 0),
+      VulnerabilityCount("service-two", "externalTest", InvestigationOngoing, 0),
+    )
   }
 }
