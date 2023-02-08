@@ -51,6 +51,7 @@ class SomeReportsAlreadyExistIntegrationSpec
       "microservice.services.releases-api.port"           -> "8857",
       "microservice.services.teams-and-repositories.port" -> "8857",
       "xray.url"                                          -> "http://localhost:8857",
+      "application.router"                                -> "testOnlyDoNotUseInAppConf.Routes"
     )
 
   "updateVulnerabilities Service" should {
@@ -151,7 +152,7 @@ class SomeReportsAlreadyExistIntegrationSpec
       Thread.sleep(15000) //Takes roughly 12.5 secs for scheduler to autostart, and run through entire process.
       wireMockServer.stop()     //Otherwise wiremock attempts to find stub for below request
       val response = wsClient
-        .url(resource("/vulnerabilities/api/vulnerabilities/testResult"))
+        .url(resource("/test-only/testResult/"))
         .get.futureValue
 
       val result = response.json.as[Seq[VulnerabilitySummary]].map(_.copy(generatedDate = StubResponses.startOfYear)).sortBy(_.distinctVulnerability.id)
