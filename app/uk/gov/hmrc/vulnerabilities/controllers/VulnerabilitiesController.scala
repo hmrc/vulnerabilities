@@ -72,13 +72,6 @@ with Logging {
     Accepted("Vulnerabilities data reload triggered.")
   }
 
-  def testResult: Action[AnyContent] = Action.async {
-    vulnerabilitySummariesRepository.getVulnerabilitySummaries().map {
-      implicit val fmt = VulnerabilitySummary.apiFormat
-      res => Ok(Json.toJson(res))
-    }
-  }
-
   def getVulnerabilityCountsPerService(service: Option[String], team: Option[String], environment: Option[Environment]): Action[AnyContent] = Action.async {
     implicit val tvw: Writes[TotalVulnerabilityCount] = TotalVulnerabilityCount.writes
     vulnerabilitiesService.vulnerabilitiesCountPerService(service, team, environment).map {
