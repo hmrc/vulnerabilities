@@ -6,7 +6,4 @@ GET        /api/vulnerabilities/counts        uk.gov.hmrc.vulnerabilities.contro
 
 # Admin
 GET        /api/vulnerabilities/admin/updateAssessments      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.updateAssessments
-GET        /api/vulnerabilities/admin/reload                 uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.manualReload()
-
-#Integration Test
-GET        /api/vulnerabilities/testResult                   uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.testResult()
+POST       /api/vulnerabilities/admin/reload                 uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.manualReload()

@@ -10,4 +10,9 @@
 # Failing to follow this rule may result in test routes deployed in production.
 
 # Add all the application routes to the prod.routes file
+
+#Integration Test
+GET        /test-only/testResult      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.testResult()
+
+
 ->         /                          prod.Routes
