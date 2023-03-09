@@ -52,11 +52,12 @@ class HappyPathIntegrationSpec
       "microservice.services.releases-api.port"           -> "8857",
       "microservice.services.teams-and-repositories.port" -> "8857",
       "xray.url"                                          -> "http://localhost:8857",
-      "application.router"                                -> "testOnlyDoNotUseInAppConf.Routes"
+      "application.router"                                -> "testOnlyDoNotUseInAppConf.Routes",
+      "scheduler.enabled"                                 -> "true"
     )
 
   "updateVulnerabilities Service" should {
-    "logs some stuff" in {
+    "download & process reports from Xray, before transforming them into VulnerabilitySummaries and inserting to the collection" in {
 
       //stubbing
       stubFor(WireMock.get(urlPathMatching("/releases-api/whats-running-where"))
