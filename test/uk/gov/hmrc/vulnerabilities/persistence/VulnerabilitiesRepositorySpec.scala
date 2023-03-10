@@ -196,6 +196,18 @@ class VulnerabilitiesRepositorySpec
       resultsSorted.head.occurrences.length mustBe 2 //Shouldn't pick up 'Service33'
 
     }
+
+    "return an empty list when given service and team filters that each match seperate occurrences, but don't both match the same occurrence" in new Setup {
+      val expected = Seq.empty
+
+      repository.collection.insertMany(
+        Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)
+      ).toFuture().futureValue
+
+      val res = repository.distinctVulnerabilitiesSummary(id = None, curationStatus = None, service = Some("service2"), team = Some("team2"), component = None).futureValue
+      res mustBe empty
+
+    }
   }
 
   "vulnerabilitiesCount" must {
