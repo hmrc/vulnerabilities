@@ -12,7 +12,9 @@
 # Add all the application routes to the prod.routes file
 
 #Integration Test
-GET        /test-only/testResult      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.testResult()
+GET        /test-only/testResult               uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.testResult()
 
+POST       /test-only/vulnerabilitySummaries   uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.addVulnerabilitySummaries()
+DELETE     /test-only/vulnerabilitySummaries   uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteVulnerabilitySummaries
 
-->         /                          prod.Routes
+->         /                                   prod.Routes
