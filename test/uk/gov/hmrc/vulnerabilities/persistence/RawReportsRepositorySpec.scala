@@ -16,19 +16,20 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-import org.mockito.MockitoSugar.mock
+import org.mongodb.scala.MongoCollection
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.must.Matchers
-import org.scalatest.time.Millisecond
 import org.scalatest.wordspec.AnyWordSpecLike
 import play.api.Configuration
+import uk.gov.hmrc.mongo.play.json.CollectionFactory
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
-import uk.gov.hmrc.vulnerabilities.config.{SchedulerConfig, SchedulerConfigs}
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
-import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report}
+import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
+import uk.gov.hmrc.vulnerabilities.model.{CVE, CurationStatus, RawVulnerability, Report, ServiceVulnerability}
+import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
 import java.time.temporal.ChronoUnit
-import java.time.Instant
+import java.time.{Instant, LocalDate}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 
@@ -78,13 +79,142 @@ class RawReportsRepositorySpec
     "Only return reports generated 6 days and 23 hours ago, but not reports generated 7 days ago" in new Setup {
       repository.collection.insertMany(Seq(report1, report2, report3, report4, report5)).toFuture().futureValue
 
-      val result = Seq(report1, report2, report3, report5)
+      val result = repository.getReportsInLastXDays().futureValue
       result.length mustBe 4
       result must contain theSameElementsAs(Seq(report1, report2, report3, report5))
     }
   }
 
+  "getTimelineData" must {
+    "only return reports with a generatedDate equal to or after the passed in parameter" in new Setup {
+      val rep1 = report5.copy(generatedDate = october)
+      val rep2 = report5.copy(generatedDate = november)
+
+      repository.collection.insertMany(Seq(rep1, rep2)).toFuture().futureValue
+      assessmentsCollection.insertMany(assessments).toFuture().futureValue
+
+      val res = repository.getTimelineData(november).futureValue
+
+      res.length mustBe 1
+      res.head.weekBeginning.toString must include ("2022-11")
+    }
+
+    "truncate Sunday to previous monday of week" in new Setup {
+      val rep1 = report5.copy(generatedDate = Instant.parse("2022-12-25T23:59:59.00Z"))
+
+      repository.collection.insertOne(rep1).toFuture().futureValue
+      assessmentsCollection.insertMany(assessments).toFuture().futureValue
+
+      val res = repository.getTimelineData(november).futureValue
+      res.head.weekBeginning mustBe Instant.parse("2022-12-19T00:00:00.00Z")
+    }
+
+    "truncate Monday to the start of the day" in new Setup {
+      val rep2 = report5.copy(generatedDate = Instant.parse("2022-12-26T00:00:01.00Z"))
+
+      repository.collection.insertOne(rep2).toFuture().futureValue
+      assessmentsCollection.insertMany(assessments).toFuture().futureValue
+
+      val res = repository.getTimelineData(november).futureValue
+      println(res)
+
+      res.head.weekBeginning mustBe Instant.parse("2022-12-26T00:00:00.00Z")
+    }
+
+    "parse issue id for vulnerabilities with AND without CVE ids" in new Setup {
+      val rep1 = report1.copy(generatedDate = november)
+      val rep2 = report3.copy(generatedDate = december)
+
+      repository.collection.insertMany(Seq(rep1, rep2)).toFuture().futureValue
+      assessmentsCollection.insertMany(assessments).toFuture().futureValue
+
+      val res = repository.getTimelineData(november).futureValue
+      res.map(_.id) must contain theSameElementsAs Seq("CVE-2022-12345", "XRAY-000004")
+    }
+
+    "extract the serviceName from the path" in new Setup {
+      val rep1 = report1.copy(generatedDate = november)
+      val rep2 = report3.copy(generatedDate = december)
+
+      repository.collection.insertMany(Seq(rep1, rep2)).toFuture().futureValue
+      assessmentsCollection.insertMany(assessments).toFuture().futureValue
+
+      val res = repository.getTimelineData(november).futureValue
+      res.map(_.service) must contain theSameElementsAs Seq("service1", "service4")
+    }
+
+    "de-dupe data for same service, service version AND vulnerability in the SAME time period (possible due to multiple occurrences in slug path, or multiple scans)" in new Setup {
+      val rep1 = report1.copy(generatedDate = november)
+      val rep2 = report1.copy(generatedDate = november)
+
+      repository.collection.insertMany(Seq(rep1, rep2)).toFuture().futureValue
+      assessmentsCollection.insertMany(assessments).toFuture().futureValue
+
+      val res = repository.getTimelineData(november).futureValue
+      res.length mustBe 1
+    }
+
+    "de-dupe data for same service AND vulnerability (but different service version) in the SAME time period" in new Setup {
+      val rep1 = report1.copy(generatedDate = november, rows = report1.rows.map(_.copy(path = "test/slugs/service1/service1_1.0.5_0.0.1.tgz")))
+      val rep2 = report1.copy(generatedDate = november)
+
+      repository.collection.insertMany(Seq(rep1, rep2)).toFuture().futureValue
+      assessmentsCollection.insertMany(assessments).toFuture().futureValue
+
+      val res = repository.getTimelineData(november).futureValue
+      res.length mustBe 1
+    }
+
+    "return multiple data points for the same service AND vulnerability in DIFFERENT time periods" in new Setup {
+      val rep1 = report1.copy(generatedDate = december)
+      val rep2 = report1.copy(generatedDate = november)
+
+      repository.collection.insertMany(Seq(rep1, rep2)).toFuture().futureValue
+      assessmentsCollection.insertMany(assessments).toFuture().futureValue
+
+      val res = repository.getTimelineData(november).futureValue
+      res.length mustBe 2
+    }
+
+    "fully transform raw reports to vulnerability timeline data, in which the data is grouped by service AND issue AND weekBeginning" in new Setup {
+      val rep1 = report1.copy(generatedDate = november)
+      val rep2 = report2.copy(generatedDate = november) //contains two cves, so will create two vulnerabilities
+      val rep3 = report3.copy(generatedDate = october) //should be omitted due to cutoff date
+      val rep4 = report4.copy(generatedDate = december)
+      val rep5 = report5.copy(generatedDate = december)
+      val rep6 = report5.copy(generatedDate = december) //should be de-duped, XRAY-00006 should appear only once in results.
+
+      repository.collection.insertMany(Seq(rep1, rep2, rep3, rep4, rep5, rep6)).toFuture().futureValue
+      assessmentsCollection.insertMany(assessments).toFuture().futureValue
+
+      val res = repository.getTimelineData(november).futureValue
+
+      res.length mustBe 5
+      res must contain theSameElementsAs Seq(
+        ServiceVulnerability(id = "CVE-2022-12345", service = "service1", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = NoActionRequired),
+        ServiceVulnerability(id = "CVE-2021-99999", service = "service3", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = ActionRequired),
+        ServiceVulnerability(id = "CVE-2022-12345", service = "service3", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = NoActionRequired),
+        ServiceVulnerability(id = "XRAY-000005", service = "service5", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = InvestigationOngoing),
+        ServiceVulnerability(id = "XRAY-000006", service = "service6", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = Uncurated),
+      )
+
+    }
+  }
+
   trait Setup {
+
+    val october  = Instant.ofEpochSecond(1666346891)
+    val november = Instant.ofEpochSecond(1669025291)
+    val december = Instant.ofEpochSecond(1671617291)
+
+   val assessmentsCollection: MongoCollection[Assessment] = CollectionFactory.collection(mongoComponent.database, "assessments", Assessment.mongoFormat)
+   lazy val assessments = Seq(
+     Assessment(id = "CVE-2022-12345", assessment = "N/A", curationStatus = NoActionRequired, lastReviewed = october, ticket = "BDOG-1"),
+     Assessment(id = "CVE-2021-99999", assessment = "N/A", curationStatus = ActionRequired, lastReviewed = november, ticket = "BDOG-2"),
+     Assessment(id = "XRAY-000004", assessment = "N/A", curationStatus = NoActionRequired, lastReviewed = november, ticket = "BDOG-3"),
+     Assessment(id = "XRAY-000005", assessment = "N/A", curationStatus = InvestigationOngoing, lastReviewed = december, ticket = "BDOG-3"),
+     Assessment(id = "XRAY-000006", assessment = "N/A", curationStatus = Uncurated, lastReviewed = december, ticket = "BDOG-3"),
+   )
 
    lazy val report1: Report =
       Report(

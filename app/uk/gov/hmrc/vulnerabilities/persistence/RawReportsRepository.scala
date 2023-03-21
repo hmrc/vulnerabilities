@@ -19,12 +19,13 @@ package uk.gov.hmrc.vulnerabilities.persistence
 import com.mongodb.client.model.Indexes
 import org.mongodb.scala.MongoCollection
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNull}
-import org.mongodb.scala.model.Aggregates.{`match`, group, project, unwind}
-import org.mongodb.scala.model.{Accumulators, Filters, IndexModel, IndexOptions}
+import org.mongodb.scala.model.Aggregates.{`match`, group, lookup, project, set, unwind}
+import org.mongodb.scala.model.Projections.{computed, excludeId, fields}
+import org.mongodb.scala.model.{Accumulators, Field, Filters, IndexModel, IndexOptions}
 import play.api.{Configuration, Logger}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.model.{Report, UnrefinedVulnerabilitySummary}
+import uk.gov.hmrc.vulnerabilities.model.{Report, UnrefinedVulnerabilitySummary, ServiceVulnerability}
 
 import java.time.temporal.ChronoUnit
 import java.time.Instant
@@ -115,4 +116,47 @@ configuration: Configuration
         )
           .allowDiskUse(true)
           .toFuture()
+
+      def getTimelineData(reportsAfter: Instant): Future[Seq[ServiceVulnerability]] =
+        CollectionFactory.collection(mongoComponent.database, "rawReports", ServiceVulnerability.mongoFormat).aggregate(
+          Seq(
+            `match`(Filters.gte("generatedDate", reportsAfter)), //Only process recent reports
+            unwind("$rows"),
+            project(
+              fields(
+                computed("id", BsonDocument(
+                  "$let" -> BsonDocument(
+                    "vars" -> BsonDocument("cveArray" -> BsonDocument( "$arrayElemAt" -> BsonArray("$rows.cves", 0))),
+                    "in" -> BsonDocument("$ifNull" -> BsonArray("$$cveArray.cve", "$rows.issue_id"))
+                  )
+                )),
+                computed("service", BsonDocument(
+                  "$arrayElemAt" -> BsonArray(
+                    BsonDocument("$split" -> BsonArray("$rows.path", "/")), 2
+                  )
+                )),
+                computed("weekBeginning", BsonDocument(  //truncate generatedDate to beginning of week
+                  "$dateFromParts" -> BsonDocument(
+                    "isoWeekYear" -> BsonDocument("$isoWeekYear" -> "$generatedDate"),
+                    "isoWeek"     -> BsonDocument("$isoWeek" -> "$generatedDate")
+                   )
+                )
+              )
+            )),
+            group(id = BsonDocument("id" -> "$id", "service" -> "$service", "weekBeginning" -> "$weekBeginning")),
+            project(fields(
+              excludeId(),
+              computed("id", "$_id.id"),
+              computed("service", "$_id.service"),
+              computed("weekBeginning", "$_id.weekBeginning"),
+              computed("teams", BsonArray())
+            )),
+            lookup(
+              from         = "assessments",
+              localField   = "id",
+              foreignField = "id",
+              as           = "curationStatus"
+            ),
+            set(Field("curationStatus", BsonDocument("$arrayElemAt" -> BsonArray("$curationStatus.curationStatus", 0)))),
+          )).toFuture()
     }
