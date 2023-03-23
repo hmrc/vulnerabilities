@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.vulnerabilities.persistence
+package uk.gov.hmrc.vulnerabilities.config
 
-import uk.gov.hmrc.mongo.lock.{LockService, MongoLockRepository}
+import play.api.Configuration
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.FiniteDuration
 
 @Singleton
-class MongoLock @Inject()(mongoLockRepository: MongoLockRepository) {
-  val dataReloadLock: LockService     = LockService(mongoLockRepository, "vuln-data-reload-lock", 165.minutes)
-  val timelineUpdateLock: LockService = LockService(mongoLockRepository, "vuln-timeline-update-lock", 30.minutes)
+class VulnerabilitiesTimelineConfig @Inject() (configuration: Configuration) {
+  lazy val timelineProcessingCutoff = configuration.get[FiniteDuration](path = "timeline.processing-cutoff")
 }

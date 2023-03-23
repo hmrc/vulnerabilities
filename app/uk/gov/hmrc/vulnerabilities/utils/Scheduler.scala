@@ -45,10 +45,10 @@ class Scheduler @Inject()(
 
   private val logger= Logger(getClass)
 
-  private val dataCutOff = configuration.get[FiniteDuration]("data.refresh-cutoff").toMillis.toInt
+  private val dataCutOff = configuration.get[FiniteDuration]("data.refresh-cutoff").toMillis
 
   def getNow: Instant = Instant.now()
-  def sevenDaysOld(latestData: Instant, now: Instant): Boolean = latestData.isBefore(now.minus(dataCutOff, ChronoUnit.MILLIS))
+  def sevenDaysOld(latestData: Instant, now: Instant): Boolean = latestData.isBefore(now.minusMillis(dataCutOff))
 
   scheduleWithLock("Vulnerabilities data Reloader", config.dataReloadScheduler, mongoLock.dataReloadLock) {
     implicit val hc: HeaderCarrier = HeaderCarrier()

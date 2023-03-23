@@ -157,6 +157,11 @@ configuration: Configuration
               foreignField = "id",
               as           = "curationStatus"
             ),
-            set(Field("curationStatus", BsonDocument("$arrayElemAt" -> BsonArray("$curationStatus.curationStatus", 0)))),
+            set(Field("curationStatus", BsonDocument(
+              "$ifNull" -> BsonArray(
+                BsonDocument("$arrayElemAt" -> BsonArray("$curationStatus.curationStatus", 0)),
+                "UNCURATED"
+              )
+            ))),
           )).toFuture()
     }

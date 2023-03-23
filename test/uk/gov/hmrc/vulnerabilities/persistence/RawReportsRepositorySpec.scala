@@ -176,6 +176,16 @@ class RawReportsRepositorySpec
       res.length mustBe 2
     }
 
+    "default curationStatus to uncurated if the Vulnerability does not exist in the collecitons assessment" in new Setup {
+      val rep1 = report5.copy(generatedDate = november, rows = report5.rows.map(_.copy(issueId = "XRAY2222"))) //this issueID is not in assessments collection
+
+      repository.collection.insertOne(rep1).toFuture().futureValue
+      assessmentsCollection.insertMany(assessments).toFuture().futureValue
+
+      val res = repository.getTimelineData(november).futureValue
+      res.head.curationStatus mustBe Uncurated
+    }
+
     "fully transform raw reports to vulnerability timeline data, in which the data is grouped by service AND issue AND weekBeginning" in new Setup {
       val rep1 = report1.copy(generatedDate = november)
       val rep2 = report2.copy(generatedDate = november) //contains two cves, so will create two vulnerabilities

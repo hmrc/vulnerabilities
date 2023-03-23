@@ -38,10 +38,13 @@ class SchedulerSpec extends AnyWordSpec{
   val schedUtils = mock[SchedulerUtils]
 
   val configuration: Configuration = Configuration(
-    "data.refresh-cutoff"    -> "7 days",
-    "scheduler.initialDelay" -> "10 seconds",
-    "scheduler.interval"     -> "3 hours",
-    "scheduler.enabled"      -> "false"
+    "data.refresh-cutoff"             -> "7 days",
+    "scheduler.initialDelay"          -> "10 seconds",
+    "scheduler.interval"              -> "3 hours",
+    "scheduler.enabled"               -> "false",
+    "timeline.scheduler.initialDelay" -> "10 seconds",
+    "timeline.scheduler.interval"     -> "3 hours",
+    "timeline.scheduler.enabled"      -> "false",
   )
 
   val schedulerConfigs = new SchedulerConfigs(configuration)

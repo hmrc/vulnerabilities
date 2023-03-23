@@ -53,4 +53,11 @@ class SchedulerConfigs @Inject() (configuration: Configuration) {
     frequencyKey = "scheduler.interval",
     initialDelayKey = "scheduler.initialDelay",
   )
+
+  val timelineUpdateScheduler: SchedulerConfig = SchedulerConfig(
+    configuration,
+    enabledKey = "timeline.scheduler.enabled",
+    frequencyKey = "timeline.scheduler.interval",
+    initialDelayKey = "timeline.scheduler.initialDelay",
+  )
 }
