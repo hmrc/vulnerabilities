@@ -40,7 +40,7 @@ class VulnerabilitiesTimelineRepository @Inject()(
   )
 )
 {
-  def replaceOrInsert(serviceVulnerabilities: Seq[ServiceVulnerability]): Future[Boolean] = {
+  def replaceOrInsert(serviceVulnerabilities: Seq[ServiceVulnerability]): Future[Unit] = {
     val bulkWrites = serviceVulnerabilities.map(sv =>
       ReplaceOneModel(
         Filters.and(
@@ -52,6 +52,6 @@ class VulnerabilitiesTimelineRepository @Inject()(
         ReplaceOptions().upsert(true)
       )
     )
-    collection.bulkWrite(bulkWrites).toFuture().map(_.wasAcknowledged())
+    collection.bulkWrite(bulkWrites).toFuture().map(_ => ())
   }
 }

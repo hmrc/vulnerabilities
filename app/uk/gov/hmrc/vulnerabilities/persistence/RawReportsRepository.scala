@@ -117,7 +117,72 @@ configuration: Configuration
           .allowDiskUse(true)
           .toFuture()
 
-      def getTimelineData(reportsAfter: Instant): Future[Seq[ServiceVulnerability]] =
+      /*
+      BELOW is the raw Mongo query that the getTimelineData() method performs.
+      Adding it as a comment for ease of testing changes to the query in the future.
+
+      db.getCollection('rawReports').aggregate(
+[
+    {
+        $match : {"generatedDate": { $gte: ISODate("2022-12-15T00:00:00.000Z")}}
+    },
+    {
+        $unwind: "$rows"
+    },
+    { $project:
+        {
+            id: {
+                $let: {
+                        vars: {cveArray: { $arrayElemAt: ["$rows.cves", 0] } },
+                        in: { $ifNull: ["$$cveArray.cve", "$rows.issue_id"] }
+                    }
+            },
+            service: {
+                    $arrayElemAt: [ { $split: ["$rows.path", "/"] }, 2 ]
+            },
+            weekBeginning: { $dateFromParts : {
+                    isoWeekYear: { $isoWeekYear: "$generatedDate"},
+                    isoWeek: { $isoWeek: "$generatedDate"}
+                }
+            }
+        }
+    },
+    {
+        $group: {
+            _id: {
+                id: "$id",
+                service: "$service",
+                weekBeginning: "$weekBeginning"
+            },
+        }
+    },
+    {
+        $project: {
+            _id: 0,
+            id: "$_id.id",
+            service: "$_id.service",
+            weekBeginning: "$_id.weekBeginning",
+            teams: []
+        }
+    },
+    { $lookup:
+        {
+            from: "assessments",
+            localField: "id",
+            foreignField: "id",
+            as: "curationStatus"
+        }
+    },
+    { $set:
+        {
+            curationStatus: { $ifNull: [ { $arrayElemAt: ["$curationStatus.curationStatus", 0]}, "UNCURATED"] }
+        }
+    }
+])
+       */
+
+      def getTimelineData(reportsAfter: Instant): Future[Seq[ServiceVulnerability]] = {
+        //Ensure that any changes made to this query are reflected in the comment above.
         CollectionFactory.collection(mongoComponent.database, "rawReports", ServiceVulnerability.mongoFormat).aggregate(
           Seq(
             `match`(Filters.gte("generatedDate", reportsAfter)), //Only process recent reports
@@ -164,4 +229,5 @@ configuration: Configuration
               )
             ))),
           )).toFuture()
+      }
     }
