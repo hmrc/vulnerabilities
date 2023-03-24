@@ -19,13 +19,13 @@ package uk.gov.hmrc.vulnerabilities.persistence
 import com.mongodb.client.model.Indexes
 import org.mongodb.scala.MongoCollection
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNull}
-import org.mongodb.scala.model.Aggregates.{`match`, group, lookup, project, set, unwind}
+import org.mongodb.scala.model.Aggregates.{`match`, group, lookup, project, replaceRoot, set, unwind}
 import org.mongodb.scala.model.Projections.{computed, excludeId, fields}
 import org.mongodb.scala.model.{Accumulators, Field, Filters, IndexModel, IndexOptions}
 import play.api.{Configuration, Logger}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.model.{Report, UnrefinedVulnerabilitySummary, ServiceVulnerability}
+import uk.gov.hmrc.vulnerabilities.model.{Report, ServiceVulnerability, UnrefinedVulnerabilitySummary}
 
 import java.time.temporal.ChronoUnit
 import java.time.Instant
@@ -156,15 +156,7 @@ configuration: Configuration
             },
         }
     },
-    {
-        $project: {
-            _id: 0,
-            id: "$_id.id",
-            service: "$_id.service",
-            weekBeginning: "$_id.weekBeginning",
-            teams: []
-        }
-    },
+    { $replaceRoot: { newRoot: "$_id" } },
     { $lookup:
         {
             from: "assessments",
@@ -175,6 +167,7 @@ configuration: Configuration
     },
     { $set:
         {
+            teams: [],
             curationStatus: { $ifNull: [ { $arrayElemAt: ["$curationStatus.curationStatus", 0]}, "UNCURATED"] }
         }
     }
@@ -189,6 +182,7 @@ configuration: Configuration
             unwind("$rows"),
             project(
               fields(
+                //Not all Vulnerabilities have a CVE-id, so if doesn't exist, get the issueID as fallback.
                 computed("id", BsonDocument(
                   "$let" -> BsonDocument(
                     "vars" -> BsonDocument("cveArray" -> BsonDocument( "$arrayElemAt" -> BsonArray("$rows.cves", 0))),
@@ -208,21 +202,18 @@ configuration: Configuration
                 )
               )
             )),
+            //The purpose of the group stage is to completely de-dupe the data, using the three keys as combined unique identifiers.
             group(id = BsonDocument("id" -> "$id", "service" -> "$service", "weekBeginning" -> "$weekBeginning")),
-            project(fields(
-              excludeId(),
-              computed("id", "$_id.id"),
-              computed("service", "$_id.service"),
-              computed("weekBeginning", "$_id.weekBeginning"),
-              computed("teams", BsonArray())
-            )),
+            replaceRoot("$_id"),
             lookup(
               from         = "assessments",
               localField   = "id",
               foreignField = "id",
               as           = "curationStatus"
             ),
-            set(Field("curationStatus", BsonDocument(
+            set(
+              Field("teams", BsonArray()),
+              Field("curationStatus", BsonDocument(
               "$ifNull" -> BsonArray(
                 BsonDocument("$arrayElemAt" -> BsonArray("$curationStatus.curationStatus", 0)),
                 "UNCURATED"

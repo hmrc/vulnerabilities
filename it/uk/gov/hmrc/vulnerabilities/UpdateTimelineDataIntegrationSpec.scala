@@ -26,6 +26,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import play.api.libs.ws.WSClient
+import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.integration.ServiceSpec
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, NoActionRequired, Uncurated}
 import uk.gov.hmrc.vulnerabilities.model.ServiceVulnerability
@@ -38,31 +39,27 @@ class UpdateTimelineDataIntegrationSpec
     with IntegrationPatience
     with GuiceOneServerPerSuite
     with ServiceSpec
+    with WireMockSupport
     with BeforeAndAfterAll {
 
   def externalServices: Seq[String] = Seq()
 
-  private val wireMockServer = new WireMockServer(wireMockConfig().port(8857))
   private val wsClient = app.injector.instanceOf[WSClient]
   val rawReportsCollection = app.injector.instanceOf[RawReportsRepository]
   val assessmentsCollection = app.injector.instanceOf[AssessmentsRepository]
   val vulnerabilityTimelineCollection = app.injector.instanceOf[VulnerabilitiesTimelineRepository]
 
   override def beforeAll(): Unit = {
-    super.beforeAll()
-    if (!wireMockServer.isRunning) {
-      wireMockServer.start()
-    }
-    WireMock.configureFor("localhost", wireMockServer.port())
+    startWireMock()
   }
 
   override def afterAll(): Unit = {
-    wireMockServer.stop()
+    stopWireMock()
   }
 
   override def additionalConfig: Map[String, _] =
     Map(
-      "microservice.services.teams-and-repositories.port" -> "8857",
+      "microservice.services.teams-and-repositories.port" -> s"${wireMockPort}",
       "application.router"                                -> "testOnlyDoNotUseInAppConf.Routes",
       "timeline.scheduler.enabled"                        -> "true"
     )
@@ -71,7 +68,6 @@ class UpdateTimelineDataIntegrationSpec
     "Transform rawReports to serviceVulnerabilities, add the correct curationStatus and teams data, and insert the records into the vulnerabilitiesTimeline collection" in {
 
       //1. Pre-fill the rawReports and Assessments collections
-      val reps = UpdateTimelineData.rawReports
       UpdateTimelineData.rawReports.map(r => rawReportsCollection.insertReport(r, r.rows.head.path))
       assessmentsCollection.insertAssessments(UpdateTimelineData.assessments)
 

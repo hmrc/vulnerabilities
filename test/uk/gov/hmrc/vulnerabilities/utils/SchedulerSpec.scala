@@ -22,8 +22,9 @@ import org.scalatest.matchers.must.Matchers.convertToAnyMustWrapper
 import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
+import uk.gov.hmrc.mongo.lock.MongoLockRepository
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
-import uk.gov.hmrc.vulnerabilities.persistence.{MongoLock, VulnerabilitySummariesRepository}
+import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
 import uk.gov.hmrc.vulnerabilities.service.UpdateVulnerabilitiesService
 
 import java.time.Instant
@@ -49,7 +50,7 @@ class SchedulerSpec extends AnyWordSpec{
 
   val schedulerConfigs = new SchedulerConfigs(configuration)
 
-  val scheduler = new Scheduler(mock[UpdateVulnerabilitiesService], schedulerConfigs, mock[VulnerabilitySummariesRepository], mock[MongoLock], configuration)
+  val scheduler = new Scheduler(mock[UpdateVulnerabilitiesService], schedulerConfigs, mock[VulnerabilitySummariesRepository], mock[MongoLockRepository], configuration)
 
 
   "sevenDaysOld" when {

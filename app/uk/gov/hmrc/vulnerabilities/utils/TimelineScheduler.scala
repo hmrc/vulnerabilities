@@ -20,27 +20,29 @@ import akka.actor.ActorSystem
 import play.api.inject.ApplicationLifecycle
 import play.api.Logger
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.mongo.lock.{LockService, MongoLockRepository}
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
-import uk.gov.hmrc.vulnerabilities.persistence.MongoLock
 import uk.gov.hmrc.vulnerabilities.service.VulnerabilitiesTimelineService
 
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class TimelineScheduler @Inject()(
      vulnerabilitiesTimelineService: VulnerabilitiesTimelineService,
      config                        : SchedulerConfigs,
-     mongoLock                     : MongoLock,
+     mongoLockRepository           : MongoLockRepository,
  )( implicit
     actorSystem         : ActorSystem,
     applicationLifecycle: ApplicationLifecycle,
     ec                  : ExecutionContext
  ) extends SchedulerUtils {
 
+  private val timelineUpdateLock: LockService = LockService(mongoLockRepository, "vuln-timeline-update-lock", 60.minutes)
   private val logger= Logger(getClass)
 
-  scheduleWithLock("Vulnerabilities timeline updater", config.timelineUpdateScheduler, mongoLock.timelineUpdateLock) {
+  scheduleWithLock("Vulnerabilities timeline updater", config.timelineUpdateScheduler, timelineUpdateLock) {
     implicit val hc: HeaderCarrier = HeaderCarrier()
     logger.info("Starting to update the vulnerabilities timeline data")
     for {
@@ -50,7 +52,7 @@ class TimelineScheduler @Inject()(
   }
 
   def manualReload()(implicit hc: HeaderCarrier): Future[Unit] = {
-    mongoLock.timelineUpdateLock
+    timelineUpdateLock
       .withLock {
         logger.info("vulnerabilitiesTimeline data update has been manually triggered")
         for {
@@ -58,6 +60,6 @@ class TimelineScheduler @Inject()(
           _      = logger.info("Finished updating vulnerabilities timeline data")
         } yield ()
       }
-      .map(_.getOrElse(logger.info(s"The vulnerabilitiesTimeline data update process is locked for ${mongoLock.timelineUpdateLock.lockId}")))
+      .map(_.getOrElse(logger.info(s"The vulnerabilitiesTimeline data update process is locked for ${timelineUpdateLock.lockId}")))
   }
 }
