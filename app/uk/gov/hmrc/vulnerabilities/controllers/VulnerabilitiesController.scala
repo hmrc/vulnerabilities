@@ -23,7 +23,7 @@ import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.model.{Environment, TotalVulnerabilityCount, VulnerabilitySummary}
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.service.VulnerabilitiesService
-import uk.gov.hmrc.vulnerabilities.utils.{AssessmentParser, Scheduler}
+import uk.gov.hmrc.vulnerabilities.utils.{AssessmentParser, Scheduler, TimelineScheduler}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
@@ -35,6 +35,7 @@ class VulnerabilitiesController @Inject()(
     assessmentParser: AssessmentParser,
     assessmentsRepository: AssessmentsRepository,
     scheduler: Scheduler,
+    timelineScheduler: TimelineScheduler,
     vulnerabilitySummariesRepository: VulnerabilitySummariesRepository
 )(implicit ec: ExecutionContext) extends BackendController(cc)
 with Logging {
@@ -70,6 +71,11 @@ with Logging {
   def manualReload() = Action { implicit request =>
     scheduler.manualReload()
     Accepted("Vulnerabilities data reload triggered.")
+  }
+
+  def manualTimelineUpdate() = Action { implicit request =>
+    timelineScheduler.manualReload()
+    Accepted("Vulnerabilities timeline data update triggered.")
   }
 
   def testResult: Action[AnyContent] = Action.async {

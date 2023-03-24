@@ -19,12 +19,13 @@ package uk.gov.hmrc.vulnerabilities.persistence
 import com.mongodb.client.model.Indexes
 import org.mongodb.scala.MongoCollection
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNull}
-import org.mongodb.scala.model.Aggregates.{`match`, group, project, unwind}
-import org.mongodb.scala.model.{Accumulators, Filters, IndexModel, IndexOptions}
+import org.mongodb.scala.model.Aggregates.{`match`, group, lookup, project, replaceRoot, set, unwind}
+import org.mongodb.scala.model.Projections.{computed, excludeId, fields}
+import org.mongodb.scala.model.{Accumulators, Field, Filters, IndexModel, IndexOptions}
 import play.api.{Configuration, Logger}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.model.{Report, UnrefinedVulnerabilitySummary}
+import uk.gov.hmrc.vulnerabilities.model.{Report, ServiceVulnerability, UnrefinedVulnerabilitySummary}
 
 import java.time.temporal.ChronoUnit
 import java.time.Instant
@@ -115,4 +116,109 @@ configuration: Configuration
         )
           .allowDiskUse(true)
           .toFuture()
+
+      /*
+      BELOW is the raw Mongo query that the getTimelineData() method performs.
+      Adding it as a comment for ease of testing changes to the query in the future.
+
+      db.getCollection('rawReports').aggregate(
+[
+    {
+        $match : {"generatedDate": { $gte: ISODate("2022-12-15T00:00:00.000Z")}}
+    },
+    {
+        $unwind: "$rows"
+    },
+    { $project:
+        {
+            id: {
+                $let: {
+                        vars: {cveArray: { $arrayElemAt: ["$rows.cves", 0] } },
+                        in: { $ifNull: ["$$cveArray.cve", "$rows.issue_id"] }
+                    }
+            },
+            service: {
+                    $arrayElemAt: [ { $split: ["$rows.path", "/"] }, 2 ]
+            },
+            weekBeginning: { $dateFromParts : {
+                    isoWeekYear: { $isoWeekYear: "$generatedDate"},
+                    isoWeek: { $isoWeek: "$generatedDate"}
+                }
+            }
+        }
+    },
+    {
+        $group: {
+            _id: {
+                id: "$id",
+                service: "$service",
+                weekBeginning: "$weekBeginning"
+            },
+        }
+    },
+    { $replaceRoot: { newRoot: "$_id" } },
+    { $lookup:
+        {
+            from: "assessments",
+            localField: "id",
+            foreignField: "id",
+            as: "curationStatus"
+        }
+    },
+    { $set:
+        {
+            teams: [],
+            curationStatus: { $ifNull: [ { $arrayElemAt: ["$curationStatus.curationStatus", 0]}, "UNCURATED"] }
+        }
+    }
+])
+       */
+
+      def getTimelineData(reportsAfter: Instant): Future[Seq[ServiceVulnerability]] = {
+        //Ensure that any changes made to this query are reflected in the comment above.
+        CollectionFactory.collection(mongoComponent.database, "rawReports", ServiceVulnerability.mongoFormat).aggregate(
+          Seq(
+            `match`(Filters.gte("generatedDate", reportsAfter)), //Only process recent reports
+            unwind("$rows"),
+            project(
+              fields(
+                //Not all Vulnerabilities have a CVE-id, so if doesn't exist, get the issueID as fallback.
+                computed("id", BsonDocument(
+                  "$let" -> BsonDocument(
+                    "vars" -> BsonDocument("cveArray" -> BsonDocument( "$arrayElemAt" -> BsonArray("$rows.cves", 0))),
+                    "in" -> BsonDocument("$ifNull" -> BsonArray("$$cveArray.cve", "$rows.issue_id"))
+                  )
+                )),
+                computed("service", BsonDocument(
+                  "$arrayElemAt" -> BsonArray(
+                    BsonDocument("$split" -> BsonArray("$rows.path", "/")), 2
+                  )
+                )),
+                computed("weekBeginning", BsonDocument(  //truncate generatedDate to beginning of week
+                  "$dateFromParts" -> BsonDocument(
+                    "isoWeekYear" -> BsonDocument("$isoWeekYear" -> "$generatedDate"),
+                    "isoWeek"     -> BsonDocument("$isoWeek" -> "$generatedDate")
+                   )
+                )
+              )
+            )),
+            //The purpose of the group stage is to completely de-dupe the data, using the three keys as combined unique identifiers.
+            group(id = BsonDocument("id" -> "$id", "service" -> "$service", "weekBeginning" -> "$weekBeginning")),
+            replaceRoot("$_id"),
+            lookup(
+              from         = "assessments",
+              localField   = "id",
+              foreignField = "id",
+              as           = "curationStatus"
+            ),
+            set(
+              Field("teams", BsonArray()),
+              Field("curationStatus", BsonDocument(
+              "$ifNull" -> BsonArray(
+                BsonDocument("$arrayElemAt" -> BsonArray("$curationStatus.curationStatus", 0)),
+                "UNCURATED"
+              )
+            ))),
+          )).toFuture()
+      }
     }

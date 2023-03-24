@@ -22,8 +22,9 @@ import org.scalatest.matchers.must.Matchers.convertToAnyMustWrapper
 import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
+import uk.gov.hmrc.mongo.lock.MongoLockRepository
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
-import uk.gov.hmrc.vulnerabilities.persistence.{MongoLock, VulnerabilitySummariesRepository}
+import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
 import uk.gov.hmrc.vulnerabilities.service.UpdateVulnerabilitiesService
 
 import java.time.Instant
@@ -38,15 +39,18 @@ class SchedulerSpec extends AnyWordSpec{
   val schedUtils = mock[SchedulerUtils]
 
   val configuration: Configuration = Configuration(
-    "data.refresh-cutoff"    -> "7 days",
-    "scheduler.initialDelay" -> "10 seconds",
-    "scheduler.interval"     -> "3 hours",
-    "scheduler.enabled"      -> "false"
+    "data.refresh-cutoff"             -> "7 days",
+    "scheduler.initialDelay"          -> "10 seconds",
+    "scheduler.interval"              -> "3 hours",
+    "scheduler.enabled"               -> "false",
+    "timeline.scheduler.initialDelay" -> "10 seconds",
+    "timeline.scheduler.interval"     -> "3 hours",
+    "timeline.scheduler.enabled"      -> "false",
   )
 
   val schedulerConfigs = new SchedulerConfigs(configuration)
 
-  val scheduler = new Scheduler(mock[UpdateVulnerabilitiesService], schedulerConfigs, mock[VulnerabilitySummariesRepository], mock[MongoLock], configuration)
+  val scheduler = new Scheduler(mock[UpdateVulnerabilitiesService], schedulerConfigs, mock[VulnerabilitySummariesRepository], mock[MongoLockRepository], configuration)
 
 
   "sevenDaysOld" when {

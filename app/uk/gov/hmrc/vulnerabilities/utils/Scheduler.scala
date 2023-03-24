@@ -20,14 +20,15 @@ import akka.actor.ActorSystem
 import play.api.inject.ApplicationLifecycle
 import play.api.{Configuration, Logger}
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.mongo.lock.{LockService, MongoLockRepository}
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
-import uk.gov.hmrc.vulnerabilities.persistence.{MongoLock, VulnerabilitySummariesRepository}
+import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
 import uk.gov.hmrc.vulnerabilities.service.UpdateVulnerabilitiesService
 
 import java.time.temporal.ChronoUnit
 import java.time.Instant
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
@@ -35,7 +36,7 @@ class Scheduler @Inject()(
    updateVulnerabilitiesService    : UpdateVulnerabilitiesService,
    config                          : SchedulerConfigs,
    vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
-   mongoLock                       :     MongoLock,
+   mongoLockRepository             : MongoLockRepository,
    configuration                   : Configuration
 )( implicit
    actorSystem         : ActorSystem,
@@ -45,12 +46,13 @@ class Scheduler @Inject()(
 
   private val logger= Logger(getClass)
 
-  private val dataCutOff = configuration.get[FiniteDuration]("data.refresh-cutoff").toMillis.toInt
+  private val dataCutOff = configuration.get[FiniteDuration]("data.refresh-cutoff")
+  private val dataReloadLock: LockService     = LockService(mongoLockRepository, "vuln-data-reload-lock", 165.minutes)
 
   def getNow: Instant = Instant.now()
-  def sevenDaysOld(latestData: Instant, now: Instant): Boolean = latestData.isBefore(now.minus(dataCutOff, ChronoUnit.MILLIS))
+  def sevenDaysOld(latestData: Instant, now: Instant): Boolean = latestData.isBefore(now.minusMillis(dataCutOff.toMillis))
 
-  scheduleWithLock("Vulnerabilities data Reloader", config.dataReloadScheduler, mongoLock.dataReloadLock) {
+  scheduleWithLock("Vulnerabilities data Reloader", config.dataReloadScheduler, dataReloadLock) {
     implicit val hc: HeaderCarrier = HeaderCarrier()
     for {
       latest <- vulnerabilitySummariesRepository.getMostRecent()
@@ -65,11 +67,11 @@ class Scheduler @Inject()(
   }
 
   def manualReload()(implicit hc: HeaderCarrier): Future[Unit] = {
-    mongoLock.dataReloadLock
+    dataReloadLock
       .withLock {
         logger.info("Data refresh has been manually triggered")
         updateVulnerabilitiesService.updateVulnerabilities()
       }
-      .map(_.getOrElse(logger.info(s"The Reload process is locked for ${mongoLock.dataReloadLock.lockId}")))
+      .map(_.getOrElse(logger.info(s"The Reload process is locked for ${dataReloadLock.lockId}")))
   }
 }

@@ -17,10 +17,11 @@
 package uk.gov.hmrc.vulnerabilities
 
 import com.google.inject.AbstractModule
-import uk.gov.hmrc.vulnerabilities.utils.Scheduler
+import uk.gov.hmrc.vulnerabilities.utils.{Scheduler, TimelineScheduler}
 
 class VulnerabilitiesModule extends AbstractModule {
   override def configure(): Unit = {
     bind(classOf[Scheduler]).asEagerSingleton()
+    bind(classOf[TimelineScheduler]).asEagerSingleton()
   }
 }
