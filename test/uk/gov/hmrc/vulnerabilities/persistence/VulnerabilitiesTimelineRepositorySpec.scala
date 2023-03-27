@@ -19,7 +19,7 @@ package uk.gov.hmrc.vulnerabilities.persistence
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.wordspec.{AnyWordSpec, AnyWordSpecLike}
-import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
+import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, DefaultPlayMongoRepositorySupport, PlayMongoRepositorySupport}
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired}
 import uk.gov.hmrc.vulnerabilities.model.ServiceVulnerability
 
@@ -29,11 +29,10 @@ import java.time.Instant
 
 class VulnerabilitiesTimelineRepositorySpec extends AnyWordSpecLike
 with Matchers
-with PlayMongoRepositorySupport[ServiceVulnerability]
-with CleanMongoCollectionSupport
+with DefaultPlayMongoRepositorySupport[ServiceVulnerability]
 with IntegrationPatience  {
 
-  override protected def repository = new VulnerabilitiesTimelineRepository(mongoComponent)
+  override lazy val repository = new VulnerabilitiesTimelineRepository(mongoComponent)
 
   val sv1 = ServiceVulnerability(id = "CVE-1", service = "service1", weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), teams = Seq("team1", "team2"), curationStatus = ActionRequired)
   val sv2 = ServiceVulnerability(id = "CVE-2", service = "service2", weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), teams = Seq("team1", "team2"), curationStatus = ActionRequired)

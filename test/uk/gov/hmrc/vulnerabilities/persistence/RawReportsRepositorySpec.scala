@@ -22,7 +22,7 @@ import org.scalatest.matchers.must.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import play.api.Configuration
 import uk.gov.hmrc.mongo.play.json.CollectionFactory
-import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
+import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, DefaultPlayMongoRepositorySupport, PlayMongoRepositorySupport}
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
 import uk.gov.hmrc.vulnerabilities.model.{CVE, CurationStatus, RawVulnerability, Report, ServiceVulnerability}
@@ -36,15 +36,17 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class RawReportsRepositorySpec
   extends AnyWordSpecLike
     with Matchers
-    with PlayMongoRepositorySupport[Report]
-    with CleanMongoCollectionSupport
+    with DefaultPlayMongoRepositorySupport[Report]
     with IntegrationPatience {
+
+  //Tests exercise aggregation pipeline, which don't make use of indices.
+  override protected def checkIndexedQueries: Boolean = false
 
   val configuration: Configuration = Configuration(
     "data.refresh-cutoff"    -> "7 days",
   )
 
-  override protected def repository = new RawReportsRepository(mongoComponent, configuration)
+  override lazy val repository = new RawReportsRepository(mongoComponent, configuration)
   private val now: Instant = UnrefinedVulnerabilitySummariesData.now
 
   "getNewDistinctVulnerabilities" must {

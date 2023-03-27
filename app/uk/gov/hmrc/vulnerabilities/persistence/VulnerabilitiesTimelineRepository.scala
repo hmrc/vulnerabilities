@@ -18,12 +18,14 @@ package uk.gov.hmrc.vulnerabilities.persistence
 
 import com.mongodb.bulk.{BulkWriteInsert, BulkWriteUpsert}
 import com.mongodb.client.model.{Indexes, InsertOneModel}
+import org.mongodb.scala.model.Indexes.{compoundIndex, descending}
 import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, InsertOneModel, InsertOneOptions, ReplaceOneModel, ReplaceOptions, UpdateOneModel, UpdateOptions, Updates}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.vulnerabilities.model.ServiceVulnerability
 
 import java.util
+import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -36,7 +38,8 @@ class VulnerabilitiesTimelineRepository @Inject()(
   mongoComponent = mongoComponent,
   domainFormat   = ServiceVulnerability.mongoFormat,
   indexes        = Seq(
-    IndexModel(Indexes.descending("weekBeginning", "service", "id"), IndexOptions().unique(true))
+    IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")),IndexOptions().unique(true)),
+    IndexModel(Indexes.ascending("weekBeginning"),IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS))
   )
 )
 {

@@ -29,6 +29,7 @@ import uk.gov.hmrc.vulnerabilities.model.{Report, ServiceVulnerability, Unrefine
 
 import java.time.temporal.ChronoUnit
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
@@ -42,7 +43,7 @@ configuration: Configuration
     collectionName = "rawReports",
     mongoComponent = mongoComponent,
     domainFormat   = Report.mongoFormat,
-    indexes        = Seq(IndexModel(Indexes.descending("generatedDate"), IndexOptions().name("generatedDate").background(true)))
+    indexes        = Seq(IndexModel(Indexes.descending("generatedDate"), IndexOptions().name("generatedDate").background(true).expireAfter(2 * 365, TimeUnit.DAYS)))
 )
     {
       private val dataCutOff = configuration.get[FiniteDuration]("data.refresh-cutoff").toMillis.toInt

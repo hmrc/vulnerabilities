@@ -52,7 +52,7 @@ class XrayServiceSpec extends AnyWordSpec
 
   implicit val hc: HeaderCarrier = HeaderCarrier()
 
-  override protected def repository = new RawReportsRepository(mongoComponent, configuration)
+  override lazy val repository = new RawReportsRepository(mongoComponent, configuration)
   "XrayService" when {
     "creating an xray payload" should {
       "Transform a serviceVersionDeployments into a ReportRequestPayload" in {

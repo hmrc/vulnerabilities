@@ -19,7 +19,7 @@ package uk.gov.hmrc.vulnerabilities.persistence
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
+import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, DefaultPlayMongoRepositorySupport, PlayMongoRepositorySupport}
 import uk.gov.hmrc.vulnerabilities.model.Environment.{Development, Production, QA, Staging}
 import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, VulnerabilityCount, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
 
@@ -30,11 +30,10 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class VulnerabilitiesRepositorySpec
   extends AnyWordSpecLike
     with Matchers
-    with PlayMongoRepositorySupport[VulnerabilitySummary]
-    with CleanMongoCollectionSupport
+    with DefaultPlayMongoRepositorySupport[VulnerabilitySummary]
     with IntegrationPatience {
 
-  override protected def repository = new VulnerabilitySummariesRepository(mongoComponent)
+  override lazy val repository = new VulnerabilitySummariesRepository(mongoComponent)
 
   private val now = Instant.now().truncatedTo(ChronoUnit.MILLIS)
   private val oneMinAgo = now.minus(1, ChronoUnit.MINUTES)
