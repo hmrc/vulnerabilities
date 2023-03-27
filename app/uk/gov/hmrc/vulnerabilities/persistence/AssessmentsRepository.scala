@@ -16,10 +16,13 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
+import com.mongodb.client.model.Indexes
+import org.mongodb.scala.model.{IndexModel, IndexOptions}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
+import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -31,8 +34,13 @@ class AssessmentsRepository @Inject()(
   collectionName = "assessments",
   mongoComponent = mongoComponent,
   domainFormat   = Assessment.mongoFormat,
-  indexes        = Seq()
+  indexes        = Seq(
+    IndexModel(Indexes.ascending("id"), IndexOptions().name("id").background(true)),
+  )
 ) {
+
+  // No ttl required for this collection - contains assessments created by ourselves which will evolve over time
+  override lazy val requiresTtlIndex = false
 
   def insertAssessments(assessments: Seq[Assessment]): Future[Int] =
     collection
