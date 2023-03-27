@@ -49,7 +49,6 @@ extends Logging{
 
     httpClientV2
       .post(url"${config.xrayBaseUrl}/vulnerabilities")
-      .withProxy
       .setHeader(
         "Authorization" -> s"Bearer $token",
         "Content-Type"  -> "application/json"
@@ -61,7 +60,6 @@ extends Logging{
     implicit val fmt = ReportStatus.apiFormat
     httpClientV2
       .get(url"${config.xrayBaseUrl}/$id")
-      .withProxy
       .setHeader(
         "Authorization" -> s"Bearer $token",
         "Content-Type"  -> "application/json"
@@ -74,7 +72,6 @@ extends Logging{
 
     httpClientV2
       .get(url"${config.xrayBaseUrl}/export/$reportId?file_name=$filename&format=json")
-      .withProxy
       .setHeader(
         "Authorization" -> s"Bearer $token",
         "Content-Type" -> "application/json"
@@ -96,7 +93,6 @@ extends Logging{
 
       httpClientV2
         .delete(url"${config.xrayBaseUrl}/$reportId")
-        .withProxy
         .setHeader(
           "Authorization" -> s"Bearer $token",
           "Content-Type"  -> "application/json"
