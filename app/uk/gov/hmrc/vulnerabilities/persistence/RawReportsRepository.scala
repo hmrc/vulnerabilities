@@ -43,7 +43,8 @@ configuration: Configuration
     collectionName = "rawReports",
     mongoComponent = mongoComponent,
     domainFormat   = Report.mongoFormat,
-    indexes        = Seq(IndexModel(Indexes.descending("generatedDate"), IndexOptions().name("generatedDate").background(true).expireAfter(2 * 365, TimeUnit.DAYS)))
+    indexes        = Seq(IndexModel(Indexes.descending("generatedDate"), IndexOptions().name("generatedDate").background(true).expireAfter(2 * 365, TimeUnit.DAYS))),
+    replaceIndexes = true
 )
     {
       private val dataCutOff = configuration.get[FiniteDuration]("data.refresh-cutoff").toMillis.toInt
