@@ -119,8 +119,11 @@ class VulnerabilitiesService @Inject() (
   def addInvestigationsToSummaries(summaries: Seq[VulnerabilitySummary], investigations: Map[String, Assessment]): Seq[VulnerabilitySummary] =
     summaries.map { vs =>
       investigations.get(vs.distinctVulnerability.id) match {
-        case Some(inv) => vs.copy(distinctVulnerability = vs.distinctVulnerability
-              .copy(assessment = Some(inv.assessment), curationStatus = Some(inv.curationStatus), ticket = Some(inv.ticket)
+        case Some(inv) => vs.copy(
+          distinctVulnerability = vs.distinctVulnerability.copy(
+          assessment            = Some(inv.assessment),
+          curationStatus        = Some(inv.curationStatus),
+          ticket                = Some(inv.ticket.trim).filter(_.nonEmpty)
               ))
         case None => vs.copy(distinctVulnerability = vs.distinctVulnerability
             .copy(curationStatus = Some(Uncurated))

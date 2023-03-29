@@ -81,6 +81,28 @@ class VulnerabilitiesServiceSpec extends AnyWordSpec with Matchers {
         res.head.distinctVulnerability.assessment shouldBe None
         res.head.distinctVulnerability.ticket shouldBe None
       }
+
+      "Convert the ticket to a None if the value is an empty string" in new Setup {
+        val res = vulnerabilitiesService.addInvestigationsToSummaries(Seq(vuln4), investigations)
+
+        res.length shouldBe 1
+
+        res.head.distinctVulnerability.curationStatus shouldBe Some(NoActionRequired)
+        res.head.distinctVulnerability.id shouldBe "XRAY-000005"
+        res.head.distinctVulnerability.assessment shouldBe Some("Don't fix")
+        res.head.distinctVulnerability.ticket shouldBe None
+      }
+
+      "Convert the ticket to a None if the value is a string containing whitespace only" in new Setup {
+        val res = vulnerabilitiesService.addInvestigationsToSummaries(Seq(vuln5), investigations)
+
+        res.length shouldBe 1
+
+        res.head.distinctVulnerability.curationStatus shouldBe Some(NoActionRequired)
+        res.head.distinctVulnerability.id shouldBe "XRAY-000006"
+        res.head.distinctVulnerability.assessment shouldBe Some("Don't fix")
+        res.head.distinctVulnerability.ticket shouldBe None
+      }
     }
 
     "VulnerabilitiesService.totalCountsPerService" should {
@@ -117,7 +139,10 @@ class VulnerabilitiesServiceSpec extends AnyWordSpec with Matchers {
 
     val investigations: Map[String, Assessment] = Map(
       "CVE-2021-99999" -> Assessment(id = "CVE-2021-99999", assessment = "Should fix", curationStatus = ActionRequired, lastReviewed = UnrefinedVulnerabilitySummariesData.now, ticket = "Ticket1"),
-      "CVE-2022-12345" -> Assessment(id = "CVE-2022-12345", assessment = "Don't fix", curationStatus = NoActionRequired, lastReviewed = UnrefinedVulnerabilitySummariesData.now, ticket = "Ticket2")
+      "CVE-2022-12345" -> Assessment(id = "CVE-2022-12345", assessment = "Don't fix", curationStatus = NoActionRequired, lastReviewed = UnrefinedVulnerabilitySummariesData.now, ticket = "Ticket2"),
+      "XRAY-000005" -> Assessment(id = "XRAY-000005", assessment = "Don't fix", curationStatus = NoActionRequired, lastReviewed = UnrefinedVulnerabilitySummariesData.now, ticket = ""),
+      "XRAY-000006" -> Assessment(id = "XRAY-000006", assessment = "Don't fix", curationStatus = NoActionRequired, lastReviewed = UnrefinedVulnerabilitySummariesData.now, ticket = "\n \t")
+
     )
 
     val vulnerabilitySummariesRepository: VulnerabilitySummariesRepository = mock[VulnerabilitySummariesRepository]
@@ -180,6 +205,54 @@ class VulnerabilitiesServiceSpec extends AnyWordSpec with Matchers {
         vulnerableComponentVersion = "1.8.0",
         vulnerableComponents = Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind", "1.8.0")),
         id = "XRAY-000004",
+        score = None,
+        description = "This is an exploit",
+        fixedVersions = Some(Seq("1.8.1")),
+        references = Seq("foo.com", "bar.net"),
+        publishedDate = UnrefinedVulnerabilitySummariesData.now.minus(14, ChronoUnit.DAYS),
+        assessment = None,
+        curationStatus = None,
+        ticket = None
+      ),
+      occurrences = Seq(
+        VulnerabilityOccurrence(service = "service4", serviceVersion = "4.0.4", componentPathInSlug = "service4-4.0.4/some/physical/path",
+          teams = Seq.empty, envs = Seq("staging", "production"), vulnerableComponentName = "gav://com.testxml.test.core:test-bind", vulnerableComponentVersion = "1.8.0"
+        ),
+      ),
+      teams = Seq.empty,
+      generatedDate = UnrefinedVulnerabilitySummariesData.now
+    )
+
+    val vuln4 = VulnerabilitySummary(
+      DistinctVulnerability(
+        vulnerableComponentName = "gav://com.testxml.test.core:test-bind",
+        vulnerableComponentVersion = "1.8.0",
+        vulnerableComponents = Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind", "1.8.0")),
+        id = "XRAY-000005",
+        score = None,
+        description = "This is an exploit",
+        fixedVersions = Some(Seq("1.8.1")),
+        references = Seq("foo.com", "bar.net"),
+        publishedDate = UnrefinedVulnerabilitySummariesData.now.minus(14, ChronoUnit.DAYS),
+        assessment = None,
+        curationStatus = None,
+        ticket = None
+      ),
+      occurrences = Seq(
+        VulnerabilityOccurrence(service = "service4", serviceVersion = "4.0.4", componentPathInSlug = "service4-4.0.4/some/physical/path",
+          teams = Seq.empty, envs = Seq("staging", "production"), vulnerableComponentName = "gav://com.testxml.test.core:test-bind", vulnerableComponentVersion = "1.8.0"
+        ),
+      ),
+      teams = Seq.empty,
+      generatedDate = UnrefinedVulnerabilitySummariesData.now
+    )
+
+    val vuln5 = VulnerabilitySummary(
+      DistinctVulnerability(
+        vulnerableComponentName = "gav://com.testxml.test.core:test-bind",
+        vulnerableComponentVersion = "1.8.0",
+        vulnerableComponents = Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind", "1.8.0")),
+        id = "XRAY-000006",
         score = None,
         description = "This is an exploit",
         fixedVersions = Some(Seq("1.8.1")),
