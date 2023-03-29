@@ -24,7 +24,7 @@ Alternatively, the process can be triggered manually by hitting the following en
 ## End-to-end process
 
 * Interrogates releases-api to get current deployments, and transforms them to a list of unique services & version (`ServiceVersionDeployments`).
-* Filters out any `ServiceVersionDeployments` that have a report < 7 days old in the `rawReportsRepository`, so we don't attempt to download them again. This is so that we don't have to repeat the entire process if it falls over due to a transient error, so it will pick up where it left off on the next run.
+* Filters out any `ServiceVersionDeployments` that have a report < 1 day old in the `rawReportsRepository`, so we don't attempt to download them again. This is so that we don't have to repeat the entire process if it falls over due to a transient error, so it will pick up where it left off on the next run.
 * For each filtered `ServiceVersionDeployments`:
   * A payload will be generated to create a Vulnerabilities report in the Xray UI
   * Check if the report is ready for download from Xray

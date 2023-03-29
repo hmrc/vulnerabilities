@@ -125,7 +125,7 @@ object StubResponses {
         references = Seq("foo.com", "bar.net"),
         projectKeys = Seq()
       )),
-    generatedDate = now.minus(167, ChronoUnit.HOURS)
+    generatedDate = now.minus(23, ChronoUnit.HOURS)
   )
 }
 
