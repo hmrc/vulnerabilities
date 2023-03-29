@@ -71,8 +71,17 @@ class SomeReportsAlreadyExistIntegrationSpec
       "scheduler.enabled"                                 -> "true"
     )
 
+  /**
+   *
+   * This test exercises the fact that it is possible for a scheduler run to fail part of the way through.
+   * When it retries 3 hours later it should only attempt to download reports that don't already exist
+   * in the raw reports repository within the specified data cut off time. This means we don't have to
+   * re-download the whole data set in case of transient error.
+   *
+   * */
+
   "updateVulnerabilities Service" should {
-    "not attempt to redownload reports which are < 7 days old, but should still transform them into VulnerabilitySummary and add to collection" in {
+    "not attempt to redownload reports which are < 1 day old, but should still transform them into VulnerabilitySummary and add to collection" in {
 
       //stubbing
       stubFor(WireMock.get(urlPathMatching("/releases-api/whats-running-where"))
