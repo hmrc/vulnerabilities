@@ -4,6 +4,8 @@ GET        /api/vulnerabilities/distinct      uk.gov.hmrc.vulnerabilities.contro
 GET        /api/vulnerabilities/count         uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.getDistinctVulnerabilities(service: String)
 GET        /api/vulnerabilities/counts        uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.getVulnerabilityCountsPerService(service: Option[String] ?= None, team: Option[String] ?= None, environment: Option[Environment] ?= None)
 
+GET        /api/vulnerabilities/timeline      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesTimelineController.getTimelineCountsForService(service: Option[String], team: Option[String], vulnerability: Option[String], from: java.time.Instant, to: java.time.Instant)
+
 # Admin
 GET        /api/vulnerabilities/admin/updateAssessments      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.updateAssessments
 POST       /api/vulnerabilities/admin/reload                 uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.manualReload()

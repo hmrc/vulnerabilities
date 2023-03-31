@@ -19,7 +19,7 @@ package uk.gov.hmrc.vulnerabilities.service
 import play.api.Logger
 import uk.gov.hmrc.vulnerabilities.config.VulnerabilitiesTimelineConfig
 import uk.gov.hmrc.vulnerabilities.connectors.TeamsAndRepositoriesConnector
-import uk.gov.hmrc.vulnerabilities.model.ServiceVulnerability
+import uk.gov.hmrc.vulnerabilities.model.TimelineEvent
 import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilitiesTimelineRepository}
 
 import java.time.Instant
@@ -48,7 +48,7 @@ class VulnerabilitiesTimelineService @Inject()(
     } yield ()
   }
 
-  def addTeamsToServiceVulnerability(serviceVulnerabilities: Seq[ServiceVulnerability], reposWithTeams:  Map[String, Seq[String]]): Seq[ServiceVulnerability] = {
+  def addTeamsToServiceVulnerability(serviceVulnerabilities: Seq[TimelineEvent], reposWithTeams:  Map[String, Seq[String]]): Seq[TimelineEvent] = {
     serviceVulnerabilities.map(sv =>
       sv.copy(teams = reposWithTeams.getOrElse(sv.service, Seq()))
     )

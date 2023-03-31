@@ -25,7 +25,7 @@ import org.mongodb.scala.model.{Accumulators, Field, Filters, IndexModel, IndexO
 import play.api.{Configuration, Logger}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.model.{Report, ServiceVulnerability, UnrefinedVulnerabilitySummary}
+import uk.gov.hmrc.vulnerabilities.model.{Report, TimelineEvent, UnrefinedVulnerabilitySummary}
 
 import java.time.temporal.ChronoUnit
 import java.time.Instant
@@ -175,9 +175,9 @@ configuration: Configuration
 ])
        */
 
-      def getTimelineData(reportsAfter: Instant): Future[Seq[ServiceVulnerability]] = {
+      def getTimelineData(reportsAfter: Instant): Future[Seq[TimelineEvent]] = {
         //Ensure that any changes made to this query are reflected in the comment above.
-        CollectionFactory.collection(mongoComponent.database, "rawReports", ServiceVulnerability.mongoFormat).aggregate(
+        CollectionFactory.collection(mongoComponent.database, "rawReports", TimelineEvent.mongoFormat).aggregate(
           Seq(
             `match`(Filters.gte("generatedDate", reportsAfter)), //Only process recent reports
             unwind("$rows"),

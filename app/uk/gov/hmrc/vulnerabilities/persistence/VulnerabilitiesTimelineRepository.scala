@@ -18,13 +18,16 @@ package uk.gov.hmrc.vulnerabilities.persistence
 
 import com.mongodb.bulk.{BulkWriteInsert, BulkWriteUpsert}
 import com.mongodb.client.model.{Indexes, InsertOneModel}
+import org.mongodb.scala.bson.conversions.Bson
+import org.mongodb.scala.bson.{BsonArray, BsonDocument}
+import org.mongodb.scala.model.Aggregates.{`match`, group}
 import org.mongodb.scala.model.Indexes.{compoundIndex, descending}
-import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, InsertOneModel, InsertOneOptions, ReplaceOneModel, ReplaceOptions, UpdateOneModel, UpdateOptions, Updates}
+import org.mongodb.scala.model.{Accumulators, Filters, IndexModel, IndexOptions, InsertOneModel, InsertOneOptions, ReplaceOneModel, ReplaceOptions, UpdateOneModel, UpdateOptions, Updates}
 import uk.gov.hmrc.mongo.MongoComponent
-import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
-import uk.gov.hmrc.vulnerabilities.model.ServiceVulnerability
+import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
+import uk.gov.hmrc.vulnerabilities.model.{TimelineEvent, VulnerabilitiesTimelineCount}
 
-import java.util
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -36,14 +39,14 @@ class VulnerabilitiesTimelineRepository @Inject()(
                                     ) extends PlayMongoRepository(
   collectionName = "vulnerabilitiesTimeline",
   mongoComponent = mongoComponent,
-  domainFormat   = ServiceVulnerability.mongoFormat,
+  domainFormat   = TimelineEvent.mongoFormat,
   indexes        = Seq(
     IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")),IndexOptions().unique(true)),
     IndexModel(Indexes.ascending("weekBeginning"),IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS))
   )
 )
 {
-  def replaceOrInsert(serviceVulnerabilities: Seq[ServiceVulnerability]): Future[Unit] = {
+  def replaceOrInsert(serviceVulnerabilities: Seq[TimelineEvent]): Future[Unit] = {
     val bulkWrites = serviceVulnerabilities.map(sv =>
       ReplaceOneModel(
         Filters.and(
@@ -57,4 +60,40 @@ class VulnerabilitiesTimelineRepository @Inject()(
     )
     collection.bulkWrite(bulkWrites).toFuture().map(_ => ())
   }
+
+  def getTimelineCountsForService(service: Option[String], team: Option[String], vulnerability: Option[String], from: Instant, to: Instant): Future[Seq[VulnerabilitiesTimelineCount]] = {
+
+    val optFilters: Seq[Bson] = Seq(
+      service.map      (s => Filters.eq("service", s.toLowerCase)),
+      team.map         (t => Filters.eq("teams", t)),
+      vulnerability.map(v => Filters.eq("id", v))
+    ).flatten
+
+    val pipeline: Seq[Bson] = Seq(
+      Some(`match`(Filters.and(Filters.gte("weekBeginning", from), Filters.lte("weekBeginning",to)))),
+      if(optFilters.isEmpty) None else Some(`match`(Filters.and(optFilters: _*))),
+      Some(group(
+        id = "$weekBeginning",
+        Accumulators.first("service", "$service"),
+        Accumulators.sum("actionRequired",
+          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "ACTION_REQUIRED")), "then" -> 1, "else" -> 0))
+        ),
+        Accumulators.sum("noActionRequired",
+          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "NO_ACTION_REQUIRED")), "then" -> 1, "else" -> 0))
+        ),
+        Accumulators.sum("investigationOngoing",
+          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "INVESTIGATION_ONGOING")), "then" -> 1, "else" -> 0))
+        ),
+        Accumulators.sum("uncurated",
+          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "UNCURATED")), "then" -> 1, "else" -> 0))
+        ),
+        Accumulators.sum("total", 1)
+      ))
+    ).flatten
+
+    CollectionFactory.collection(mongoComponent.database, "vulnerabilitiesTimeline", VulnerabilitiesTimelineCount.mongoFormat)
+      .aggregate(pipeline).toFuture()
+  }
+
+
 }
