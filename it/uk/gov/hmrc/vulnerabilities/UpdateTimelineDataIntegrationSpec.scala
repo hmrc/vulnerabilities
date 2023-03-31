@@ -18,15 +18,19 @@ package uk.gov.hmrc.vulnerabilities
 
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, stubFor, urlPathMatching}
+
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
+
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
+
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.test.MongoSupport
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceVulnerability}
+import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, NoActionRequired, Uncurated}
+import uk.gov.hmrc.vulnerabilities.model.TimelineEvent
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilitiesTimelineRepository}
 
 class UpdateTimelineDataIntegrationSpec
@@ -65,7 +69,10 @@ class UpdateTimelineDataIntegrationSpec
         .willReturn(aResponse().withStatus(200).withBody(UpdateTimelineStubResponses.teamsAndRepos))
       )
 
-      // It takes time for the scheduler to autostart, and run through full process.
+      //3. Provide implicit val for our expected result
+      implicit val fmt = TimelineEvent.mongoFormat
+
+      //4.  It takes time for the scheduler to autostart, and run through full process.
       eventually {
         // Get result from collection.
         val res = vulnerabilityTimelineCollection.collection.find().toFuture().futureValue
@@ -76,9 +83,9 @@ class UpdateTimelineDataIntegrationSpec
 
         res.length shouldBe 3
         res should contain theSameElementsAs(Seq(
-          ServiceVulnerability(id = "CVE-2021-99999", service = "service3", weekBeginning = UpdateTimelineData.nowTruncated, teams = Seq("Team3")           , curationStatus = CurationStatus.Uncurated),
-          ServiceVulnerability(id = "CVE-2022-12345", service = "service3", weekBeginning = UpdateTimelineData.nowTruncated, teams = Seq("Team3")           , curationStatus = CurationStatus.NoActionRequired),
-          ServiceVulnerability(id = "XRAY-000004"   , service = "service4", weekBeginning = UpdateTimelineData.nowTruncated, teams = Seq("Team4", "Team4.4"), curationStatus = CurationStatus.ActionRequired),
+          TimelineEvent(id = "CVE-2021-99999", service = "service3", weekBeginning = UpdateTimelineData.nowTruncated, teams = Seq("Team3"), curationStatus = Uncurated),
+          TimelineEvent(id = "CVE-2022-12345", service = "service3", weekBeginning = UpdateTimelineData.nowTruncated, teams = Seq("Team3"), curationStatus = NoActionRequired),
+          TimelineEvent(id = "XRAY-000004", service = "service4", weekBeginning = UpdateTimelineData.nowTruncated, teams = Seq("Team4", "Team4.4"), curationStatus = ActionRequired),
         ))
       }
     }
