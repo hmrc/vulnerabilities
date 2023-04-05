@@ -30,17 +30,18 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class TimelineScheduler @Inject()(
-     vulnerabilitiesTimelineService: VulnerabilitiesTimelineService,
-     config                        : SchedulerConfigs,
-     mongoLockRepository           : MongoLockRepository,
+  vulnerabilitiesTimelineService: VulnerabilitiesTimelineService,
+  config                        : SchedulerConfigs,
+  mongoLockRepository           : MongoLockRepository,
  )( implicit
-    actorSystem         : ActorSystem,
-    applicationLifecycle: ApplicationLifecycle,
-    ec                  : ExecutionContext
+  actorSystem         : ActorSystem,
+  applicationLifecycle: ApplicationLifecycle,
+  ec                  : ExecutionContext
  ) extends SchedulerUtils {
 
   private val timelineUpdateLock: LockService = LockService(mongoLockRepository, "vuln-timeline-update-lock", 60.minutes)
-  private val logger= Logger(getClass)
+
+  private val logger = Logger(getClass)
 
   scheduleWithLock("Vulnerabilities timeline updater", config.timelineUpdateScheduler, timelineUpdateLock) {
     implicit val hc: HeaderCarrier = HeaderCarrier()

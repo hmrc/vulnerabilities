@@ -16,7 +16,6 @@
 
 package uk.gov.hmrc.vulnerabilities
 
-import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, containing, stubFor, urlMatching, urlPathMatching}
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
@@ -173,7 +172,8 @@ class SomeReportsAlreadyExistIntegrationSpec
       eventually {
         val response = wsClient
           .url(resource("test-only/testResult/"))
-          .get.futureValue
+          .get()
+          .futureValue
 
         response.status shouldBe 200
         val result = response.json.as[Seq[VulnerabilitySummary]].map(_.copy(generatedDate = StubResponses.startOfYear)).sortBy(_.distinctVulnerability.id)

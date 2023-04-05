@@ -16,8 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities
 
-import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
-import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, CVE, RawVulnerability, Report}
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
 import java.time.{DayOfWeek, Instant, LocalDateTime, ZoneOffset}
@@ -27,10 +26,11 @@ object UpdateTimelineData {
   val october  = Instant.ofEpochSecond(1666346891)
   val now = Instant.now()
   //No 'nice' native method for truncating to start of week (as there is in Mongo).
-  val nowTruncated = LocalDateTime.ofInstant(now, ZoneOffset.UTC)
-    .truncatedTo(ChronoUnit.DAYS)
-    .`with`(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    .toInstant(ZoneOffset.UTC)
+  val nowTruncated =
+    LocalDateTime.ofInstant(now, ZoneOffset.UTC)
+      .truncatedTo(ChronoUnit.DAYS)
+      .`with`(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+      .toInstant(ZoneOffset.UTC)
 
   lazy val report1: Report =
     Report(
@@ -165,8 +165,8 @@ object UpdateTimelineData {
   lazy val rawReports = Seq(report1, report2, report3, report4)
 
   val assessments = Seq(
-    Assessment(id = "CVE-2022-12345", assessment = "N/A", curationStatus = NoActionRequired, lastReviewed = october, ticket = "BDOG-1"),
-    Assessment(id = "XRAY-000004", assessment = "N/A", curationStatus = ActionRequired, lastReviewed = october, ticket = "BDOG-3"),
+    Assessment(id = "CVE-2022-12345", assessment = "N/A", curationStatus = CurationStatus.NoActionRequired, lastReviewed = october, ticket = "BDOG-1"),
+    Assessment(id = "XRAY-000004", assessment = "N/A", curationStatus = CurationStatus.ActionRequired, lastReviewed = october, ticket = "BDOG-3"),
   )
 
 }

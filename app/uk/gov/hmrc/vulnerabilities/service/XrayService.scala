@@ -49,31 +49,31 @@ class XrayService @Inject()(
       def go(count: Int): Future[Int] =
         generateReport(payload).value.flatMap {
           case Left(XrayNoData)   => Future.successful(acc)
-          case Left(XrayNotReady) => if (count > 0) go(count - 1) else Future.failed[Int](new RuntimeException(s"Tried to generate and download report $maxRetries times. Scheduler will cancel, and resume from this point the next time it runs. Manual cleanup will be required in the UI."))
-          case Right(report)      => rawReportsRepository.insertReport(report, payload.name).map{_ => acc + 1}
+          case Left(XrayNotReady) => if (count > 0) go(count - 1)
+                                     else Future.failed[Int](new RuntimeException(s"Tried to generate and download report $maxRetries times. Scheduler will cancel, and resume from this point the next time it runs. Manual cleanup will be required in the UI."))
+          case Right(report)      => rawReportsRepository.insertReport(report, payload.name).map {_ => acc + 1}
       }
       go(maxRetries)
     }.map { processedCount =>
-        logger.info(s"Finished processing $processedCount / ${payloads.size} payloads. " +
-        s"Note this number may differ to the number of raw reports in the collection, as we don't download reports with no rows in.")
-      Future.unit
+      logger.info(s"Finished processing $processedCount / ${payloads.size} payloads. " +
+      s"Note this number may differ to the number of raw reports in the collection, as we don't download reports with no rows in.")
     }
   }
 
   private def generateReport(payload: ReportRequestPayload)(implicit hc: HeaderCarrier): EitherT[Future, Status, Report] =
-        for {
-          resp    <- EitherT.liftF(xrayConnector.generateReport(payload))
-          status  <- EitherT.liftF(checkIfReportReady(resp))
-          report  <- status match {
-            case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, payload.name), XrayNoData: Status)
-            case XrayNoData   => for {
-                                  deleted   <- EitherT.liftF(xrayConnector.deleteReportFromXray((resp.reportID)))
-                                  _         =  logger.info(s"${status.statusMessage} ${deleted.info}")
-                                  res       <- EitherT.leftT[Future, Report](XrayNoData: Status)
-                                 } yield res
-            case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)
-          }
-        } yield report
+    for {
+      resp    <- EitherT.liftF(xrayConnector.generateReport(payload))
+      status  <- EitherT.liftF(checkIfReportReady(resp))
+      report  <- status match {
+        case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, payload.name), XrayNoData: Status)
+        case XrayNoData   => for {
+                               deleted <- EitherT.liftF(xrayConnector.deleteReportFromXray((resp.reportID)))
+                               _       =  logger.info(s"${status.statusMessage} ${deleted.info}")
+                               res     <- EitherT.leftT[Future, Report](XrayNoData: Status)
+                             } yield res
+        case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)
+      }
+    } yield report
 
   def createXrayPayload(svd: ServiceVersionDeployments): ReportRequestPayload =
     ReportRequestPayload(
@@ -100,15 +100,16 @@ class XrayService @Inject()(
 
    def unzipReport(inputStream: InputStream): Option[String] = {
     val zip = new ZipInputStream(inputStream)
-    try { Iterator.continually(zip.getNextEntry)
-      .takeWhile(_ != null)
-      .foldLeft(Option.empty[String])((found, entry) => {Some(scala.io.Source.fromInputStream(zip).mkString)})
+    try {
+      Iterator.continually(zip.getNextEntry)
+        .takeWhile(_ != null)
+        .foldLeft(Option.empty[String])((found, entry) => Some(scala.io.Source.fromInputStream(zip).mkString))
     } finally {
      zip.close()
     }
    }
 
-  def checkIfReportReady(reportRequestResponse: ReportRequestResponse, counter: Int = 0)(implicit hc: HeaderCarrier): Future[Status] = {
+  def checkIfReportReady(reportRequestResponse: ReportRequestResponse, counter: Int = 0)(implicit hc: HeaderCarrier): Future[Status] =
     //Timeout after 15 secs
     if (counter < 15) {
       xrayConnector.checkStatus(reportRequestResponse.reportID).flatMap { rs => (rs.status, rs.rowCount) match {
@@ -121,7 +122,6 @@ class XrayService @Inject()(
     } else {
       Future.successful(XrayNotReady)
     }
-  }
 
 
 }

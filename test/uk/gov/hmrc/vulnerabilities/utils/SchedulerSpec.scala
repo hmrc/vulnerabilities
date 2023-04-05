@@ -18,7 +18,7 @@ package uk.gov.hmrc.vulnerabilities.utils
 
 import akka.actor.ActorSystem
 import org.mockito.MockitoSugar.mock
-import org.scalatest.matchers.must.Matchers.convertToAnyMustWrapper
+import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
@@ -32,7 +32,7 @@ import java.time.temporal.ChronoUnit
 import scala.concurrent.ExecutionContext.Implicits.global
 
 
-class SchedulerSpec extends AnyWordSpec{
+class SchedulerSpec extends AnyWordSpec with Matchers {
 
   implicit val as = mock[ActorSystem]
   implicit val al = mock[ApplicationLifecycle]
@@ -57,7 +57,7 @@ class SchedulerSpec extends AnyWordSpec{
     "given a date 6 days and 23 hours prior to it" should {
       "return false" in {
         val res = scheduler.sevenDaysOld(Instant.now().minus(167, ChronoUnit.HOURS), scheduler.getNow)
-        res mustBe false
+        res shouldBe false
       }
     }
 
@@ -67,7 +67,7 @@ class SchedulerSpec extends AnyWordSpec{
           .minus(168, ChronoUnit.HOURS)
           .minus(1, ChronoUnit.MINUTES)
         , scheduler.getNow)
-        res mustBe true
+        res shouldBe true
       }
     }
   }

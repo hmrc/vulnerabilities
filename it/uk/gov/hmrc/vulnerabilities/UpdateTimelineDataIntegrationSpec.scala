@@ -16,7 +16,6 @@
 
 package uk.gov.hmrc.vulnerabilities
 
-import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, stubFor, urlPathMatching}
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
@@ -25,7 +24,6 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
-import play.api.libs.ws.WSClient
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.test.MongoSupport
 import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceVulnerability}
@@ -51,8 +49,6 @@ class UpdateTimelineDataIntegrationSpec
       ))
       .build()
 
-  private val wsClient = app.injector.instanceOf[WSClient]
-
   val rawReportsCollection            = app.injector.instanceOf[RawReportsRepository]
   val assessmentsCollection           = app.injector.instanceOf[AssessmentsRepository]
   val vulnerabilityTimelineCollection = app.injector.instanceOf[VulnerabilitiesTimelineRepository]
@@ -69,12 +65,9 @@ class UpdateTimelineDataIntegrationSpec
         .willReturn(aResponse().withStatus(200).withBody(UpdateTimelineStubResponses.teamsAndRepos))
       )
 
-      //3. Provide implicit val for our expected result
-      implicit val fmt = ServiceVulnerability.mongoFormat
-
       // It takes time for the scheduler to autostart, and run through full process.
       eventually {
-        //5. Get result from collection.
+        // Get result from collection.
         val res = vulnerabilityTimelineCollection.collection.find().toFuture().futureValue
 
         //TEST

@@ -16,33 +16,30 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-import com.mongodb.bulk.{BulkWriteInsert, BulkWriteUpsert}
-import com.mongodb.client.model.{Indexes, InsertOneModel}
-import org.mongodb.scala.model.Indexes.{compoundIndex, descending}
-import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, InsertOneModel, InsertOneOptions, ReplaceOneModel, ReplaceOptions, UpdateOneModel, UpdateOptions, Updates}
+import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, ReplaceOneModel, ReplaceOptions}
+import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.vulnerabilities.model.ServiceVulnerability
 
-import java.util
 import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class VulnerabilitiesTimelineRepository @Inject()(
-                                      mongoComponent: MongoComponent,
-                                    )(implicit ec: ExecutionContext
-                                    ) extends PlayMongoRepository(
+  mongoComponent: MongoComponent,
+)(implicit
+  ec            : ExecutionContext
+) extends PlayMongoRepository(
   collectionName = "vulnerabilitiesTimeline",
   mongoComponent = mongoComponent,
   domainFormat   = ServiceVulnerability.mongoFormat,
   indexes        = Seq(
-    IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")),IndexOptions().unique(true)),
-    IndexModel(Indexes.ascending("weekBeginning"),IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS))
+    IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")), IndexOptions().unique(true)),
+    IndexModel(ascending("weekBeginning"), IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS))
   )
-)
-{
+) {
   def replaceOrInsert(serviceVulnerabilities: Seq[ServiceVulnerability]): Future[Unit] = {
     val bulkWrites = serviceVulnerabilities.map(sv =>
       ReplaceOneModel(

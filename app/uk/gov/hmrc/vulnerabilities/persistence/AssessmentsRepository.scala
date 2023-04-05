@@ -22,15 +22,15 @@ import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
-import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class AssessmentsRepository @Inject()(
-                                      mongoComponent: MongoComponent
-                                    )(implicit ec: ExecutionContext
-                                    ) extends PlayMongoRepository(
+  mongoComponent: MongoComponent
+)(implicit
+  ec            : ExecutionContext
+) extends PlayMongoRepository(
   collectionName = "assessments",
   mongoComponent = mongoComponent,
   domainFormat   = Assessment.mongoFormat,
@@ -38,7 +38,6 @@ class AssessmentsRepository @Inject()(
     IndexModel(Indexes.ascending("id"), IndexOptions().name("id").background(true)),
   )
 ) {
-
   // No ttl required for this collection - contains assessments created by ourselves which will evolve over time
   override lazy val requiresTtlIndex = false
 

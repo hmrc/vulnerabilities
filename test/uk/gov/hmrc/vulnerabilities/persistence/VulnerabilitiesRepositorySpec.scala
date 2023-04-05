@@ -17,11 +17,10 @@
 package uk.gov.hmrc.vulnerabilities.persistence
 
 import org.scalatest.concurrent.IntegrationPatience
-import org.scalatest.matchers.must.Matchers
+import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, DefaultPlayMongoRepositorySupport, PlayMongoRepositorySupport}
-import uk.gov.hmrc.vulnerabilities.model.Environment.{Development, Production, QA, Staging}
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, VulnerabilityCount, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, Environment, DistinctVulnerability, VulnerabilityCount, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -39,42 +38,62 @@ class VulnerabilitiesRepositorySpec
   private val oneMinAgo = now.minus(1, ChronoUnit.MINUTES)
   private val fourDaysAgo = now.minus(4, ChronoUnit.DAYS)
 
-  "distinctVulnerabilitySummary" must {
+  "distinctVulnerabilitySummary" should {
 
     //Building blocks for VulnerabilitySummary expected results
     val expectedDistinctVulnerabilities = Seq(
       DistinctVulnerability(
-        vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0",
-        vulnerableComponents = Seq(VulnerableComponent("component1", "1.0"), VulnerableComponent("component1.1", "0.8")), id = "CVE-TEST-1",
-        score = Some(1.0), description = "desc1", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
-        curationStatus = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-1"),
-        fixedVersions = None
+        vulnerableComponentName    = "component1",
+        vulnerableComponentVersion = "1.0",
+        vulnerableComponents       = Seq(VulnerableComponent("component1", "1.0"), VulnerableComponent("component1.1", "0.8")),
+        id                         = "CVE-TEST-1",
+        score                      = Some(1.0),
+        description                = "desc1",
+        references                 = Seq("test", "test"),
+        publishedDate              = now,
+        assessment                 = Some(""),
+        curationStatus             = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-1"),
+        fixedVersions              = None
       ),
       DistinctVulnerability(
-        vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0",
-        vulnerableComponents = Seq(VulnerableComponent("component2", "2.0")), id = "CVE-TEST-2",
-        score = Some(1.0), description = "desc2", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
-        curationStatus = Some(CurationStatus.NoActionRequired), ticket = Some("BDOG-2"),
-        fixedVersions = Some(Seq("1", "2"))
+        vulnerableComponentName    = "component2",
+        vulnerableComponentVersion = "2.0",
+        vulnerableComponents       = Seq(VulnerableComponent("component2", "2.0")),
+        id                         = "CVE-TEST-2",
+        score                      = Some(1.0),
+        description                = "desc2",
+        references                 = Seq("test", "test"),
+        publishedDate              = now,
+        assessment                 = Some(""),
+        curationStatus             = Some(CurationStatus.NoActionRequired),
+        ticket                     = Some("BDOG-2"),
+        fixedVersions              = Some(Seq("1", "2"))
       ),
       DistinctVulnerability(
-        vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0",
-        vulnerableComponents = Seq(VulnerableComponent("component3", "3.0")), id = "XRAY-TEST-1",
-        score = Some(2.0), description = "desc3", references = Seq("test", "test"), publishedDate = now, assessment = Some(""),
-        curationStatus = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-3"),
-        fixedVersions = None
+        vulnerableComponentName    = "component3",
+        vulnerableComponentVersion = "3.0",
+        vulnerableComponents       = Seq(VulnerableComponent("component3", "3.0")),
+        id                         = "XRAY-TEST-1",
+        score                      = Some(2.0),
+        description                = "desc3",
+        references                 = Seq("test", "test"),
+        publishedDate              = now,
+        assessment                 = Some(""),
+        curationStatus             = Some(CurationStatus.ActionRequired),
+        ticket                     = Some("BDOG-3"),
+        fixedVersions              = None
       )
     )
 
     //Building blocks for VulnerabilitySummary expected results
     val expectedOccurrences = Seq(
-      VulnerabilityOccurrence(service = "service1"  , serviceVersion = "1"   , componentPathInSlug = "a",        teams = Seq("team1"),          envs = Seq("development"), vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0"),
-      VulnerabilityOccurrence(service = "service2"  , serviceVersion = "2"   , componentPathInSlug = "b",        teams = Seq("team1"),          envs = Seq("staging"), vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0"),
-      VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3"   , componentPathInSlug = "c",        teams = Seq(),                 envs = Seq("development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
-      VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3.1" , componentPathInSlug = "d",        teams = Seq(),                 envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
-      VulnerabilityOccurrence(service = "service33" , serviceVersion = "3"   , componentPathInSlug = "e",        teams = Seq("team1"),          envs = Seq("staging", "production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service1"  , serviceVersion = "1"   , componentPathInSlug = "a",        teams = Seq("team1"),          envs = Seq("development")          , vulnerableComponentName = "component1"  , vulnerableComponentVersion = "1.0"),
+      VulnerabilityOccurrence(service = "service2"  , serviceVersion = "2"   , componentPathInSlug = "b",        teams = Seq("team1"),          envs = Seq("staging")              , vulnerableComponentName = "component2"  , vulnerableComponentVersion = "2.0"),
+      VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3"   , componentPathInSlug = "c",        teams = Seq(),                 envs = Seq("development")          , vulnerableComponentName = "component3"  , vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3.1" , componentPathInSlug = "d",        teams = Seq(),                 envs = Seq("production")           , vulnerableComponentName = "component3"  , vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service33" , serviceVersion = "3"   , componentPathInSlug = "e",        teams = Seq("team1"),          envs = Seq("staging", "production"), vulnerableComponentName = "component3"  , vulnerableComponentVersion = "3.0"),
       VulnerabilityOccurrence(service = "service6"  , serviceVersion = "2.55", componentPathInSlug = "apache:x", teams = Seq("team2"),          envs = Seq("staging", "production"), vulnerableComponentName = "component1.1", vulnerableComponentVersion = "0.8"),
-      VulnerabilityOccurrence(service = "helloWorld", serviceVersion = "2.51", componentPathInSlug = "apache:y", teams = Seq("team1", "team2"), envs = Seq("qa"), vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0")
+      VulnerabilityOccurrence(service = "helloWorld", serviceVersion = "2.51", componentPathInSlug = "apache:y", teams = Seq("team1", "team2"), envs = Seq("qa")                   , vulnerableComponentName = "component2"  , vulnerableComponentVersion = "2.0")
     )
 
     "default sort by descending score and ascending id" in new Setup {
@@ -87,8 +106,8 @@ class VulnerabilitiesRepositorySpec
       val results = repository.distinctVulnerabilitiesSummary(None, None, None, None, None).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
-      resultsSorted.length mustBe 3
-      resultsSorted mustBe Seq(expected3, expected1, expected2)
+      resultsSorted.length shouldBe 3
+      resultsSorted shouldBe Seq(expected3, expected1, expected2)
     }
 
     "filter by id" in new Setup {
@@ -101,8 +120,8 @@ class VulnerabilitiesRepositorySpec
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
 
-      resultsSorted.length mustBe 1
-      resultsSorted mustBe Seq(expected1)
+      resultsSorted.length shouldBe 1
+      resultsSorted shouldBe Seq(expected1)
     }
 
     "filter by curationStatus" in new Setup {
@@ -114,8 +133,8 @@ class VulnerabilitiesRepositorySpec
       val results = repository.distinctVulnerabilitiesSummary(None, curationStatus = Some(CurationStatus.ActionRequired.asString), None, None, None).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
-      resultsSorted.length mustBe 2
-      resultsSorted must contain theSameElementsAs Seq(expected1, expected2)
+      resultsSorted.length shouldBe 2
+      resultsSorted should contain theSameElementsAs Seq(expected1, expected2)
     }
 
     "filter by service name" in new Setup {
@@ -126,8 +145,8 @@ class VulnerabilitiesRepositorySpec
       val results = repository.distinctVulnerabilitiesSummary(None, None, service = Some("ice1"), None, None).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
-      resultsSorted.length mustBe 1
-      resultsSorted must contain theSameElementsAs Seq(expected1)
+      resultsSorted.length shouldBe 1
+      resultsSorted should contain theSameElementsAs Seq(expected1)
     }
 
     "filter by team" in new Setup {
@@ -139,8 +158,8 @@ class VulnerabilitiesRepositorySpec
       val results = repository.distinctVulnerabilitiesSummary(None, None, None, team = Some("team2"), None).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
-      resultsSorted.length mustBe 2
-      resultsSorted mustBe Seq(expected1, expected2)
+      resultsSorted.length shouldBe 2
+      resultsSorted shouldBe Seq(expected1, expected2)
     }
 
     "filter by component" in new Setup {
@@ -151,8 +170,8 @@ class VulnerabilitiesRepositorySpec
       val results = repository.distinctVulnerabilitiesSummary(None, None, None, None, Some("ent1")).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
-      resultsSorted.length mustBe 1
-      resultsSorted mustBe Seq(expected1)
+      resultsSorted.length shouldBe 1
+      resultsSorted shouldBe Seq(expected1)
     }
 
     "filter by all five parameters" in new Setup {
@@ -166,9 +185,9 @@ class VulnerabilitiesRepositorySpec
       val results1Sorted = results1.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
       val results2Sorted = results2.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
-      results1Sorted.length mustBe 0
-      results2Sorted.length mustBe 1
-      results2Sorted mustBe Seq(expected1)
+      results1Sorted.length shouldBe 0
+      results2Sorted.length shouldBe 1
+      results2Sorted shouldBe Seq(expected1)
     }
 
     "return only unique teams" in new Setup {
@@ -178,8 +197,8 @@ class VulnerabilitiesRepositorySpec
 
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
-      resultsSorted.length mustBe 1
-      resultsSorted.head.teams.length mustBe 1
+      resultsSorted.length shouldBe 1
+      resultsSorted.head.teams.length shouldBe 1
     }
 
     "Do an exact match on service when searchTerm is quoted" in new Setup {
@@ -190,33 +209,29 @@ class VulnerabilitiesRepositorySpec
 
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
 
-      resultsSorted.length mustBe 1
-      resultsSorted must contain theSameElementsAs Seq(expected1)
-      resultsSorted.head.occurrences.length mustBe 2 //Shouldn't pick up 'Service33'
-
+      resultsSorted.length shouldBe 1
+      resultsSorted should contain theSameElementsAs Seq(expected1)
+      resultsSorted.head.occurrences.length shouldBe 2 //Shouldn't pick up 'Service33'
     }
 
     "return an empty list when given service and team filters that each match seperate occurrences, but don't both match the same occurrence" in new Setup {
-      val expected = Seq.empty
-
       repository.collection.insertMany(
         Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)
       ).toFuture().futureValue
 
       val res = repository.distinctVulnerabilitiesSummary(id = None, curationStatus = None, service = Some("service2"), team = Some("team2"), component = None).futureValue
-      res mustBe empty
-
+      res shouldBe empty
     }
   }
 
-  "vulnerabilitiesCount" must {
+  "vulnerabilitiesCount" should {
 
     "return counts for a service" in new Setup {
       val expected = Seq(
-        VulnerabilityCount("service3", Development.asString, CurationStatus.ActionRequired, 2),
-        VulnerabilityCount("service3", Development.asString ,CurationStatus.NoActionRequired, 1),
-        VulnerabilityCount("service3", Production.asString, CurationStatus.ActionRequired, 2),
-        VulnerabilityCount("service3", Production.asString, CurationStatus.NoActionRequired, 1)
+        VulnerabilityCount("service3", Environment.Development.asString, CurationStatus.ActionRequired  , 2),
+        VulnerabilityCount("service3", Environment.Development.asString, CurationStatus.NoActionRequired, 1),
+        VulnerabilityCount("service3", Environment.Production.asString , CurationStatus.ActionRequired  , 2),
+        VulnerabilityCount("service3", Environment.Production.asString , CurationStatus.NoActionRequired, 1)
       )
 
       repository.collection.insertMany(
@@ -224,14 +239,14 @@ class VulnerabilitiesRepositorySpec
       ).toFuture().futureValue
 
       val result = repository.vulnerabilitiesCount(service = Some("\"service3\""), None, None)
-      result.futureValue must contain theSameElementsAs expected
+      result.futureValue should contain theSameElementsAs expected
     }
 
     "return counts for all services owned by a team" in new Setup {
       val expected = Seq(
-        VulnerabilityCount("service6", Staging.asString, CurationStatus.ActionRequired, 1),
-        VulnerabilityCount("service6", Production.asString, CurationStatus.ActionRequired, 1),
-        VulnerabilityCount("helloWorld", QA.asString, CurationStatus.NoActionRequired, 1)
+        VulnerabilityCount("service6"  , Environment.Staging.asString   , CurationStatus.ActionRequired  , 1),
+        VulnerabilityCount("service6"  , Environment.Production.asString, CurationStatus.ActionRequired  , 1),
+        VulnerabilityCount("helloWorld", Environment.QA.asString        , CurationStatus.NoActionRequired, 1)
       )
 
       repository.collection.insertMany(
@@ -239,58 +254,58 @@ class VulnerabilitiesRepositorySpec
       ).toFuture().futureValue
 
       val result = repository.vulnerabilitiesCount(None, team = Some("team2"), None)
-      result.futureValue must contain theSameElementsAs expected
+      result.futureValue should contain theSameElementsAs expected
     }
 
     "return counts for an environment" in new Setup {
       val expected = Seq(
-        VulnerabilityCount("helloWorld", QA.asString, CurationStatus.NoActionRequired, 1),
-        VulnerabilityCount("service6", QA.asString, CurationStatus.NoActionRequired, 1),
-        VulnerabilityCount("service6", QA.asString, CurationStatus.ActionRequired, 1)
+        VulnerabilityCount("helloWorld", Environment.QA.asString, CurationStatus.NoActionRequired, 1),
+        VulnerabilityCount("service6"  , Environment.QA.asString, CurationStatus.NoActionRequired, 1),
+        VulnerabilityCount("service6"  , Environment.QA.asString, CurationStatus.ActionRequired  , 1)
       )
 
       repository.collection.insertMany(
         Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3, vulnerabilitySummary4, vulnerabilitySummary5)
       ).toFuture().futureValue
 
-      val result = repository.vulnerabilitiesCount(None, None, environment = Some(QA))
-      result.futureValue must contain theSameElementsAs expected
+      val result = repository.vulnerabilitiesCount(None, None, environment = Some(Environment.QA))
+      result.futureValue should contain theSameElementsAs expected
     }
 
     "return counts with all filters applied" in new Setup {
       val expected =  Seq(
-        VulnerabilityCount("service6", Production.asString, CurationStatus.ActionRequired, 1),
-        VulnerabilityCount("service6", Production.asString, CurationStatus.NoActionRequired, 1)
+        VulnerabilityCount("service6", Environment.Production.asString, CurationStatus.ActionRequired  , 1),
+        VulnerabilityCount("service6", Environment.Production.asString, CurationStatus.NoActionRequired, 1)
       )
 
       repository.collection.insertMany(
         Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3, vulnerabilitySummary4, vulnerabilitySummary5)
       ).toFuture().futureValue
 
-      val result = repository.vulnerabilitiesCount(service = Some("\"service6\""), team = Some("team1"), environment = Some(Production))
-      result.futureValue must contain theSameElementsAs expected
+      val result = repository.vulnerabilitiesCount(service = Some("\"service6\""), team = Some("team1"), environment = Some(Environment.Production))
+      result.futureValue should contain theSameElementsAs expected
     }
   }
 
-  "getMostRecent" must {
+  "getMostRecent" should {
     "Return the dateTime Instant of the most recently generated document" in new Setup {
       repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
 
       val result = repository.getMostRecent().futureValue
 
-      result mustBe now
+      result shouldBe now
     }
 
     "Return a default Instant that is 8 days old, if there are no documents in the collection" in {
 
       val result = repository.getMostRecent().futureValue
 
-      result mustBe < (now.minus(7, ChronoUnit.DAYS))
-      result mustBe > (now.minus(9, ChronoUnit.DAYS))
+      result shouldBe < (now.minus(7, ChronoUnit.DAYS))
+      result shouldBe > (now.minus(9, ChronoUnit.DAYS))
     }
   }
 
-  "deleteOldAndInsertNewSummaries" must {
+  "deleteOldAndInsertNewSummaries" should {
     "delete the existing summary, and add a new summary to the collection" in new Setup {
 
       val intermediateRes = for {
@@ -298,15 +313,15 @@ class VulnerabilitiesRepositorySpec
         res <- repository.collection.find().toFuture()
       } yield res
 
-      intermediateRes.futureValue.length mustBe 1
+      intermediateRes.futureValue.length shouldBe 1
 
       val finalRes = for {
         _   <- repository.deleteOldAndInsertNewSummaries(Seq(vulnerabilitySummary2, vulnerabilitySummary3))
         res <- repository.collection.find().toFuture()
       } yield res
 
-      finalRes.futureValue.length mustBe 2
-      finalRes.futureValue.map(res => res.distinctVulnerability.id).sorted mustBe Seq("CVE-TEST-2", "XRAY-TEST-1")
+      finalRes.futureValue.length shouldBe 2
+      finalRes.futureValue.map(res => res.distinctVulnerability.id).sorted shouldBe Seq("CVE-TEST-2", "XRAY-TEST-1")
     }
   }
 
@@ -315,47 +330,47 @@ class VulnerabilitiesRepositorySpec
     lazy val vulnerabilitySummary1 =
       VulnerabilitySummary(
         distinctVulnerability = DistinctVulnerability(
-          vulnerableComponentName = "component1",
+          vulnerableComponentName    = "component1",
           vulnerableComponentVersion = "1.0",
-          vulnerableComponents = Seq(
-            VulnerableComponent("component1", "1.0"),
-            VulnerableComponent("component1.1", "0.8")
-          ),
-          id = "CVE-TEST-1",
-          score = Some(1.0),
-          description = "desc1",
-          fixedVersions = None,
-          references = Seq("test", "test"),
-          publishedDate = now,
-          assessment = Some(""),
-          curationStatus = Some(CurationStatus.ActionRequired),
-          ticket = Some("BDOG-1")
+          vulnerableComponents       = Seq(
+                                         VulnerableComponent("component1", "1.0"),
+                                         VulnerableComponent("component1.1", "0.8")
+                                       ),
+          id                         = "CVE-TEST-1",
+          score                      = Some(1.0),
+          description                = "desc1",
+          fixedVersions              = None,
+          references                 = Seq("test", "test"),
+          publishedDate              = now,
+          assessment                 = Some(""),
+          curationStatus             = Some(CurationStatus.ActionRequired),
+          ticket                     = Some("BDOG-1")
         ),
-        occurrences = Seq(
+        occurrences   = Seq(
           VulnerabilityOccurrence(service = "service1", serviceVersion = "1", componentPathInSlug = "a", teams = Seq("team1"), envs = Seq("development"), vulnerableComponentName = "component1", vulnerableComponentVersion = "1.0"),
           VulnerabilityOccurrence(service = "service6", serviceVersion = "2.55", componentPathInSlug = "apache:x", teams = Seq("team2"), envs = Seq("staging", "production"), vulnerableComponentName = "component1.1", vulnerableComponentVersion = "0.8")
         ),
-        teams = Seq("team1", "team2"),
+        teams         = Seq("team1", "team2"),
         generatedDate = oneMinAgo
       )
 
     lazy val vulnerabilitySummary2 =
       VulnerabilitySummary(
         distinctVulnerability = DistinctVulnerability(
-          vulnerableComponentName = "component2",
+          vulnerableComponentName    = "component2",
           vulnerableComponentVersion = "2.0",
-          vulnerableComponents = Seq(
-            VulnerableComponent("component2", "2.0"),
-          ),
-          id = "CVE-TEST-2",
-          score = Some(1.0),
-          description = "desc2",
-          fixedVersions = Some(Seq("1", "2")),
-          references = Seq("test", "test"),
-          publishedDate = now,
-          assessment = Some(""),
-          curationStatus = Some(CurationStatus.NoActionRequired),
-          ticket = Some("BDOG-2")
+          vulnerableComponents       = Seq(
+                                         VulnerableComponent("component2", "2.0"),
+                                       ),
+          id                         = "CVE-TEST-2",
+          score                      = Some(1.0),
+          description                = "desc2",
+          fixedVersions              = Some(Seq("1", "2")),
+          references                 = Seq("test", "test"),
+          publishedDate              = now,
+          assessment                 = Some(""),
+          curationStatus             = Some(CurationStatus.NoActionRequired),
+          ticket                     = Some("BDOG-2")
         ),
         occurrences = Seq(
           VulnerabilityOccurrence(service = "service2", serviceVersion = "2", componentPathInSlug = "b", teams = Seq("team1"), envs = Seq("staging"), vulnerableComponentName = "component2", vulnerableComponentVersion = "2.0"),
@@ -367,82 +382,80 @@ class VulnerabilitiesRepositorySpec
 
     lazy val vulnerabilitySummary3 = VulnerabilitySummary(
       distinctVulnerability = DistinctVulnerability(
-        vulnerableComponentName = "component3",
+        vulnerableComponentName    = "component3",
         vulnerableComponentVersion = "3.0",
-        vulnerableComponents = Seq(
-          VulnerableComponent("component3", "3.0")
-        ),
-        id = "XRAY-TEST-1",
-        score = Some(2.0),
-        description = "desc3",
-        fixedVersions = None,
-        references = Seq("test", "test"),
-        publishedDate = now,
-        assessment = Some(""),
-        curationStatus = Some(CurationStatus.ActionRequired),
-        ticket = Some("BDOG-3")
+        vulnerableComponents       = Seq(
+                                       VulnerableComponent("component3", "3.0")
+                                     ),
+        id                         = "XRAY-TEST-1",
+        score                      = Some(2.0),
+        description                = "desc3",
+        fixedVersions              = None,
+        references                 = Seq("test", "test"),
+        publishedDate              = now,
+        assessment                 = Some(""),
+        curationStatus             = Some(CurationStatus.ActionRequired),
+        ticket                     = Some("BDOG-3")
       ),
       occurrences = Seq(
         VulnerabilityOccurrence(service = "service3",serviceVersion = "3", componentPathInSlug = "c", teams = Seq(), envs = Seq("development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
         VulnerabilityOccurrence(service = "service3",serviceVersion = "3.1",componentPathInSlug = "d", teams = Seq(), envs =Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
         VulnerabilityOccurrence(service = "service33",serviceVersion = "3",componentPathInSlug = "e",teams = Seq("team1"), envs =Seq("staging", "production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
       ),
-      teams = Seq("team1"),
+      teams         = Seq("team1"),
       generatedDate = fourDaysAgo
     )
 
     lazy val vulnerabilitySummary4 = VulnerabilitySummary(
       distinctVulnerability = DistinctVulnerability(
-        vulnerableComponentName = "component3",
+        vulnerableComponentName    = "component3",
         vulnerableComponentVersion = "3.0",
-        vulnerableComponents = Seq(
-          VulnerableComponent("component3", "3.0")
-        ),
-        id = "XRAY-TEST-2",
-        score = Some(2.0),
-        description = "desc3",
-        fixedVersions = None,
-        references = Seq("test", "test"),
-        publishedDate = now,
-        assessment = Some(""),
-        curationStatus = Some(CurationStatus.ActionRequired),
-        ticket = Some("BDOG-3")
+        vulnerableComponents       = Seq(
+                                       VulnerableComponent("component3", "3.0")
+                                     ),
+        id                         = "XRAY-TEST-2",
+        score                      = Some(2.0),
+        description                = "desc3",
+        fixedVersions              = None,
+        references                 = Seq("test", "test"),
+        publishedDate              = now,
+        assessment                 = Some(""),
+        curationStatus             = Some(CurationStatus.ActionRequired),
+        ticket                     = Some("BDOG-3")
       ),
       occurrences = Seq(
         VulnerabilityOccurrence(service = "service3",serviceVersion = "3", componentPathInSlug = "c", teams = Seq(), envs = Seq("production", "development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
         VulnerabilityOccurrence(service = "service1",serviceVersion = "3.1",componentPathInSlug = "d", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
         VulnerabilityOccurrence(service = "service6",serviceVersion = "3",componentPathInSlug = "e",teams = Seq("team1"), envs = Seq("staging", "production", "qa"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
       ),
-      teams = Seq("team1"),
+      teams         = Seq("team1"),
       generatedDate = fourDaysAgo
     )
 
     lazy val vulnerabilitySummary5 = VulnerabilitySummary(
       distinctVulnerability = DistinctVulnerability(
-        vulnerableComponentName = "component3",
+        vulnerableComponentName    = "component3",
         vulnerableComponentVersion = "3.0",
-        vulnerableComponents = Seq(
-          VulnerableComponent("component3", "3.0")
-        ),
-        id = "XRAY-TEST-3",
-        score = Some(2.0),
-        description = "desc3",
-        fixedVersions = None,
-        references = Seq("test", "test"),
-        publishedDate = now,
-        assessment = Some(""),
-        curationStatus = Some(CurationStatus.NoActionRequired),
-        ticket = Some("BDOG-3")
+        vulnerableComponents       = Seq(
+                                       VulnerableComponent("component3", "3.0")
+                                     ),
+        id                         = "XRAY-TEST-3",
+        score                      = Some(2.0),
+        description                = "desc3",
+        fixedVersions              = None,
+        references                 = Seq("test", "test"),
+        publishedDate              = now,
+        assessment                 = Some(""),
+        curationStatus             = Some(CurationStatus.NoActionRequired),
+        ticket                     = Some("BDOG-3")
       ),
       occurrences = Seq(
         VulnerabilityOccurrence(service = "service3",serviceVersion = "3", componentPathInSlug = "c", teams = Seq(), envs = Seq("production", "development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
         VulnerabilityOccurrence(service = "service1",serviceVersion = "3.1",componentPathInSlug = "d", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
         VulnerabilityOccurrence(service = "service6",serviceVersion = "3",componentPathInSlug = "e",teams = Seq("team1"), envs = Seq("staging", "production", "qa"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
       ),
-      teams = Seq("team1"),
+      teams         = Seq("team1"),
       generatedDate = oneMinAgo
     )
   }
-
-
 }
