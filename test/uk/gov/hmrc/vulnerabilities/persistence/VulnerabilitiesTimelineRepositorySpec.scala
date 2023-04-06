@@ -17,9 +17,9 @@
 package uk.gov.hmrc.vulnerabilities.persistence
 
 import org.scalatest.concurrent.IntegrationPatience
-import org.scalatest.matchers.must.Matchers
-import org.scalatest.wordspec.{AnyWordSpec, AnyWordSpecLike}
-import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, DefaultPlayMongoRepositorySupport, PlayMongoRepositorySupport}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
+import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired}
 import uk.gov.hmrc.vulnerabilities.model.ServiceVulnerability
 
@@ -27,10 +27,11 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import java.time.Instant
 
 
-class VulnerabilitiesTimelineRepositorySpec extends AnyWordSpecLike
-with Matchers
-with DefaultPlayMongoRepositorySupport[ServiceVulnerability]
-with IntegrationPatience  {
+class VulnerabilitiesTimelineRepositorySpec
+  extends AnyWordSpec
+     with Matchers
+     with DefaultPlayMongoRepositorySupport[ServiceVulnerability]
+     with IntegrationPatience  {
 
   override lazy val repository = new VulnerabilitiesTimelineRepository(mongoComponent)
 
@@ -44,14 +45,14 @@ with IntegrationPatience  {
     "insert all documents when no duplicates are found" in {
       repository.collection.insertMany(Seq(sv1, sv2, sv3, sv4)).toFuture().futureValue
 
-     val sv5 = ServiceVulnerability("CVE-3", "service3", Instant.parse("2022-12-26T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired) //weekBeginning differs
-     val sv6 = ServiceVulnerability("CVE-4", "service3", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired) //id differs
-     val sv7 = ServiceVulnerability("CVE-3", "service4", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired) //service differs
+      val sv5 = ServiceVulnerability("CVE-3", "service3", Instant.parse("2022-12-26T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired) //weekBeginning differs
+      val sv6 = ServiceVulnerability("CVE-4", "service3", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired) //id differs
+      val sv7 = ServiceVulnerability("CVE-3", "service4", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired) //service differs
 
       repository.replaceOrInsert(Seq(sv5, sv6, sv7)).futureValue
 
-      findAll().futureValue.length mustBe 7
-      findAll().futureValue must contain theSameElementsAs Seq(sv1, sv2, sv3, sv4, sv5, sv6, sv7)
+      findAll().futureValue.length shouldBe 7
+      findAll().futureValue should contain theSameElementsAs Seq(sv1, sv2, sv3, sv4, sv5, sv6, sv7)
     }
 
     "replace documents when duplicates are found, and insert the rest" in {
@@ -63,9 +64,9 @@ with IntegrationPatience  {
 
       repository.replaceOrInsert(Seq(sv5, sv6, sv7)).futureValue
 
-          findAll().futureValue.length mustBe 5
-          //sv3 and sv4 are replaced by their duplicates, which have different CurationStatus values.
-          findAll().futureValue must contain theSameElementsAs Seq(sv1, sv2, sv5, sv6, sv7)
+      findAll().futureValue.length shouldBe 5
+      //sv3 and sv4 are replaced by their duplicates, which have different CurationStatus values.
+      findAll().futureValue should contain theSameElementsAs Seq(sv1, sv2, sv5, sv6, sv7)
     }
 
     "throw an illegal argument exception when passed an empty Sequence" in {
@@ -75,7 +76,5 @@ with IntegrationPatience  {
         repository.replaceOrInsert(Seq()).futureValue
       }
     }
-
-
   }
 }

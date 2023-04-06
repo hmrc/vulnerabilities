@@ -25,7 +25,6 @@ import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
 import uk.gov.hmrc.vulnerabilities.service.UpdateVulnerabilitiesService
 
-import java.time.temporal.ChronoUnit
 import java.time.Instant
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
@@ -33,18 +32,18 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class Scheduler @Inject()(
-   updateVulnerabilitiesService    : UpdateVulnerabilitiesService,
-   config                          : SchedulerConfigs,
-   vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
-   mongoLockRepository             : MongoLockRepository,
-   configuration                   : Configuration
-)( implicit
-   actorSystem         : ActorSystem,
-   applicationLifecycle: ApplicationLifecycle,
-   ec                  : ExecutionContext
+  updateVulnerabilitiesService    : UpdateVulnerabilitiesService,
+  config                          : SchedulerConfigs,
+  vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
+  mongoLockRepository             : MongoLockRepository,
+  configuration                   : Configuration
+)(implicit
+  actorSystem         : ActorSystem,
+  applicationLifecycle: ApplicationLifecycle,
+  ec                  : ExecutionContext
 ) extends SchedulerUtils {
 
-  private val logger= Logger(getClass)
+  private val logger = Logger(getClass)
 
   private val dataCutOff = configuration.get[FiniteDuration]("data.refresh-cutoff")
   private val dataReloadLock: LockService     = LockService(mongoLockRepository, "vuln-data-reload-lock", 165.minutes)

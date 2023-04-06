@@ -16,57 +16,42 @@
 
 package uk.gov.hmrc.vulnerabilities
 
-import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, containing, stubFor, urlMatching, urlPathMatching}
-import com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig
-
-import org.scalatest.BeforeAndAfterAll
-import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
+import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
-
+import play.api.Application
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.ws.WSClient
-import uk.gov.hmrc.integration.ServiceSpec
-import uk.gov.hmrc.vulnerabilities.model.CurationStatus.Uncurated
-import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.http.test.WireMockSupport
+import uk.gov.hmrc.mongo.test.CleanMongoCollectionSupport
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
 
 class HappyPathIntegrationSpec
   extends AnyWordSpec
      with Matchers
      with ScalaFutures
      with IntegrationPatience
+     with Eventually
      with GuiceOneServerPerSuite
-     with ServiceSpec
-     with BeforeAndAfterAll {
+     with WireMockSupport
+     with CleanMongoCollectionSupport {
 
-  private val wireMockServer = new WireMockServer(wireMockConfig().port(8857))
+  override def fakeApplication(): Application =
+    GuiceApplicationBuilder()
+      .configure(Map(
+        "microservice.services.releases-api.port"           -> wireMockPort,
+        "microservice.services.teams-and-repositories.port" -> wireMockPort,
+        "xray.url"                                          -> wireMockUrl,
+        "application.router"                                -> "testOnlyDoNotUseInAppConf.Routes",
+        "scheduler.enabled"                                 -> "true",
+        "mongodb.uri"                                       -> mongoUri
+      ))
+      .build()
+
   private val wsClient = app.injector.instanceOf[WSClient]
-
-  def externalServices: Seq[String] = Seq()
-
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    if (!wireMockServer.isRunning) {
-      wireMockServer.start()
-    }
-    WireMock.configureFor("localhost", wireMockServer.port())
-  }
-
-  override def afterAll(): Unit = {
-    wireMockServer.stop()
-    // don't call afterAll, we don't need to stop smserver
-  }
-
-  override def additionalConfig: Map[String, _] =
-    Map(
-      "microservice.services.releases-api.port"           -> "8857",
-      "microservice.services.teams-and-repositories.port" -> "8857",
-      "xray.url"                                          -> "http://localhost:8857",
-      "application.router"                                -> "testOnlyDoNotUseInAppConf.Routes",
-      "scheduler.enabled"                                 -> "true"
-    )
 
   "updateVulnerabilities Service" should {
     "download & process reports from Xray, before transforming them into VulnerabilitySummaries and inserting to the collection" in {
@@ -128,7 +113,7 @@ class HappyPathIntegrationSpec
           references = Seq("foo.com", "bar.net"),
           publishedDate = StubResponses.startOfYear,
           assessment = None,
-          curationStatus = Some(Uncurated),
+          curationStatus = Some(CurationStatus.Uncurated),
           ticket = None
         ),
         occurrences = Seq(
@@ -140,22 +125,22 @@ class HappyPathIntegrationSpec
       )
 
       //Test occurs below
+      eventually {
+        val response = wsClient
+          .url(resource("test-only/testResult/"))
+          .get()
+          .futureValue
 
-      Thread.sleep(15000) //Takes roughly 12.5 secs for scheduler to autostart (after ten sec delay), and run through entire process.
-      wireMockServer.stop()     //Otherwise wiremock attempts to find stub for below request
-      val response = wsClient
-        .url(resource("/test-only/testResult/"))
-        .get.futureValue
-      val result = response.json.as[Seq[VulnerabilitySummary]].map(_.copy(generatedDate = StubResponses.startOfYear))
-      //update the results generated date as otherwise it would be dynamic - it would be the time of test
+        response.status shouldBe 200
+        val result = response.json.as[Seq[VulnerabilitySummary]].map(_.copy(generatedDate = StubResponses.startOfYear))
+        //update the results generated date as otherwise it would be dynamic - it would be the time of test
 
-      result.length shouldBe 1
-      result.head shouldBe expectedResult
-
+        result.length shouldBe 1
+        result.head shouldBe expectedResult
+      }
     }
   }
 
-
-
-
+  def resource(path: String): String =
+    s"http://localhost:$port/$path"
 }

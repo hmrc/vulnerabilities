@@ -16,60 +16,46 @@
 
 package uk.gov.hmrc.vulnerabilities
 
-import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, containing, stubFor, urlMatching, urlPathMatching}
-import com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig
-
-import org.scalatest.BeforeAndAfterAll
-import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
+import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
-
+import play.api.Application
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.ws.WSClient
-import uk.gov.hmrc.integration.ServiceSpec
-import uk.gov.hmrc.vulnerabilities.model.CurationStatus.Uncurated
-import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.http.test.WireMockSupport
+import uk.gov.hmrc.mongo.test.CleanMongoCollectionSupport
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
 
 class SomeReportsAlreadyExistIntegrationSpec
   extends AnyWordSpec
-    with Matchers
-    with ScalaFutures
-    with IntegrationPatience
-    with GuiceOneServerPerSuite
-    with ServiceSpec
-    with BeforeAndAfterAll {
+     with Matchers
+     with ScalaFutures
+     with Eventually
+     with IntegrationPatience
+     with GuiceOneServerPerSuite
+     with WireMockSupport
+     with CleanMongoCollectionSupport {
 
-  private val wireMockServer = new WireMockServer(wireMockConfig().port(8857))
+  override def fakeApplication(): Application =
+    GuiceApplicationBuilder()
+      .configure(Map(
+        "microservice.services.releases-api.port"           -> wireMockPort,
+        "microservice.services.teams-and-repositories.port" -> wireMockPort,
+        "xray.url"                                          -> wireMockUrl,
+        "application.router"                                -> "testOnlyDoNotUseInAppConf.Routes",
+        "scheduler.enabled"                                 -> "true",
+        "mongodb.uri"                                       -> mongoUri
+      ))
+      .build()
+
   private val wsClient = app.injector.instanceOf[WSClient]
+
   val collection = app.injector.instanceOf[RawReportsRepository]
-
-  def externalServices: Seq[String] = Seq()
-
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    if (!wireMockServer.isRunning) {
-      wireMockServer.start()
-    }
-    WireMock.configureFor("localhost", wireMockServer.port())
-  }
-
-  override def afterAll(): Unit = {
-    wireMockServer.stop()
-    // don't call afterAll, we don't need to stop smserver
-  }
-
-  override def additionalConfig: Map[String, _] =
-    Map(
-      "microservice.services.releases-api.port"           -> "8857",
-      "microservice.services.teams-and-repositories.port" -> "8857",
-      "xray.url"                                          -> "http://localhost:8857",
-      "application.router"                                -> "testOnlyDoNotUseInAppConf.Routes",
-      "scheduler.enabled"                                 -> "true"
-    )
 
   /**
    *
@@ -131,17 +117,17 @@ class SomeReportsAlreadyExistIntegrationSpec
 
       val expectedResult1 = VulnerabilitySummary(
         DistinctVulnerability(
-          vulnerableComponentName =  "gav://com.testxml.test.core:test-bind",
+          vulnerableComponentName    = "gav://com.testxml.test.core:test-bind",
           vulnerableComponentVersion = "1.5.9",
-          vulnerableComponents =  Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind","1.5.9")),
-          id = "CVE-2022-12345", score = Some(8.0),
-          description = "This is an exploit",
-          fixedVersions = Some(Seq("1.6.0")),
-          references = Seq("foo.com", "bar.net"),
-          publishedDate = StubResponses.startOfYear,
-          assessment = None,
-          curationStatus = Some(Uncurated),
-          ticket = None
+          vulnerableComponents       =  Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind","1.5.9")),
+          id                         = "CVE-2022-12345", score = Some(8.0),
+          description                = "This is an exploit",
+          fixedVersions              = Some(Seq("1.6.0")),
+          references                 = Seq("foo.com", "bar.net"),
+          publishedDate              = StubResponses.startOfYear,
+          assessment                 = None,
+          curationStatus             = Some(CurationStatus.Uncurated),
+          ticket                     = None
         ),
         occurrences = Seq(
           VulnerabilityOccurrence("Service1","0.835.0","Service1-0.835.0/some/physical/path",Seq("Team1", "Team2"),Seq("staging"),"gav://com.testxml.test.core:test-bind","1.5.9"),
@@ -153,44 +139,52 @@ class SomeReportsAlreadyExistIntegrationSpec
 
       val expectedResult2 = VulnerabilitySummary(
         DistinctVulnerability(
-          vulnerableComponentName =  "gav://com.testxml.test.core:test-bind",
+          vulnerableComponentName    = "gav://com.testxml.test.core:test-bind",
           vulnerableComponentVersion = "1.5.9",
-          vulnerableComponents =  Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind","1.5.9")),
-          id = "CVE-999-999", score = Some(8.0),
-          description = "This is an exploit",
-          fixedVersions = Some(Seq("1.6.0")),
-          references = Seq("foo.com", "bar.net"),
-          publishedDate = StubResponses.startOfYear,
-          assessment = None,
-          curationStatus = Some(Uncurated),
-          ticket = None
+          vulnerableComponents       = Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind","1.5.9")),
+          id                         = "CVE-999-999", score = Some(8.0),
+          description                = "This is an exploit",
+          fixedVersions              = Some(Seq("1.6.0")),
+          references                 = Seq("foo.com", "bar.net"),
+          publishedDate              = StubResponses.startOfYear,
+          assessment                 = None,
+          curationStatus             = Some(CurationStatus.Uncurated),
+          ticket                     = None
         ),
-        occurrences = Seq(
-          VulnerabilityOccurrence("Service5","5.0.4","Service5-5.0.4/some/physical/path",Seq(),Seq("staging", "production"),"gav://com.testxml.test.core:test-bind","1.5.9"),
+        occurrences   = Seq(
+          VulnerabilityOccurrence(
+            "Service5",
+            "5.0.4",
+            "Service5-5.0.4/some/physical/path",
+            Seq(),
+            Seq("staging", "production"),
+            "gav://com.testxml.test.core:test-bind",
+            "1.5.9"
+          )
         ),
-        teams = Seq(),
+        teams         = Seq(),
         generatedDate = StubResponses.startOfYear
       )
 
       //Test occurs below
       collection.insertReport(StubResponses.alreadyDownloadedReport,  "AppSec-report-Service5_5.0.4")
 
-      Thread.sleep(15000) //Takes roughly 12.5 secs for scheduler to autostart, and run through entire process.
-      wireMockServer.stop()     //Otherwise wiremock attempts to find stub for below request
-      val response = wsClient
-        .url(resource("/test-only/testResult/"))
-        .get.futureValue
+      eventually {
+        val response = wsClient
+          .url(resource("test-only/testResult/"))
+          .get()
+          .futureValue
 
-      val result = response.json.as[Seq[VulnerabilitySummary]].map(_.copy(generatedDate = StubResponses.startOfYear)).sortBy(_.distinctVulnerability.id)
-      //update the results generated date as otherwise it would be dynamic - it would be the time of test
+        response.status shouldBe 200
+        val result = response.json.as[Seq[VulnerabilitySummary]].map(_.copy(generatedDate = StubResponses.startOfYear)).sortBy(_.distinctVulnerability.id)
+        //update the results generated date as otherwise it would be dynamic - it would be the time of test
 
-      result.length shouldBe 2
-      result shouldBe Seq(expectedResult1, expectedResult2)
-
+        result.length shouldBe 2
+        result shouldBe Seq(expectedResult1, expectedResult2)
+      }
     }
   }
 
-
-
-
+  def resource(path: String): String =
+    s"http://localhost:$port/$path"
 }

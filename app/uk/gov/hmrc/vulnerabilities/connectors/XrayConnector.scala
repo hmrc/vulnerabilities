@@ -21,10 +21,9 @@ import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
 import play.api.Logging
 import play.api.libs.json.Json
-import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps, UpstreamErrorResponse}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.vulnerabilities.model.{Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus}
-import uk.gov.hmrc.http.HttpReads.Implicits._
+import uk.gov.hmrc.vulnerabilities.model.{ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus}
 import uk.gov.hmrc.vulnerabilities.config.XrayConfig
 
 import java.io.InputStream
@@ -34,16 +33,16 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class XrayConnector @Inject() (
   httpClientV2: HttpClientV2,
-  config: XrayConfig
+  config      : XrayConfig
 )(implicit
-  ec: ExecutionContext,
-  materializer: Materializer)
-extends Logging{
+  ec          : ExecutionContext,
+  mat         : Materializer
+) extends Logging{
+  import HttpReads.Implicits._
 
   private val token = config.xrayToken
 
   def generateReport(payload: ReportRequestPayload)(implicit hc: HeaderCarrier): Future[ReportRequestResponse] = {
-
     implicit val pfmt = ReportRequestPayload.apiFormat
     implicit val rfmt = ReportRequestResponse.apiFormat
 
@@ -68,13 +67,12 @@ extends Logging{
   }
 
   def downloadReport(reportId: Int, filename: String)(implicit hc: HeaderCarrier): Future[InputStream] = {
-    implicit val fmt = Report.apiFormat
-
+    val url = url"${config.xrayBaseUrl}/export/$reportId?file_name=$filename&format=json"
     httpClientV2
-      .get(url"${config.xrayBaseUrl}/export/$reportId?file_name=$filename&format=json")
+      .get(url)
       .setHeader(
         "Authorization" -> s"Bearer $token",
-        "Content-Type" -> "application/json"
+        "Content-Type"  -> "application/json"
       )
       .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
       .flatMap {
@@ -82,11 +80,10 @@ extends Logging{
           logger.info(s"Successfully downloaded the zipped report from Xray")
           Future.successful(source.runWith(StreamConverters.asInputStream()))
         case Left(error) =>
-          logger.error(s"Could not download zip for: ${config.xrayBaseUrl}/export/$reportId?file_name=$filename&format=json", error)
+          logger.error(s"Could not download zip for: $url", error)
           throw error
       }
   }
-
 
     def deleteReportFromXray(reportId: Int)(implicit hc: HeaderCarrier): Future[ReportDelete] = {
       implicit val rdf = ReportDelete.apiFormat
@@ -98,5 +95,4 @@ extends Logging{
           "Content-Type"  -> "application/json"
         ).execute[ReportDelete]
     }
-
 }

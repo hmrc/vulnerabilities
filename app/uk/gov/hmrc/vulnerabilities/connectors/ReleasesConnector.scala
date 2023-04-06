@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.connectors
 
-import uk.gov.hmrc.http.{HeaderCarrier, StringContextOps}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 import uk.gov.hmrc.vulnerabilities.model.WhatsRunningWhere
@@ -26,19 +26,19 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class ReleasesConnector @Inject()(
-   servicesConfig: ServicesConfig,
-   httpClientV2: HttpClientV2
-)(implicit ec: ExecutionContext)
-{
-  private implicit val hc: HeaderCarrier = HeaderCarrier()
+  servicesConfig: ServicesConfig,
+  httpClientV2  : HttpClientV2
+)(implicit
+  ec: ExecutionContext
+){
+  import HttpReads.Implicits._
+
   private val url = servicesConfig.baseUrl("releases-api")
 
-  def getCurrentReleases()(implicit ec: ExecutionContext): Future[Seq[WhatsRunningWhere]] = {
+  def getCurrentReleases()(implicit hc: HeaderCarrier): Future[Seq[WhatsRunningWhere]] = {
     implicit val fmt = WhatsRunningWhere.apiFormat
 
     httpClientV2.get(url"$url/releases-api/whats-running-where")
       .execute[Seq[WhatsRunningWhere]]
   }
-
-
 }

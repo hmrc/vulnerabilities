@@ -16,8 +16,8 @@
 
 package uk.gov.hmrc.vulnerabilities.connectors
 
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.http.{HeaderCarrier, HttpResponse, StringContextOps}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 
 import javax.inject.{Inject, Singleton}
@@ -25,19 +25,17 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class TeamsAndRepositoriesConnector @Inject()(
- servicesConfig: ServicesConfig,
- httpClientV2: HttpClientV2
-)(implicit ec: ExecutionContext)
+  servicesConfig: ServicesConfig,
+  httpClientV2  : HttpClientV2
+)(implicit
+  ec            : ExecutionContext)
 {
-  private implicit val hc: HeaderCarrier = HeaderCarrier()
+  import HttpReads.Implicits._
+
   private val url = servicesConfig.baseUrl("teams-and-repositories")
 
-  def getCurrentReleases()(implicit ec: ExecutionContext): Future[Map[String, Seq[String]]] =
-
+  def getCurrentReleases()(implicit hc: HeaderCarrier): Future[Map[String, Seq[String]]] =
     httpClientV2.get(url"$url/api/repository_teams")
       .execute[HttpResponse]
       .map(_.json.as[Map[String, Seq[String]]])
-
-
-
 }

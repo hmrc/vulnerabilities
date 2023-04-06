@@ -16,14 +16,13 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
-import play.api.Logger
+import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.config.VulnerabilitiesTimelineConfig
 import uk.gov.hmrc.vulnerabilities.connectors.TeamsAndRepositoriesConnector
 import uk.gov.hmrc.vulnerabilities.model.ServiceVulnerability
 import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilitiesTimelineRepository}
 
 import java.time.Instant
-import java.time.temporal.ChronoUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -35,11 +34,9 @@ class VulnerabilitiesTimelineService @Inject()(
   vulnerabilitiesTimelineConfig: VulnerabilitiesTimelineConfig
 )(implicit ec: ExecutionContext
 ) {
-
-  private val logger = Logger(this.getClass)
   val processingCutoff = Instant.now().minusMillis(vulnerabilitiesTimelineConfig.timelineProcessingCutoff.toMillis)
 
-  def updateTimelineData(): Future[Unit] = {
+  def updateTimelineData()(implicit hc: HeaderCarrier): Future[Unit] = {
    for {
       reposWithTeams                  <- teamsAndRepositoriesConnector.getCurrentReleases()
       serviceVulnerabilities          <- rawReportsRepository.getTimelineData(processingCutoff)
@@ -48,9 +45,11 @@ class VulnerabilitiesTimelineService @Inject()(
     } yield ()
   }
 
-  def addTeamsToServiceVulnerability(serviceVulnerabilities: Seq[ServiceVulnerability], reposWithTeams:  Map[String, Seq[String]]): Seq[ServiceVulnerability] = {
+  def addTeamsToServiceVulnerability(
+    serviceVulnerabilities: Seq[ServiceVulnerability],
+    reposWithTeams        :  Map[String, Seq[String]]
+  ): Seq[ServiceVulnerability] =
     serviceVulnerabilities.map(sv =>
       sv.copy(teams = reposWithTeams.getOrElse(sv.service, Seq()))
     )
-  }
 }

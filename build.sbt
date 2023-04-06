@@ -2,9 +2,7 @@ import play.sbt.routes.RoutesKeys
 import uk.gov.hmrc.DefaultBuildSettings.integrationTestSettings
 import uk.gov.hmrc.sbtdistributables.SbtDistributablesPlugin.publishingSettings
 
-val appName = "vulnerabilities"
-
-lazy val microservice = Project(appName, file("."))
+lazy val microservice = Project("vulnerabilities", file("."))
   .enablePlugins(play.sbt.PlayScala, SbtDistributablesPlugin)
   .settings(
     majorVersion                     := 0,
@@ -14,7 +12,7 @@ lazy val microservice = Project(appName, file("."))
       "uk.gov.hmrc.vulnerabilities.model.Environment"
     )
   )
-  .settings(publishingSettings: _*)
+  .settings(scalacOptions += "-Wconf:src=routes/.*:s")
   .settings(PlayKeys.playDefaultPort := 8857)
   .configs(IntegrationTest)
   .settings(integrationTestSettings(): _*)

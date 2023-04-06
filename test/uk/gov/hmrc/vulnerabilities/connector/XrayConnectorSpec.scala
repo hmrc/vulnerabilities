@@ -22,12 +22,9 @@ import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, stubFor, urlM
 import org.mockito.MockitoSugar
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
-import org.scalatest.concurrent.ScalaFutures.convertScalaFuture
-import org.scalatest.matchers.must.Matchers
+import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import org.scalatestplus.play.guice.GuiceOneAppPerSuite
-import play.api.{Application, Configuration}
-import play.api.inject.guice.GuiceApplicationBuilder
+import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.vulnerabilities.config.XrayConfig
@@ -36,17 +33,15 @@ import uk.gov.hmrc.vulnerabilities.model.{Filter, ReportDelete, ReportRequestPay
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-
-
 class XrayConnectorSpec
   extends AnyWordSpec
-    with Matchers
-    with ScalaFutures
-    with IntegrationPatience
-    with HttpClientV2Support
-    with BeforeAndAfterAll
-    with MockitoSugar
-    with WireMockSupport {
+     with Matchers
+     with ScalaFutures
+     with IntegrationPatience
+     with HttpClientV2Support
+     with BeforeAndAfterAll
+     with MockitoSugar
+     with WireMockSupport {
 
   implicit val hc: HeaderCarrier = HeaderCarrier()
 
@@ -74,7 +69,7 @@ class XrayConnectorSpec
         ))
 
         val res = connector.generateReport(payload).futureValue
-        res mustBe ReportRequestResponse(reportID = 1, status = "pending")
+        res shouldBe ReportRequestResponse(reportID = 1, status = "pending")
       }
     }
   }
@@ -91,7 +86,7 @@ class XrayConnectorSpec
         ))
 
         val res = connector.checkStatus(id = 1).futureValue
-        res mustBe ReportStatus(status = "completed", rowCount = Some(1))
+        res shouldBe ReportStatus(status = "completed", rowCount = Some(1))
       }
     }
   }
@@ -104,10 +99,8 @@ class XrayConnectorSpec
         ))
 
         val res = connector.deleteReportFromXray(reportId = 1).futureValue
-        res mustBe ReportDelete(info = "Report successfully deleted")
-
+        res shouldBe ReportDelete(info = "Report successfully deleted")
       }
     }
   }
-
 }
