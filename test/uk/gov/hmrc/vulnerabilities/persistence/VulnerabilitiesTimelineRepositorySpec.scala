@@ -19,25 +19,17 @@ package uk.gov.hmrc.vulnerabilities.persistence
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.must.Matchers.contain
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
-<<<<<<< HEAD
+
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
-import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired}
-import uk.gov.hmrc.vulnerabilities.model.ServiceVulnerability
-=======
-import org.scalatest.matchers.must.Matchers
-import org.scalatest.wordspec.{AnyWordSpec, AnyWordSpecLike}
-import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, DefaultPlayMongoRepositorySupport, PlayMongoRepositorySupport}
+
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
 import uk.gov.hmrc.vulnerabilities.model.{VulnerabilitiesTimelineCount, TimelineEvent}
->>>>>>> a66c4a8 (BDOG-2491 Backend changes for timeline page)
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import java.time.Instant
 
-
-<<<<<<< HEAD
 class VulnerabilitiesTimelineRepositorySpec
   extends AnyWordSpec
      with Matchers
