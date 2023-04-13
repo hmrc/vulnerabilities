@@ -17,13 +17,11 @@
 package uk.gov.hmrc.vulnerabilities.persistence
 
 
-import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, ReplaceOneModel, ReplaceOptions}
+import org.mongodb.scala.model.{Accumulators, Filters, IndexModel, IndexOptions, Indexes, ReplaceOneModel, ReplaceOptions}
 import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.bson.{BsonArray, BsonDocument}
 import org.mongodb.scala.model.Aggregates.{`match`, group}
-import org.mongodb.scala.model.Accumulators
-
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
 import uk.gov.hmrc.vulnerabilities.model.{TimelineEvent, VulnerabilitiesTimelineCount}
@@ -43,8 +41,11 @@ class VulnerabilitiesTimelineRepository @Inject()(
   mongoComponent = mongoComponent,
   domainFormat   = TimelineEvent.mongoFormat,
   indexes        = Seq(
-    IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")), IndexOptions().unique(true)),
-    IndexModel(ascending("weekBeginning"), IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS))
+    IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")),IndexOptions().unique(true).background(true)),
+    IndexModel(Indexes.ascending("weekBeginning"),IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS).background(true)),
+    IndexModel(Indexes.ascending("id"),IndexOptions().name("id").background(true)),
+    IndexModel(Indexes.ascending("service"),IndexOptions().name("service").background(true)),
+    IndexModel(Indexes.ascending("teams"),IndexOptions().name("teams").background(true)),
   )
 )
 {
@@ -68,7 +69,7 @@ class VulnerabilitiesTimelineRepository @Inject()(
     val optFilters: Seq[Bson] = Seq(
       service.map      (s => Filters.eq("service", s.toLowerCase)),
       team.map         (t => Filters.eq("teams", t)),
-      vulnerability.map(v => Filters.eq("id", v))
+      vulnerability.map(v => Filters.eq("id", v.toUpperCase))
     ).flatten
 
     val pipeline: Seq[Bson] = Seq(
