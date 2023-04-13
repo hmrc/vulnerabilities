@@ -41,8 +41,11 @@ class VulnerabilitiesTimelineRepository @Inject()(
   mongoComponent = mongoComponent,
   domainFormat   = TimelineEvent.mongoFormat,
   indexes        = Seq(
-    IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")),IndexOptions().unique(true)),
-    IndexModel(Indexes.ascending("weekBeginning"),IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS))
+    IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")),IndexOptions().unique(true).background(true)),
+    IndexModel(Indexes.ascending("weekBeginning"),IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS).background(true)),
+    IndexModel(Indexes.ascending("id"),IndexOptions().name("id").background(true)),
+    IndexModel(Indexes.ascending("service"),IndexOptions().name("service").background(true)),
+    IndexModel(Indexes.ascending("teams"),IndexOptions().name("teams").background(true)),
   )
 )
 {
@@ -66,7 +69,7 @@ class VulnerabilitiesTimelineRepository @Inject()(
     val optFilters: Seq[Bson] = Seq(
       service.map      (s => Filters.eq("service", s.toLowerCase)),
       team.map         (t => Filters.eq("teams", t)),
-      vulnerability.map(v => Filters.eq("id", v))
+      vulnerability.map(v => Filters.eq("id", v.toUpperCase))
     ).flatten
 
     val pipeline: Seq[Bson] = Seq(
