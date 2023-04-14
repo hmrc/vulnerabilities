@@ -64,10 +64,15 @@ class VulnerabilitiesTimelineRepository @Inject()(
     collection.bulkWrite(bulkWrites).toFuture().map(_ => ())
   }
 
+  val Quoted = """^\"(.*)\"$""".r
+
   def getTimelineCountsForService(service: Option[String], team: Option[String], vulnerability: Option[String], from: Instant, to: Instant): Future[Seq[VulnerabilitiesTimelineCount]] = {
 
     val optFilters: Seq[Bson] = Seq(
-      service.map      (s => Filters.eq("service", s.toLowerCase)),
+      service.map {
+        case Quoted(s) => Filters.equal("service", s.toLowerCase())
+        case s         => Filters.regex("service", s.toLowerCase())
+      },
       team.map         (t => Filters.eq("teams", t)),
       vulnerability.map(v => Filters.eq("id", v.toUpperCase))
     ).flatten
@@ -77,7 +82,6 @@ class VulnerabilitiesTimelineRepository @Inject()(
       if(optFilters.isEmpty) None else Some(`match`(Filters.and(optFilters: _*))),
       Some(group(
         id = "$weekBeginning",
-        Accumulators.first("service", "$service"),
         Accumulators.sum("actionRequired",
           BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "ACTION_REQUIRED")), "then" -> 1, "else" -> 0))
         ),
