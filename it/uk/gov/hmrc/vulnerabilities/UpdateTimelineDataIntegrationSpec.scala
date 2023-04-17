@@ -18,17 +18,14 @@ package uk.gov.hmrc.vulnerabilities
 
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, stubFor, urlPathMatching}
-
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
-
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
-
 import uk.gov.hmrc.http.test.WireMockSupport
-import uk.gov.hmrc.mongo.test.MongoSupport
+import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, MongoSupport}
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, NoActionRequired, Uncurated}
 import uk.gov.hmrc.vulnerabilities.model.TimelineEvent
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilitiesTimelineRepository}
@@ -41,7 +38,7 @@ class UpdateTimelineDataIntegrationSpec
      with Eventually
      with GuiceOneServerPerSuite
      with WireMockSupport
-     with MongoSupport {
+     with CleanMongoCollectionSupport {
 
   override def fakeApplication(): Application =
     GuiceApplicationBuilder()

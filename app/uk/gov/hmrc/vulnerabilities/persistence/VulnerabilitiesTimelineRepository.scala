@@ -47,6 +47,7 @@ class VulnerabilitiesTimelineRepository @Inject()(
     IndexModel(Indexes.ascending("id"),IndexOptions().name("id").background(true)),
     IndexModel(Indexes.ascending("service"),IndexOptions().name("service").background(true)),
     IndexModel(Indexes.ascending("teams"),IndexOptions().name("teams").background(true)),
+    IndexModel(Indexes.ascending("curationStatus"),IndexOptions().name("curationStatus").background(true))
   )
 )
 {
@@ -75,44 +76,14 @@ class VulnerabilitiesTimelineRepository @Inject()(
         case s         => Filters.regex("service", s.toLowerCase())
       },
       team.map         (t => Filters.eq("teams", t)),
-      vulnerability.map(v => Filters.eq("id", v.toUpperCase))
+      vulnerability.map(v => Filters.eq("id", v.toUpperCase)),
+      curationStatus.map(cs => Filters.eq("curationStatus", cs.asString))
     ).flatten
-
-    val csFilter: Bson = curationStatus match {
-      case Some(ActionRequired) => group(
-        id = "$weekBeginning",
-        Accumulators.sum("count",
-          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "ACTION_REQUIRED")), "then" -> 1, "else" -> 0))
-        )
-      )
-      case Some(NoActionRequired) => group(
-        id = "$weekBeginning",
-        Accumulators.sum("count",
-          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "NO_ACTION_REQUIRED")), "then" -> 1, "else" -> 0))
-        ),
-      )
-      case Some(InvestigationOngoing) => group(
-        id = "$weekBeginning",
-        Accumulators.sum("count",
-          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "INVESTIGATION_ONGOING")), "then" -> 1, "else" -> 0))
-        ),
-      )
-      case Some(Uncurated) => group(
-        id = "$weekBeginning",
-        Accumulators.sum("count",
-          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "UNCURATED")), "then" -> 1, "else" -> 0))
-        ),
-      )
-      case None             => group(
-        id = "$weekBeginning",
-        Accumulators.sum("count", 1)
-      )
-    }
 
     val pipeline: Seq[Bson] = Seq(
       Some(`match`(Filters.and(Filters.gte("weekBeginning", from), Filters.lte("weekBeginning",to)))),
       if(optFilters.isEmpty) None else Some(`match`(Filters.and(optFilters: _*))),
-      Some(csFilter)
+      Some(group(id = "$weekBeginning", Accumulators.sum("count", 1)))
     ).flatten
 
     CollectionFactory.collection(mongoComponent.database, "vulnerabilitiesTimeline", VulnerabilitiesTimelineCount.mongoFormat)
