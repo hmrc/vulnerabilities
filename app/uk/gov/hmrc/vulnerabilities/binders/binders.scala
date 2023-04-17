@@ -17,6 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.binders
 
 import play.api.mvc.QueryStringBindable
+import uk.gov.hmrc.vulnerabilities.model.CurationStatus
 
 import java.time.Instant
 import scala.util.Try
@@ -32,5 +33,16 @@ object Binders {
 
       override def unbind(key: String, value: Instant): String =
         strBinder.unbind(key, value.toString)
+    }
+
+  implicit def curationStatusBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[CurationStatus] =
+    new QueryStringBindable[CurationStatus] {
+      override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, CurationStatus]] =
+        strBinder.bind(key, params).map(
+          _.flatMap(s => CurationStatus.parse(s))
+        )
+
+      override def unbind(key: String, value: CurationStatus): String =
+        strBinder.unbind(key, value.asString)
     }
 }

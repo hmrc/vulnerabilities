@@ -46,34 +46,21 @@ object TimelineEvent {
 
 case class VulnerabilitiesTimelineCount(
   weekBeginning       : Instant,
-  actionRequired      : Int,
-  investigationOngoing: Int,
-  noActionRequired    : Int,
-  uncurated           : Int,
-  total               : Int
+  count               : Int
 )
 
 object VulnerabilitiesTimelineCount {
 
   val mongoFormat: OFormat[VulnerabilitiesTimelineCount] = {
     implicit val instantFormat = MongoJavatimeFormats.instantFormat
-
-    ( (__ \ "_id"                   ).format[Instant]
-      ~ (__ \ "actionRequired"      ).format[Int]
-      ~ (__ \ "investigationOngoing").format[Int]
-      ~ (__ \ "noActionRequired"    ).format[Int]
-      ~ (__ \ "uncurated"           ).format[Int]
-      ~ (__ \ "total"               ).format[Int]
+    ( (__ \ "_id"    ).format[Instant]
+      ~ (__ \ "count").format[Int]
       )(apply, unlift(unapply))
   }
 
   val apiFormat: OFormat[VulnerabilitiesTimelineCount] = {
-    ( (__ \ "weekBeginning"       ).format[Instant]
-      ~ (__ \ "actionNeeded"        ).format[Int]
-      ~ (__ \ "investigationOngoing").format[Int]
-      ~ (__ \ "noActionRequired"    ).format[Int]
-      ~ (__ \ "uncurated"           ).format[Int]
-      ~ (__ \ "total"               ).format[Int]
+    ( (__ \ "weekBeginning").format[Instant]
+      ~ (__ \ "count"      ).format[Int]
       )(apply, unlift(unapply))
   }
 }

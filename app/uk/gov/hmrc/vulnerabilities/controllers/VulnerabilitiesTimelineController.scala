@@ -20,7 +20,7 @@ import play.api.Logging
 import play.api.libs.json.Json
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.model.VulnerabilitiesTimelineCount
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, VulnerabilitiesTimelineCount}
 import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitiesTimelineRepository
 
 import java.time.Instant
@@ -36,8 +36,8 @@ class VulnerabilitiesTimelineController @Inject()(
 
   implicit val fmt = VulnerabilitiesTimelineCount.apiFormat
 
-  def getTimelineCountsForService(service: Option[String], team: Option[String], vulnerability: Option[String], from: Instant, to: Instant): Action[AnyContent] = Action.async {
-    vulnerabilitiesTimelineRepository.getTimelineCountsForService(service, team, vulnerability, from, to).map {
+  def getTimelineCounts(service: Option[String], team: Option[String], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: Instant, to: Instant): Action[AnyContent] = Action.async {
+    vulnerabilitiesTimelineRepository.getTimelineCounts(service, team, vulnerability, curationStatus, from, to).map {
       result => Ok(Json.toJson(result))
     }
   }

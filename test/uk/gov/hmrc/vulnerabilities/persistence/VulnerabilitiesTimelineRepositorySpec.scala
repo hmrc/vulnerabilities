@@ -91,13 +91,13 @@ class VulnerabilitiesTimelineRepositorySpec
 
         repository.collection.insertMany(Seq(te1, te2, te3, te4, te5)).toFuture().futureValue
 
-        val res = repository.getTimelineCountsForService(service = None, team = None, vulnerability = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
+        val res = repository.getTimelineCounts(service = None, team = None, vulnerability = None, curationStatus = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
 
         res.length shouldBe 3
         res should contain theSameElementsAs Seq(
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), actionRequired = 1, investigationOngoing = 1, noActionRequired = 1, uncurated = 0, total = 3),
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), actionRequired = 0, investigationOngoing = 0, noActionRequired = 0, uncurated = 1, total = 1),
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-26T00:00:00.000Z"), actionRequired = 1, investigationOngoing = 0, noActionRequired = 0, uncurated = 0, total = 1)
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), count = 3),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), count = 1),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-26T00:00:00.000Z"), count = 1)
         )
       }
 
@@ -106,12 +106,12 @@ class VulnerabilitiesTimelineRepositorySpec
 
         repository.collection.insertMany(Seq(te1, te2, te3, te4, te5)).toFuture().futureValue
 
-        val res = repository.getTimelineCountsForService(service = None, team = None, vulnerability = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
+        val res = repository.getTimelineCounts(service = None, team = None, vulnerability = None, curationStatus = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
 
         res.length shouldBe 2
         res should contain theSameElementsAs Seq(
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), actionRequired = 1, investigationOngoing = 1, noActionRequired = 1, uncurated = 0, total = 3),
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), actionRequired = 0, investigationOngoing = 0, noActionRequired = 0, uncurated = 1, total = 1)
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), count = 3),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), count = 1)
         )
       }
 
@@ -120,33 +120,32 @@ class VulnerabilitiesTimelineRepositorySpec
 
         repository.collection.insertMany(Seq(te1, te2, te3, te4, te5)).toFuture().futureValue
 
-        val res = repository.getTimelineCountsForService(service = None, team = None, vulnerability = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
+        val res = repository.getTimelineCounts(service = None, team = None, vulnerability = None, curationStatus = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
 
         res.length shouldBe 2
         res should contain theSameElementsAs Seq(
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), actionRequired = 1, investigationOngoing = 1, noActionRequired = 1, uncurated = 0, total = 3),
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), actionRequired = 0, investigationOngoing = 0, noActionRequired = 0, uncurated = 1, total = 1)
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), count = 3),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), count = 1)
         )
       }
 
-      "return VulnerabilityTimelineCounts for all data within the time range, when no service, team or vulnerability filters are passed in" in {
+      "return VulnerabilityTimelineCounts for all data within the time range, when no service, team, vulnerability or CurationStatus filters are passed in" in {
         repository.collection.insertMany(Seq(te1, te2, te3, te4)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = None, team = None, vulnerability = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-12T00:00:00.000Z")).futureValue
+        val res = repository.getTimelineCounts(service = None, team = None, vulnerability = None, curationStatus = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-12T00:00:00.000Z")).futureValue
 
         res.length shouldBe 1
         res should contain theSameElementsAs Seq(
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), actionRequired = 1, investigationOngoing = 1, noActionRequired = 1, uncurated = 0, total = 3),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), count = 3),
         )
-
       }
 
       "filters by service, and is case insensitive" in {
         repository.collection.insertMany(Seq(te1, te2, te3, te4)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = Some("seRViCe1"), team = None, vulnerability = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
+        val res = repository.getTimelineCounts(service = Some("seRViCe1"), team = None, vulnerability = None, curationStatus = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
 
         res.length shouldBe 1
         res should contain theSameElementsAs Seq(
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), actionRequired = 1, investigationOngoing = 0, noActionRequired = 0, uncurated = 0, total = 1),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), count = 1),
         )
       }
 
@@ -154,11 +153,11 @@ class VulnerabilitiesTimelineRepositorySpec
         val te5 = TimelineEvent("CVE-3", "service11", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired)
 
         repository.collection.insertMany(Seq(te1, te2, te3, te4, te5)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = Some("\"service1\""), team = None, vulnerability = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
+        val res = repository.getTimelineCounts(service = Some("\"service1\""), team = None, vulnerability = None, curationStatus = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
 
         res.length shouldBe 1
         res should contain theSameElementsAs Seq(
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), actionRequired = 1, investigationOngoing = 0, noActionRequired = 0, uncurated = 0, total = 1),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), count = 1),
         )
       }
 
@@ -166,33 +165,33 @@ class VulnerabilitiesTimelineRepositorySpec
         val te5 = TimelineEvent("CVE-3", "service11", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired)
 
         repository.collection.insertMany(Seq(te1, te2, te3, te4, te5)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = Some("service1"), team = None, vulnerability = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
+        val res = repository.getTimelineCounts(service = Some("service1"), team = None, vulnerability = None, curationStatus = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
 
         res.length shouldBe 2
         res should contain theSameElementsAs Seq(
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), actionRequired = 1, investigationOngoing = 0, noActionRequired = 0, uncurated = 0, total = 1),
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), actionRequired = 1, investigationOngoing = 0, noActionRequired = 0, uncurated = 0, total = 1),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), count = 1),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), count = 1),
         )
       }
 
       "filters by team" in {
         repository.collection.insertMany(Seq(te1, te2, te3, te4)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = None, team = Some("team6"), vulnerability = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
+        val res = repository.getTimelineCounts(service = None, team = Some("team6"), vulnerability = None, curationStatus = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
 
         res.length shouldBe 2
         res should contain theSameElementsAs Seq(
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), actionRequired = 0, investigationOngoing = 1, noActionRequired = 0, uncurated = 0, total = 1),
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), actionRequired = 0, investigationOngoing = 0, noActionRequired = 0, uncurated = 1, total = 1),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), count = 1),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), count = 1),
         )
       }
 
       "filters by vulnerability" in {
         repository.collection.insertMany(Seq(te1, te2, te3, te4)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = None, team = None, vulnerability = Some("CVE-2"), from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
+        val res = repository.getTimelineCounts(service = None, team = None, vulnerability = Some("CVE-2"), curationStatus = None, from = Instant.parse("2022-12-12T00:00:00.000Z"), to = Instant.parse("2022-12-19T00:00:00.000Z")).futureValue
 
         res.length shouldBe 1
         res should contain theSameElementsAs Seq(
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), actionRequired = 0, investigationOngoing = 1, noActionRequired = 1, uncurated = 0, total = 2),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), count = 2),
         )
       }
 
@@ -201,13 +200,16 @@ class VulnerabilitiesTimelineRepositorySpec
         val te6 = TimelineEvent("CVE-4", "service4", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired)
         val te7 = TimelineEvent("CVE-4", "service5", Instant.parse("2022-12-26T00:00:00.000Z"), Seq("team1", "team3"), NoActionRequired)
         val te8 = TimelineEvent("CVE-7", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), Uncurated)
+        val te9 = TimelineEvent("CVE-4", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team3"), NoActionRequired)
 
-        repository.collection.insertMany(Seq(te5, te6, te7, te8)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = Some("service5"), team = Some("team3"), vulnerability = Some("CVE-4"), from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
 
-        res.length shouldBe 1
+        repository.collection.insertMany(Seq(te5, te6, te7, te8, te9)).toFuture().futureValue
+        val res = repository.getTimelineCounts(service = Some("service5"), team = Some("team3"), vulnerability = Some("CVE-4"), curationStatus = None, from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
+
+        res.length shouldBe 2
         res should contain theSameElementsAs Seq(
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-26T00:00:00.000Z"), actionRequired = 0, investigationOngoing = 0, noActionRequired = 1, uncurated = 0, total = 1),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), count = 1),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-26T00:00:00.000Z"), count = 1),
         )
       }
 
@@ -220,12 +222,12 @@ class VulnerabilitiesTimelineRepositorySpec
 
 
         repository.collection.insertMany(Seq(te5, te6, te7, te8, te9)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = None, team = None, vulnerability = None, from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
+        val res = repository.getTimelineCounts(service = None, team = None, vulnerability = None, curationStatus = None, from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
 
         res.length shouldBe 2
         res should contain theSameElementsAs Seq(
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), actionRequired = 2, investigationOngoing = 0, noActionRequired = 1, uncurated = 0, total = 3),
-          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-26T00:00:00.000Z"), actionRequired = 0, investigationOngoing = 1, noActionRequired = 0, uncurated = 1, total = 2)
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-19T00:00:00.000Z"), count = 3),
+          VulnerabilitiesTimelineCount(weekBeginning = Instant.parse("2022-12-26T00:00:00.000Z"), count = 2)
         )
       }
 
@@ -233,52 +235,59 @@ class VulnerabilitiesTimelineRepositorySpec
         val te5 = TimelineEvent("CVE-4", "service4", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), InvestigationOngoing)
         val te6 = TimelineEvent("CVE-5", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), InvestigationOngoing)
         val te7 = TimelineEvent("CVE-6", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), InvestigationOngoing)
+        val te8 = TimelineEvent("CVE-7", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired)
 
-        repository.collection.insertMany(Seq(te5, te6, te7)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = None, team = None, vulnerability = None, from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
+        repository.collection.insertMany(Seq(te5, te6, te7, te8)).toFuture().futureValue
+        val res = repository.getTimelineCounts(service = None, team = None, vulnerability = None, curationStatus = Some(InvestigationOngoing), from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
 
 
-        res.head.total shouldBe 3
-        res.head.investigationOngoing shouldBe 3
+        res.length shouldBe 1
+        res.head.count shouldBe 3
       }
 
       "Correctly calculates the number of ActionRequired curation Statuses in a given time period" in {
         val te5 = TimelineEvent("CVE-4", "service4", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired)
         val te6 = TimelineEvent("CVE-5", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired)
         val te7 = TimelineEvent("CVE-6", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired)
-
-        repository.collection.insertMany(Seq(te5, te6, te7)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = None, team = None, vulnerability = None, from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
+        val te8 = TimelineEvent("CVE-7", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), InvestigationOngoing)
 
 
-        res.head.total shouldBe 3
-        res.head.actionRequired shouldBe 3
+        repository.collection.insertMany(Seq(te5, te6, te7, te8)).toFuture().futureValue
+        val res = repository.getTimelineCounts(service = None, team = None, vulnerability = None, curationStatus = Some(ActionRequired), from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
+
+
+        res.length shouldBe 1
+        res.head.count shouldBe 3
       }
 
       "Correctly calculates the number of NoActionRequired curation Statuses in a given time period" in {
         val te5 = TimelineEvent("CVE-4", "service4", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), NoActionRequired)
         val te6 = TimelineEvent("CVE-5", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), NoActionRequired)
         val te7 = TimelineEvent("CVE-6", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), NoActionRequired)
-
-        repository.collection.insertMany(Seq(te5, te6, te7)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = None, team = None, vulnerability = None, from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
+        val te8 = TimelineEvent("CVE-7", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), ActionRequired)
 
 
-        res.head.total shouldBe 3
-        res.head.noActionRequired shouldBe 3
+        repository.collection.insertMany(Seq(te5, te6, te7, te8)).toFuture().futureValue
+        val res = repository.getTimelineCounts(service = None, team = None, vulnerability = None, curationStatus = Some(NoActionRequired), from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
+
+
+        res.length shouldBe 1
+        res.head.count shouldBe 3
       }
 
       "Correctly calculates the number of Uncurated curation Statuses in a given time period" in {
         val te5 = TimelineEvent("CVE-4", "service4", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), Uncurated)
         val te6 = TimelineEvent("CVE-5", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), Uncurated)
         val te7 = TimelineEvent("CVE-6", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), Uncurated)
-
-        repository.collection.insertMany(Seq(te5, te6, te7)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = None, team = None, vulnerability = None, from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
+        val te8 = TimelineEvent("CVE-7", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), NoActionRequired)
 
 
-        res.head.total shouldBe 3
-        res.head.uncurated shouldBe 3
+        repository.collection.insertMany(Seq(te5, te6, te7, te8)).toFuture().futureValue
+        val res = repository.getTimelineCounts(service = None, team = None, vulnerability = None, curationStatus = Some(Uncurated), from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
+
+
+        res.length shouldBe 1
+        res.head.count shouldBe 3
       }
 
       "Correctly calculates the total vulnerabilities in a given time period" in {
@@ -288,14 +297,11 @@ class VulnerabilitiesTimelineRepositorySpec
         val te8 = TimelineEvent("CVE-7", "service5", Instant.parse("2022-12-19T00:00:00.000Z"), Seq("team1", "team2"), NoActionRequired)
 
         repository.collection.insertMany(Seq(te5, te6, te7, te8)).toFuture().futureValue
-        val res = repository.getTimelineCountsForService(service = None, team = None, vulnerability = None, from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
+        val res = repository.getTimelineCounts(service = None, team = None, vulnerability = None, curationStatus = None, from = Instant.parse("2022-12-19T00:00:00.000Z"), to = Instant.parse("2022-12-26T00:00:00.000Z")).futureValue
 
 
-        res.head.total shouldBe 4
-        res.head.uncurated shouldBe 1
-        res.head.actionRequired shouldBe 1
-        res.head.investigationOngoing shouldBe 1
-        res.head.noActionRequired shouldBe 1
+        res.length shouldBe 1
+        res.head.count shouldBe 4
       }
 
     }

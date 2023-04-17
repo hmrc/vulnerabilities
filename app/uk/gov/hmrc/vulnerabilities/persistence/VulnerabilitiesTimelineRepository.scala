@@ -24,7 +24,8 @@ import org.mongodb.scala.bson.{BsonArray, BsonDocument}
 import org.mongodb.scala.model.Aggregates.{`match`, group}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.model.{TimelineEvent, VulnerabilitiesTimelineCount}
+import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, TimelineEvent, VulnerabilitiesTimelineCount}
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -66,7 +67,7 @@ class VulnerabilitiesTimelineRepository @Inject()(
 
   val Quoted = """^\"(.*)\"$""".r
 
-  def getTimelineCountsForService(service: Option[String], team: Option[String], vulnerability: Option[String], from: Instant, to: Instant): Future[Seq[VulnerabilitiesTimelineCount]] = {
+  def getTimelineCounts(service: Option[String], team: Option[String], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: Instant, to: Instant): Future[Seq[VulnerabilitiesTimelineCount]] = {
 
     val optFilters: Seq[Bson] = Seq(
       service.map {
@@ -77,25 +78,41 @@ class VulnerabilitiesTimelineRepository @Inject()(
       vulnerability.map(v => Filters.eq("id", v.toUpperCase))
     ).flatten
 
+    val csFilter: Bson = curationStatus match {
+      case Some(ActionRequired) => group(
+        id = "$weekBeginning",
+        Accumulators.sum("count",
+          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "ACTION_REQUIRED")), "then" -> 1, "else" -> 0))
+        )
+      )
+      case Some(NoActionRequired) => group(
+        id = "$weekBeginning",
+        Accumulators.sum("count",
+          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "NO_ACTION_REQUIRED")), "then" -> 1, "else" -> 0))
+        ),
+      )
+      case Some(InvestigationOngoing) => group(
+        id = "$weekBeginning",
+        Accumulators.sum("count",
+          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "INVESTIGATION_ONGOING")), "then" -> 1, "else" -> 0))
+        ),
+      )
+      case Some(Uncurated) => group(
+        id = "$weekBeginning",
+        Accumulators.sum("count",
+          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "UNCURATED")), "then" -> 1, "else" -> 0))
+        ),
+      )
+      case None             => group(
+        id = "$weekBeginning",
+        Accumulators.sum("count", 1)
+      )
+    }
+
     val pipeline: Seq[Bson] = Seq(
       Some(`match`(Filters.and(Filters.gte("weekBeginning", from), Filters.lte("weekBeginning",to)))),
       if(optFilters.isEmpty) None else Some(`match`(Filters.and(optFilters: _*))),
-      Some(group(
-        id = "$weekBeginning",
-        Accumulators.sum("actionRequired",
-          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "ACTION_REQUIRED")), "then" -> 1, "else" -> 0))
-        ),
-        Accumulators.sum("noActionRequired",
-          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "NO_ACTION_REQUIRED")), "then" -> 1, "else" -> 0))
-        ),
-        Accumulators.sum("investigationOngoing",
-          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "INVESTIGATION_ONGOING")), "then" -> 1, "else" -> 0))
-        ),
-        Accumulators.sum("uncurated",
-          BsonDocument("$cond" -> BsonDocument("if" -> BsonDocument("$eq" -> BsonArray("$curationStatus", "UNCURATED")), "then" -> 1, "else" -> 0))
-        ),
-        Accumulators.sum("total", 1)
-      ))
+      Some(csFilter)
     ).flatten
 
     CollectionFactory.collection(mongoComponent.database, "vulnerabilitiesTimeline", VulnerabilitiesTimelineCount.mongoFormat)
