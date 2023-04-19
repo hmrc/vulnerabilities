@@ -22,7 +22,7 @@ import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant
 
-case class ServiceVulnerability(
+case class TimelineEvent(
   id            : String,
   service       : String,
   weekBeginning : Instant,
@@ -30,16 +30,47 @@ case class ServiceVulnerability(
   curationStatus: CurationStatus
 )
 
-object ServiceVulnerability {
+object TimelineEvent {
   implicit val csf = CurationStatus.format
-  implicit val instantFormat = MongoJavatimeFormats.instantFormat
 
-  val mongoFormat: OFormat[ServiceVulnerability] = {
+  val mongoFormat: OFormat[TimelineEvent] = {
+    implicit val instantFormat = MongoJavatimeFormats.instantFormat
+
     ( (__ \ "id"              ).format[String]
       ~ (__ \ "service"       ).format[String]
       ~ (__ \ "weekBeginning" ).format[Instant]
       ~ (__ \ "teams"         ).format[Seq[String]]
       ~ (__ \ "curationStatus").format[CurationStatus]
     )(apply, unlift(unapply))
+  }
+
+  val apiFormat: OFormat[TimelineEvent] = {
+    ( (__ \ "id"              ).format[String]
+      ~ (__ \ "service"       ).format[String]
+      ~ (__ \ "weekBeginning" ).format[Instant]
+      ~ (__ \ "teams"         ).format[Seq[String]]
+      ~ (__ \ "curationStatus").format[CurationStatus]
+      )(apply, unlift(unapply))
+  }
+}
+
+case class VulnerabilitiesTimelineCount(
+  weekBeginning       : Instant,
+  count               : Int
+)
+
+object VulnerabilitiesTimelineCount {
+
+  val mongoFormat: OFormat[VulnerabilitiesTimelineCount] = {
+    implicit val instantFormat = MongoJavatimeFormats.instantFormat
+    ( (__ \ "_id"    ).format[Instant]
+      ~ (__ \ "count").format[Int]
+      )(apply, unlift(unapply))
+  }
+
+  val apiFormat: OFormat[VulnerabilitiesTimelineCount] = {
+    ( (__ \ "weekBeginning").format[Instant]
+      ~ (__ \ "count"      ).format[Int]
+      )(apply, unlift(unapply))
   }
 }

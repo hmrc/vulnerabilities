@@ -56,10 +56,10 @@ class Scheduler @Inject()(
     for {
       latest <- vulnerabilitySummariesRepository.getMostRecent()
       _      <- if (sevenDaysOld(latest, getNow)) {
-                  logger.info("Data is older than 7 days - beginning data refresh")
+                  logger.info("Data is older than 24 hours - beginning data refresh")
                   updateVulnerabilitiesService.updateVulnerabilities()
                 } else {
-                  logger.info("Data has already been retrieved from Xray within the last 7 days. No need to update it.")
+                  logger.info("Data has already been retrieved from Xray within the last 24 hours. No need to update it.")
                   Future.unit
                 }
     } yield ()

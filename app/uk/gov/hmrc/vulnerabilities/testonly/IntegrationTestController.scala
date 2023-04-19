@@ -21,8 +21,8 @@ import play.api.libs.json.{JsError, JsString, OFormat, Reads}
 import play.api.mvc.{Action, AnyContent, BodyParser, ControllerComponents}
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.model.VulnerabilitySummary
-import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
+import uk.gov.hmrc.vulnerabilities.model.{TimelineEvent, VulnerabilitySummary}
+import uk.gov.hmrc.vulnerabilities.persistence.{VulnerabilitiesTimelineRepository, VulnerabilitySummariesRepository}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
@@ -30,9 +30,18 @@ import scala.concurrent.ExecutionContext
 @Singleton
 class IntegrationTestController @Inject()(
                                            vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
+                                           vulnerabilitiesTimelineRepository: VulnerabilitiesTimelineRepository,
                                            cc: ControllerComponents)
                                          (implicit ec: ExecutionContext)
   extends BackendController(cc) {
+
+  def addTimelineEvents: Action[Seq[TimelineEvent]] = {
+    implicit val te: OFormat[TimelineEvent] = TimelineEvent.apiFormat
+    addAll(vulnerabilitiesTimelineRepository)
+  }
+
+  def deleteTimelineEvents: Action[AnyContent] =
+    deleteAll(vulnerabilitiesTimelineRepository)
 
   def addVulnerabilitySummaries: Action[Seq[VulnerabilitySummary]] = {
     implicit val vsf: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat

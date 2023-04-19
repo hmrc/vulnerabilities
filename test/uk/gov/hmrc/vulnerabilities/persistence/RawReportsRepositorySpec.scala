@@ -21,10 +21,13 @@ import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import play.api.Configuration
+
 import uk.gov.hmrc.mongo.play.json.CollectionFactory
-import uk.gov.hmrc.mongo.test.{DefaultPlayMongoRepositorySupport}
+import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
+
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
-import uk.gov.hmrc.vulnerabilities.model.{CVE, CurationStatus, RawVulnerability, Report, ServiceVulnerability}
+import uk.gov.hmrc.vulnerabilities.model.{CVE, CurationStatus, RawVulnerability, Report, TimelineEvent}
+import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
 import java.time.Instant
@@ -202,11 +205,11 @@ class RawReportsRepositorySpec
 
       res.length shouldBe 5
       res should contain theSameElementsAs Seq(
-        ServiceVulnerability(id = "CVE-2022-12345", service = "service1", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = CurationStatus.NoActionRequired),
-        ServiceVulnerability(id = "CVE-2021-99999", service = "service3", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = CurationStatus.ActionRequired),
-        ServiceVulnerability(id = "CVE-2022-12345", service = "service3", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = CurationStatus.NoActionRequired),
-        ServiceVulnerability(id = "XRAY-000005"   , service = "service5", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = CurationStatus.InvestigationOngoing),
-        ServiceVulnerability(id = "XRAY-000006"   , service = "service6", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = CurationStatus.Uncurated)
+        TimelineEvent(id = "CVE-2022-12345", service = "service1", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = NoActionRequired),
+        TimelineEvent(id = "CVE-2021-99999", service = "service3", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = ActionRequired),
+        TimelineEvent(id = "CVE-2022-12345", service = "service3", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = NoActionRequired),
+        TimelineEvent(id = "XRAY-000005", service = "service5", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = InvestigationOngoing),
+        TimelineEvent(id = "XRAY-000006", service = "service6", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = Uncurated),
       )
     }
   }

@@ -16,12 +16,16 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, ReplaceOneModel, ReplaceOptions}
-import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
-import uk.gov.hmrc.mongo.MongoComponent
-import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
-import uk.gov.hmrc.vulnerabilities.model.ServiceVulnerability
 
+import org.mongodb.scala.model.{Accumulators, Filters, IndexModel, IndexOptions, Indexes, ReplaceOneModel, ReplaceOptions}
+import org.mongodb.scala.model.Indexes.{compoundIndex, descending}
+import org.mongodb.scala.bson.conversions.Bson
+import org.mongodb.scala.model.Aggregates.{`match`, group}
+import uk.gov.hmrc.mongo.MongoComponent
+import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, TimelineEvent, VulnerabilitiesTimelineCount}
+
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -34,13 +38,18 @@ class VulnerabilitiesTimelineRepository @Inject()(
 ) extends PlayMongoRepository(
   collectionName = "vulnerabilitiesTimeline",
   mongoComponent = mongoComponent,
-  domainFormat   = ServiceVulnerability.mongoFormat,
+  domainFormat   = TimelineEvent.mongoFormat,
   indexes        = Seq(
-    IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")), IndexOptions().unique(true)),
-    IndexModel(ascending("weekBeginning"), IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS))
+    IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")),IndexOptions().unique(true).background(true)),
+    IndexModel(Indexes.ascending("weekBeginning"),IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS).background(true)),
+    IndexModel(Indexes.ascending("id"),IndexOptions().name("id").background(true)),
+    IndexModel(Indexes.ascending("service"),IndexOptions().name("service").background(true)),
+    IndexModel(Indexes.ascending("teams"),IndexOptions().name("teams").background(true)),
+    IndexModel(Indexes.ascending("curationStatus"),IndexOptions().name("curationStatus").background(true))
   )
-) {
-  def replaceOrInsert(serviceVulnerabilities: Seq[ServiceVulnerability]): Future[Unit] = {
+)
+{
+  def replaceOrInsert(serviceVulnerabilities: Seq[TimelineEvent]): Future[Unit] = {
     val bulkWrites = serviceVulnerabilities.map(sv =>
       ReplaceOneModel(
         Filters.and(
@@ -54,4 +63,30 @@ class VulnerabilitiesTimelineRepository @Inject()(
     )
     collection.bulkWrite(bulkWrites).toFuture().map(_ => ())
   }
+
+  val Quoted = """^\"(.*)\"$""".r
+
+  def getTimelineCounts(service: Option[String], team: Option[String], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: Instant, to: Instant): Future[Seq[VulnerabilitiesTimelineCount]] = {
+
+    val optFilters: Seq[Bson] = Seq(
+      service.map {
+        case Quoted(s) => Filters.equal("service", s.toLowerCase())
+        case s         => Filters.regex("service", s.toLowerCase())
+      },
+      team.map         (t => Filters.eq("teams", t)),
+      vulnerability.map(v => Filters.eq("id", v.toUpperCase)),
+      curationStatus.map(cs => Filters.eq("curationStatus", cs.asString))
+    ).flatten
+
+    val pipeline: Seq[Bson] = Seq(
+      Some(`match`(Filters.and(Filters.gte("weekBeginning", from), Filters.lte("weekBeginning",to)))),
+      if(optFilters.isEmpty) None else Some(`match`(Filters.and(optFilters: _*))),
+      Some(group(id = "$weekBeginning", Accumulators.sum("count", 1)))
+    ).flatten
+
+    CollectionFactory.collection(mongoComponent.database, "vulnerabilitiesTimeline", VulnerabilitiesTimelineCount.mongoFormat)
+      .aggregate(pipeline).toFuture()
+  }
+
+
 }
