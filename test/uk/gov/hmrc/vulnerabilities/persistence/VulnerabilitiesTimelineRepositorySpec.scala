@@ -17,8 +17,6 @@
 package uk.gov.hmrc.vulnerabilities.persistence
 
 import org.scalatest.concurrent.IntegrationPatience
-import org.scalatest.matchers.must.Matchers.contain
-import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec

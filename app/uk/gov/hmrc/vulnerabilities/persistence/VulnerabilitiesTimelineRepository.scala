@@ -18,13 +18,11 @@ package uk.gov.hmrc.vulnerabilities.persistence
 
 
 import org.mongodb.scala.model.{Accumulators, Filters, IndexModel, IndexOptions, Indexes, ReplaceOneModel, ReplaceOptions}
-import org.mongodb.scala.model.Indexes.{ascending, compoundIndex, descending}
+import org.mongodb.scala.model.Indexes.{compoundIndex, descending}
 import org.mongodb.scala.bson.conversions.Bson
-import org.mongodb.scala.bson.{BsonArray, BsonDocument}
 import org.mongodb.scala.model.Aggregates.{`match`, group}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
 import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, TimelineEvent, VulnerabilitiesTimelineCount}
 
 import java.time.Instant
