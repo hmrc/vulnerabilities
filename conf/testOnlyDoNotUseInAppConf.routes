@@ -17,4 +17,8 @@ GET        /test-only/testResult               uk.gov.hmrc.vulnerabilities.contr
 POST       /test-only/vulnerabilitySummaries   uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.addVulnerabilitySummaries()
 DELETE     /test-only/vulnerabilitySummaries   uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteVulnerabilitySummaries
 
+POST       /test-only/timelineEvents           uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.addTimelineEvents()
+DELETE     /test-only/timelineEvents           uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteTimelineEvents
+
+
 ->         /                                   prod.Routes

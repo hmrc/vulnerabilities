@@ -32,15 +32,25 @@ case class TimelineEvent(
 
 object TimelineEvent {
   implicit val csf = CurationStatus.format
-  implicit val instantFormat = MongoJavatimeFormats.instantFormat
 
   val mongoFormat: OFormat[TimelineEvent] = {
+    implicit val instantFormat = MongoJavatimeFormats.instantFormat
+
     ( (__ \ "id"              ).format[String]
       ~ (__ \ "service"       ).format[String]
       ~ (__ \ "weekBeginning" ).format[Instant]
       ~ (__ \ "teams"         ).format[Seq[String]]
       ~ (__ \ "curationStatus").format[CurationStatus]
     )(apply, unlift(unapply))
+  }
+
+  val apiFormat: OFormat[TimelineEvent] = {
+    ( (__ \ "id"              ).format[String]
+      ~ (__ \ "service"       ).format[String]
+      ~ (__ \ "weekBeginning" ).format[Instant]
+      ~ (__ \ "teams"         ).format[Seq[String]]
+      ~ (__ \ "curationStatus").format[CurationStatus]
+      )(apply, unlift(unapply))
   }
 }
 
