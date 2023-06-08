@@ -46,8 +46,20 @@ class UpdateVulnerabilitiesService @Inject()(
       //Only download reports that don't exist in last 7 days in our raw reports collection
       recentReports   <- rawReportsRepository.getReportsInLastXDays()
       outOfDateSVDeps  = whatsRunningWhereService.removeSVDIfRecentReportExists(svDeps, recentReports)
-      _               <- processSvDeps(outOfDateSVDeps)
-    } yield ()
+      _ <- xrayService.processReports(outOfDateSVDeps)
+      _ = logger.info(s"Finished generating and inserting reports into the rawReports collection")
+      //Transform raw reports to Vulnerability Summaries
+      unrefined <- rawReportsRepository.getNewDistinctVulnerabilities()
+      _ = logger.info(s"Retrieved ${unrefined.length} unrefined vulnerability summaries")
+      reposWithTeams <- teamsAndRepositoriesConnector.getCurrentReleases()
+      refined = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, svDeps)
+      assessments <- assessmentsRepository.getAssessments()
+      finalAssessments = assessments.map(a => a.id -> a).toMap
+      finalSummaries = vulnerabilitiesService.addInvestigationsToSummaries(refined, finalAssessments)
+      _ = logger.info("About to delete all documents from the vulnerabilitySummaries repository")
+      //Update final Collection
+      summariesCount <- vulnerabilitySummariesRepository.deleteOldAndInsertNewSummaries(finalSummaries)
+    } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
   }
 
 
@@ -55,10 +67,6 @@ class UpdateVulnerabilitiesService @Inject()(
                             version: String,
                             environment: String)(implicit hc: HeaderCarrier): Future[Unit] = {
     val svDeps = Seq(ServiceVersionDeployments(serviceName, version, Seq(environment)))
-    processSvDeps(svDeps)
-  }
-
-  private def processSvDeps(svDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier): Future[Unit] = {
     for {
       _ <- xrayService.processReports(svDeps)
       _ = logger.info(s"Finished generating and inserting reports into the rawReports collection")
