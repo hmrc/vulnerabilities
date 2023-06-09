@@ -39,7 +39,7 @@ class UpdateVulnerabilitiesService @Inject()(
 )(implicit ec: ExecutionContext) extends
   Logging {
 
-  def updateVulnerabilities()(implicit hc: HeaderCarrier): Future[Unit] = {
+  def updateAllVulnerabilities()(implicit hc: HeaderCarrier): Future[Unit] = {
     for {
       wrw             <- releasesConnector.getCurrentReleases()
       svDeps           = whatsRunningWhereService.getEnvsForServiceVersion(wrw)

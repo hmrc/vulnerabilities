@@ -57,7 +57,7 @@ class Scheduler @Inject()(
       latest <- vulnerabilitySummariesRepository.getMostRecent()
       _      <- if (sevenDaysOld(latest, getNow)) {
                   logger.info("Data is older than 24 hours - beginning data refresh")
-                  updateVulnerabilitiesService.updateVulnerabilities()
+                  updateVulnerabilitiesService.updateAllVulnerabilities()
                 } else {
                   logger.info("Data has already been retrieved from Xray within the last 24 hours. No need to update it.")
                   Future.unit
@@ -69,7 +69,7 @@ class Scheduler @Inject()(
     dataReloadLock
       .withLock {
         logger.info("Data refresh has been manually triggered")
-        updateVulnerabilitiesService.updateVulnerabilities()
+        updateVulnerabilitiesService.updateAllVulnerabilities()
       }
       .map(_.getOrElse(logger.info(s"The Reload process is locked for ${dataReloadLock.lockId}")))
   }
