@@ -46,7 +46,14 @@ class UpdateVulnerabilitiesService @Inject()(
       //Only download reports that don't exist in last 7 days in our raw reports collection
       recentReports   <- rawReportsRepository.getReportsInLastXDays()
       outOfDateSVDeps  = whatsRunningWhereService.removeSVDIfRecentReportExists(svDeps, recentReports)
-      _ <- xrayService.processReports(outOfDateSVDeps)
+      //Update final Collection
+      summariesCount <- processVulnerabilityUpdates(outOfDateSVDeps)
+    } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
+  }
+
+  private def processVulnerabilityUpdates(svDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) = {
+    for {
+      _ <- xrayService.processReports(svDeps)
       _ = logger.info(s"Finished generating and inserting reports into the rawReports collection")
       //Transform raw reports to Vulnerability Summaries
       unrefined <- rawReportsRepository.getNewDistinctVulnerabilities()
@@ -59,7 +66,7 @@ class UpdateVulnerabilitiesService @Inject()(
       _ = logger.info("About to delete all documents from the vulnerabilitySummaries repository")
       //Update final Collection
       summariesCount <- vulnerabilitySummariesRepository.deleteOldAndInsertNewSummaries(finalSummaries)
-    } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
+    } yield summariesCount
   }
 
 
