@@ -120,18 +120,10 @@ object DeploymentHandler {
   )
 
   import play.api.libs.functional.syntax._
-  import play.api.libs.json.{JsObject, Reads, __}
+  import play.api.libs.json.{Reads, __}
 
 
-  private lazy val mdtpEventReads: Reads[DeploymentEvent] =
-    implicitly[Reads[JsObject]]
-      .flatMap { _ =>
-        for {
-          res    <- deploymentEventReads1
-        } yield res
-      }
-
-  private lazy val deploymentEventReads1: Reads[DeploymentEvent] = {
+  private lazy val mdtpEventReads: Reads[DeploymentEvent] = {
     implicit val er: Reads[Option[Environment]] =
       __.read[String].map(Environment.parse)
     implicit val snf: Format[ServiceName] = ServiceName.format
