@@ -17,6 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import play.api.Logging
+import play.api.libs.json.Json
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector}
 import uk.gov.hmrc.vulnerabilities.model.ServiceVersionDeployments
@@ -47,8 +48,8 @@ class UpdateVulnerabilitiesService @Inject()(
       recentReports   <- rawReportsRepository.getReportsInLastXDays()
       outOfDateSVDeps  = whatsRunningWhereService.removeSVDIfRecentReportExists(svDeps, recentReports)
       //Update final Collection
-      summariesCount <- processVulnerabilityUpdates(outOfDateSVDeps, svDeps)
-    } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
+      _ <- processVulnerabilityUpdates(outOfDateSVDeps, svDeps)
+    } yield ()
   }
 
   def updateVulnerabilities(serviceName: String,
@@ -56,8 +57,8 @@ class UpdateVulnerabilitiesService @Inject()(
                             environment: String)(implicit hc: HeaderCarrier): Future[Unit] = {
     val svDeps = Seq(ServiceVersionDeployments(serviceName, version, Seq(environment)))
     for {
-      summariesCount <- processVulnerabilityUpdates(svDeps, svDeps)
-    } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
+      _ <- processVulnerabilityUpdates(svDeps, svDeps)
+    } yield ()
   }
 
   private def processVulnerabilityUpdates(outOfDateSVDeps: Seq[ServiceVersionDeployments], svDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) = {
@@ -75,6 +76,6 @@ class UpdateVulnerabilitiesService @Inject()(
       _ = logger.info("About to delete all documents from the vulnerabilitySummaries repository")
       //Update final Collection
       summariesCount <- vulnerabilitySummariesRepository.deleteOldAndInsertNewSummaries(finalSummaries)
-    } yield summariesCount
+    } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
   }
 }
