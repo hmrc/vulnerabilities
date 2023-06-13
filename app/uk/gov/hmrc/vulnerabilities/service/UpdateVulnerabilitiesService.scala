@@ -45,7 +45,8 @@ class UpdateVulnerabilitiesService @Inject()(
       //Only download reports that don't exist in last 24 hours in our raw reports collection
       recentReports   <- rawReportsRepository.getReportsInLastXDays()
       outOfDateSVDeps  = whatsRunningWhereService.removeSVDIfRecentReportExists(svDeps, recentReports)
-      _               <- processXrayReports(outOfDateSVDeps)
+      _               <- xrayService.processReports(outOfDateSVDeps)
+      _                = logger.info("Finished generating and inserting reports into the rawReports collection")
       _               <- updateVulnerabilitySummaries(svDeps)
     } yield ()
   }
@@ -53,26 +54,19 @@ class UpdateVulnerabilitiesService @Inject()(
 
   def updateVulnerabilities(serviceName: String,
                             version: String,
-                            environment: String)(implicit hc: HeaderCarrier): Future[Unit] = {
-    val svDepsToUpdate = Seq(ServiceVersionDeployments(serviceName, version, Seq(environment)))
-    for {
-      svDeps <- getCurrentServiceDependencies
-      _      <- processXrayReports(svDepsToUpdate)
-      _      <- updateVulnerabilitySummaries(svDeps)
+                            environment: String)(implicit hc: HeaderCarrier): Future[Unit] = for {
+      svDeps        <- getCurrentServiceDependencies
+      svDepsToUpdate = Seq(ServiceVersionDeployments(serviceName, version, Seq(environment)))
+      _             <- xrayService.processReports(svDepsToUpdate)
+      _              = logger.info("Finished generating and inserting reports into the rawReports collection")
+      _             <- updateVulnerabilitySummaries(svDeps)
     } yield ()
-  }
 
-  private def getCurrentServiceDependencies(implicit hc: HeaderCarrier) = {
+  private def getCurrentServiceDependencies()(implicit hc: HeaderCarrier) = {
     for {
       wrw <- releasesConnector.getCurrentReleases()
       svDeps = whatsRunningWhereService.getEnvsForServiceVersion(wrw)
     } yield svDeps
-  }
-
-  private def processXrayReports(svDepsToUpdate: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) = {
-    for {
-      _ <- xrayService.processReports(svDepsToUpdate)
-    } yield logger.info("Finished generating and inserting reports into the rawReports collection")
   }
 
   private def updateVulnerabilitySummaries(allSvDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) = {

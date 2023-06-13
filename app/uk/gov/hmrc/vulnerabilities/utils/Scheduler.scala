@@ -53,10 +53,8 @@ class Scheduler @Inject()(
   scheduleWithLock("Vulnerabilities data Reloader", config.dataReloadScheduler, dataReloadLock) {
     implicit val hc: HeaderCarrier = HeaderCarrier()
     for {
-      _ <- {
-             logger.info("Beginning data refresh")
-             updateVulnerabilitiesService.updateAllVulnerabilities()
-           }
+      _ <- Future.successful(logger.info("Beginning data refresh"))
+      _ <- updateVulnerabilitiesService.updateAllVulnerabilities()
     } yield ()
   }
 
