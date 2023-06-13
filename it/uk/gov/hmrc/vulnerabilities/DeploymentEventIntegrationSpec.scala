@@ -157,8 +157,6 @@ class DeploymentEventIntegrationSpec
         //update the results generated date as otherwise it would be dynamic - it would be the time of test
 
         result.length shouldBe 1
-        println(Json.toJson(result.head))
-        println(Json.toJson(expectedResult1))
         result.head shouldBe expectedResult1
       }
     }
