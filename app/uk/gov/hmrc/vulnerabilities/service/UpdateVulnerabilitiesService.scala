@@ -17,7 +17,6 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import play.api.Logging
-import play.api.libs.json.Json
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector}
 import uk.gov.hmrc.vulnerabilities.model.ServiceVersionDeployments
@@ -46,7 +45,8 @@ class UpdateVulnerabilitiesService @Inject()(
       //Only download reports that don't exist in last 24 hours in our raw reports collection
       recentReports   <- rawReportsRepository.getReportsInLastXDays()
       outOfDateSVDeps  = whatsRunningWhereService.removeSVDIfRecentReportExists(svDeps, recentReports)
-      _ <- processVulnerabilityUpdates(outOfDateSVDeps, svDeps)
+      _               <- processXrayReports(outOfDateSVDeps)
+      _               <- updateVulnerabilitySummaries(svDeps)
     } yield ()
   }
 
@@ -57,7 +57,8 @@ class UpdateVulnerabilitiesService @Inject()(
     val svDepsToUpdate = Seq(ServiceVersionDeployments(serviceName, version, Seq(environment)))
     for {
       svDeps <- getCurrentServiceDependencies
-      _ <- processVulnerabilityUpdates(svDepsToUpdate, svDeps)
+      _      <- processXrayReports(svDepsToUpdate)
+      _      <- updateVulnerabilitySummaries(svDeps)
     } yield ()
   }
 
@@ -68,10 +69,13 @@ class UpdateVulnerabilitiesService @Inject()(
     } yield svDeps
   }
 
-  private def processVulnerabilityUpdates(svDepsToUpdate: Seq[ServiceVersionDeployments], allSvDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) = {
+  private def processXrayReports(svDepsToUpdate: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) = {
     for {
       _ <- xrayService.processReports(svDepsToUpdate)
-      _ = logger.info("Finished generating and inserting reports into the rawReports collection")
+    } yield logger.info("Finished generating and inserting reports into the rawReports collection")
+  }
+  private def updateVulnerabilitySummaries(allSvDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) = {
+    for {
       //Transform raw reports to Vulnerability Summaries
       unrefined <- rawReportsRepository.getNewDistinctVulnerabilities()
       _ = logger.info(s"Retrieved ${unrefined.length} unrefined vulnerability summaries")
