@@ -49,19 +49,14 @@ class Scheduler @Inject()(
   private val dataReloadLock: LockService     = LockService(mongoLockRepository, "vuln-data-reload-lock", 165.minutes)
 
   def getNow: Instant = Instant.now()
-  def sevenDaysOld(latestData: Instant, now: Instant): Boolean = latestData.isBefore(now.minusMillis(dataCutOff.toMillis))
 
   scheduleWithLock("Vulnerabilities data Reloader", config.dataReloadScheduler, dataReloadLock) {
     implicit val hc: HeaderCarrier = HeaderCarrier()
     for {
-      latest <- vulnerabilitySummariesRepository.getMostRecent()
-      _      <- if (sevenDaysOld(latest, getNow)) {
-                  logger.info("Data is older than 24 hours - beginning data refresh")
-                  updateVulnerabilitiesService.updateAllVulnerabilities()
-                } else {
-                  logger.info("Data has already been retrieved from Xray within the last 24 hours. No need to update it.")
-                  Future.unit
-                }
+      _ <- {
+             logger.info("Beginning data refresh")
+             updateVulnerabilitiesService.updateAllVulnerabilities()
+           }
     } yield ()
   }
 
