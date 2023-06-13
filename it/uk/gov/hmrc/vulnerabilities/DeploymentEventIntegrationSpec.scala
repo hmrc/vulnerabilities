@@ -24,6 +24,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
+import play.api.libs.json.Json
 import play.api.libs.ws.WSClient
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.test.CleanMongoCollectionSupport
@@ -71,27 +72,47 @@ class DeploymentEventIntegrationSpec
 
       //stubbing
 
+      stubFor(WireMock.get(urlPathMatching("/releases-api/whats-running-where"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.wrwBody3))
+      )
+
       stubFor(WireMock.post(urlPathMatching("/vulnerabilities"))
-        .withRequestBody(containing("Service1_0.835.0"))
+        .withRequestBody(containing("Service1_0.835"))
         .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportRequestResponse1))
+      )
+
+      stubFor(WireMock.post(urlPathMatching("/vulnerabilities"))
+        .withRequestBody(containing("Service1_0.836"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportRequestResponse2))
       )
 
       stubFor(WireMock.get(urlPathMatching("/1"))
         .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportStatus1))
       )
 
+      stubFor(WireMock.get(urlPathMatching("/2"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportStatus2))
+      )
+
       stubFor(WireMock.get(urlMatching("/export/1\\?file_name=AppSec-report-Service1_0.835.0&format=json"))
         .willReturn(aResponse().withStatus(200).withBody(StubResponses.zippedReport1))
+      )
+
+      stubFor(WireMock.get(urlMatching("/export/2\\?file_name=AppSec-report-Service1_0.836.0&format=json"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.zippedReport2))
       )
 
       stubFor(WireMock.delete(urlMatching("/1"))
         .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportDelete))
       )
 
+      stubFor(WireMock.delete(urlMatching("/2"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportDelete))
+      )
+
       stubFor(WireMock.get(urlPathMatching("/api/repository_teams"))
         .willReturn(aResponse().withStatus(200).withBody(StubResponses.teamsAndRepos))
       )
-
       //helpers
       implicit val fmt = VulnerabilitySummary.apiFormat
 
@@ -110,7 +131,7 @@ class DeploymentEventIntegrationSpec
           ticket                     = None
         ),
         occurrences = Seq(
-          VulnerabilityOccurrence("Service1","0.835.0","Service1-0.835.0/some/physical/path",Seq("Team1", "Team2"),Seq("production"),"gav://com.testxml.test.core:test-bind","1.5.9"),
+          VulnerabilityOccurrence("Service1","0.835.0","Service1-0.835.0/some/physical/path",Seq("Team1", "Team2"),Seq("staging, production"),"gav://com.testxml.test.core:test-bind","1.5.9"),
         ),
         teams = List("Team1", "Team2"),
         generatedDate = StubResponses.startOfYear
@@ -136,7 +157,9 @@ class DeploymentEventIntegrationSpec
         //update the results generated date as otherwise it would be dynamic - it would be the time of test
 
         result.length shouldBe 1
-        result shouldBe Seq(expectedResult1)
+        println(Json.toJson(result.head))
+        println(Json.toJson(expectedResult1))
+        result.head shouldBe expectedResult1
       }
     }
   }

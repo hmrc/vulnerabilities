@@ -42,34 +42,41 @@ class UpdateVulnerabilitiesService @Inject()(
 
   def updateAllVulnerabilities()(implicit hc: HeaderCarrier): Future[Unit] = {
     for {
-      wrw             <- releasesConnector.getCurrentReleases()
-      svDeps           = whatsRunningWhereService.getEnvsForServiceVersion(wrw)
-      //Only download reports that don't exist in last 7 days in our raw reports collection
+      svDeps          <- getCurrentServiceDependencies
+      //Only download reports that don't exist in last 24 hours in our raw reports collection
       recentReports   <- rawReportsRepository.getReportsInLastXDays()
       outOfDateSVDeps  = whatsRunningWhereService.removeSVDIfRecentReportExists(svDeps, recentReports)
-      //Update final Collection
       _ <- processVulnerabilityUpdates(outOfDateSVDeps, svDeps)
     } yield ()
   }
 
+
   def updateVulnerabilities(serviceName: String,
                             version: String,
                             environment: String)(implicit hc: HeaderCarrier): Future[Unit] = {
-    val svDeps = Seq(ServiceVersionDeployments(serviceName, version, Seq(environment)))
+    val svDepsToUpdate = Seq(ServiceVersionDeployments(serviceName, version, Seq(environment)))
     for {
-      _ <- processVulnerabilityUpdates(svDeps, svDeps)
+      svDeps <- getCurrentServiceDependencies
+      _ <- processVulnerabilityUpdates(svDepsToUpdate, svDeps)
     } yield ()
   }
 
-  private def processVulnerabilityUpdates(outOfDateSVDeps: Seq[ServiceVersionDeployments], svDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) = {
+  private def getCurrentServiceDependencies(implicit hc: HeaderCarrier) = {
     for {
-      _ <- xrayService.processReports(outOfDateSVDeps)
-      _ = logger.info(s"Finished generating and inserting reports into the rawReports collection")
+      wrw <- releasesConnector.getCurrentReleases()
+      svDeps = whatsRunningWhereService.getEnvsForServiceVersion(wrw)
+    } yield svDeps
+  }
+
+  private def processVulnerabilityUpdates(svDepsToUpdate: Seq[ServiceVersionDeployments], allSvDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) = {
+    for {
+      _ <- xrayService.processReports(svDepsToUpdate)
+      _ = logger.info("Finished generating and inserting reports into the rawReports collection")
       //Transform raw reports to Vulnerability Summaries
       unrefined <- rawReportsRepository.getNewDistinctVulnerabilities()
       _ = logger.info(s"Retrieved ${unrefined.length} unrefined vulnerability summaries")
       reposWithTeams <- teamsAndRepositoriesConnector.getCurrentReleases()
-      refined = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, svDeps)
+      refined = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, allSvDeps)
       assessments <- assessmentsRepository.getAssessments()
       finalAssessments = assessments.map(a => a.id -> a).toMap
       finalSummaries = vulnerabilitiesService.addInvestigationsToSummaries(refined, finalAssessments)
