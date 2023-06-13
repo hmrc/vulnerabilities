@@ -24,7 +24,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
-import play.api.libs.json.Json
+import play.api.libs.json.OFormat
 import play.api.libs.ws.WSClient
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.test.CleanMongoCollectionSupport
@@ -56,7 +56,7 @@ class DeploymentEventIntegrationSpec
 
   private val wsClient = app.injector.instanceOf[WSClient]
 
-  val collection = app.injector.instanceOf[RawReportsRepository]
+  val collection: RawReportsRepository = app.injector.instanceOf[RawReportsRepository]
 
   /**
    *
@@ -114,7 +114,7 @@ class DeploymentEventIntegrationSpec
         .willReturn(aResponse().withStatus(200).withBody(StubResponses.teamsAndRepos))
       )
       //helpers
-      implicit val fmt = VulnerabilitySummary.apiFormat
+      implicit val fmt: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
 
       val expectedResult1 = VulnerabilitySummary(
         DistinctVulnerability(
@@ -131,7 +131,7 @@ class DeploymentEventIntegrationSpec
           ticket                     = None
         ),
         occurrences = Seq(
-          VulnerabilityOccurrence("Service1","0.835.0","Service1-0.835.0/some/physical/path",Seq("Team1", "Team2"),Seq("staging, production"),"gav://com.testxml.test.core:test-bind","1.5.9"),
+          VulnerabilityOccurrence("Service1","0.835.0","Service1-0.835.0/some/physical/path",Seq("Team1", "Team2"),Seq("staging", "production"),"gav://com.testxml.test.core:test-bind","1.5.9"),
         ),
         teams = List("Team1", "Team2"),
         generatedDate = StubResponses.startOfYear
