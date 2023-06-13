@@ -74,6 +74,7 @@ class UpdateVulnerabilitiesService @Inject()(
       _ <- xrayService.processReports(svDepsToUpdate)
     } yield logger.info("Finished generating and inserting reports into the rawReports collection")
   }
+
   private def updateVulnerabilitySummaries(allSvDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) = {
     for {
       //Transform raw reports to Vulnerability Summaries
