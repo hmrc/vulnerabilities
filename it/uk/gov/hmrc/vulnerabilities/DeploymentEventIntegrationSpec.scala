@@ -61,98 +61,98 @@ class DeploymentEventIntegrationSpec
 
 
   "updateVulnerabilities Service" should {
-//    "Should download report on deployment event" in {
-//
-//      //stubbing
-//
-//      stubFor(WireMock.get(urlPathMatching("/releases-api/whats-running-where"))
-//        .willReturn(aResponse().withStatus(200).withBody(StubResponses.wrwBody3))
-//      )
-//
-//      stubFor(WireMock.post(urlPathMatching("/vulnerabilities"))
-//        .withRequestBody(containing("Service1_0.835"))
-//        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportRequestResponse1))
-//      )
-//
-//      stubFor(WireMock.post(urlPathMatching("/vulnerabilities"))
-//        .withRequestBody(containing("Service1_0.836"))
-//        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportRequestResponse2))
-//      )
-//
-//      stubFor(WireMock.get(urlPathMatching("/1"))
-//        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportStatus1))
-//      )
-//
-//      stubFor(WireMock.get(urlPathMatching("/2"))
-//        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportStatus2))
-//      )
-//
-//      stubFor(WireMock.get(urlMatching("/export/1\\?file_name=AppSec-report-Service1_0.835.0&format=json"))
-//        .willReturn(aResponse().withStatus(200).withBody(StubResponses.zippedReport1))
-//      )
-//
-//      stubFor(WireMock.get(urlMatching("/export/2\\?file_name=AppSec-report-Service1_0.836.0&format=json"))
-//        .willReturn(aResponse().withStatus(200).withBody(StubResponses.zippedReport2))
-//      )
-//
-//      stubFor(WireMock.delete(urlMatching("/1"))
-//        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportDelete))
-//      )
-//
-//      stubFor(WireMock.delete(urlMatching("/2"))
-//        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportDelete))
-//      )
-//
-//      stubFor(WireMock.get(urlPathMatching("/api/repository_teams"))
-//        .willReturn(aResponse().withStatus(200).withBody(StubResponses.teamsAndRepos))
-//      )
-//      //helpers
-//      implicit val fmt: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
-//
-//      val expectedResult1 = VulnerabilitySummary(
-//        DistinctVulnerability(
-//          vulnerableComponentName = "gav://com.testxml.test.core:test-bind",
-//          vulnerableComponentVersion = "1.5.9",
-//          vulnerableComponents = Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind", "1.5.9")),
-//          id = "CVE-2022-12345", score = Some(8.0),
-//          description = "This is an exploit",
-//          fixedVersions = Some(Seq("1.6.0")),
-//          references = Seq("foo.com", "bar.net"),
-//          publishedDate = StubResponses.startOfYear,
-//          assessment = None,
-//          curationStatus = Some(CurationStatus.Uncurated),
-//          ticket = None
-//        ),
-//        occurrences = Seq(
-//          VulnerabilityOccurrence("Service1", "0.835.0", "Service1-0.835.0/some/physical/path", Seq("Team1", "Team2"), Seq("staging", "production"), "gav://com.testxml.test.core:test-bind", "1.5.9"),
-//        ),
-//        teams = List("Team1", "Team2"),
-//        generatedDate = StubResponses.startOfYear
-//      )
-//      //Test occurs below
-//
-//      eventually {
-//        val response1 = wsClient
-//          .url(resource("test-only/testDeploymentEvent?serviceName=Service1&version=0.835.0&environment=production"))
-//          .get()
-//          .futureValue
-//
-//        response1.status shouldBe 200
-//
-//
-//        val response = wsClient
-//          .url(resource("test-only/testResult/"))
-//          .get()
-//          .futureValue
-//
-//        response.status shouldBe 200
-//        val result = response.json.as[Seq[VulnerabilitySummary]].map(_.copy(generatedDate = StubResponses.startOfYear)).sortBy(_.distinctVulnerability.id)
-//        //update the results generated date as otherwise it would be dynamic - it would be the time of test
-//
-//        result.length shouldBe 1
-//        result.head shouldBe expectedResult1
-//      }
-//    }
+    "Should download report on deployment event" in {
+
+      //stubbing
+
+      stubFor(WireMock.get(urlPathMatching("/releases-api/whats-running-where"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.wrwBody3))
+      )
+
+      stubFor(WireMock.post(urlPathMatching("/vulnerabilities"))
+        .withRequestBody(containing("Service1_0.835"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportRequestResponse1))
+      )
+
+      stubFor(WireMock.post(urlPathMatching("/vulnerabilities"))
+        .withRequestBody(containing("Service1_0.836"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportRequestResponse2))
+      )
+
+      stubFor(WireMock.get(urlPathMatching("/1"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportStatus1))
+      )
+
+      stubFor(WireMock.get(urlPathMatching("/2"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportStatus2))
+      )
+
+      stubFor(WireMock.get(urlMatching("/export/1\\?file_name=AppSec-report-Service1_0.835.0&format=json"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.zippedReport1))
+      )
+
+      stubFor(WireMock.get(urlMatching("/export/2\\?file_name=AppSec-report-Service1_0.836.0&format=json"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.zippedReport2))
+      )
+
+      stubFor(WireMock.delete(urlMatching("/1"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportDelete))
+      )
+
+      stubFor(WireMock.delete(urlMatching("/2"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportDelete))
+      )
+
+      stubFor(WireMock.get(urlPathMatching("/api/repository_teams"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.teamsAndRepos))
+      )
+      //helpers
+      implicit val fmt: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
+
+      val expectedResult1 = VulnerabilitySummary(
+        DistinctVulnerability(
+          vulnerableComponentName = "gav://com.testxml.test.core:test-bind",
+          vulnerableComponentVersion = "1.5.9",
+          vulnerableComponents = Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind", "1.5.9")),
+          id = "CVE-2022-12345", score = Some(8.0),
+          description = "This is an exploit",
+          fixedVersions = Some(Seq("1.6.0")),
+          references = Seq("foo.com", "bar.net"),
+          publishedDate = StubResponses.startOfYear,
+          assessment = None,
+          curationStatus = Some(CurationStatus.Uncurated),
+          ticket = None
+        ),
+        occurrences = Seq(
+          VulnerabilityOccurrence("Service1", "0.835.0", "Service1-0.835.0/some/physical/path", Seq("Team1", "Team2"), Seq("staging", "production"), "gav://com.testxml.test.core:test-bind", "1.5.9"),
+        ),
+        teams = List("Team1", "Team2"),
+        generatedDate = StubResponses.startOfYear
+      )
+      //Test occurs below
+
+      eventually {
+        val response1 = wsClient
+          .url(resource("test-only/testDeploymentEvent?serviceName=Service1&version=0.835.0&environment=production"))
+          .get()
+          .futureValue
+
+        response1.status shouldBe 200
+
+
+        val response = wsClient
+          .url(resource("test-only/testResult/"))
+          .get()
+          .futureValue
+
+        response.status shouldBe 200
+        val result = response.json.as[Seq[VulnerabilitySummary]].map(_.copy(generatedDate = StubResponses.startOfYear)).sortBy(_.distinctVulnerability.id)
+        //update the results generated date as otherwise it would be dynamic - it would be the time of test
+
+        result.length shouldBe 1
+        result.head shouldBe expectedResult1
+      }
+    }
     "Should download latest report on multiple deployment events in same day" in {
 
       //stubbing
