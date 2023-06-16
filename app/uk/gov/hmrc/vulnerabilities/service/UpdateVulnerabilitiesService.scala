@@ -72,16 +72,16 @@ class UpdateVulnerabilitiesService @Inject()(
   private def updateVulnerabilitySummaries(allSvDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) = {
     for {
       //Transform raw reports to Vulnerability Summaries
-      unrefined <- rawReportsRepository.getNewDistinctVulnerabilities()
-      _ = logger.info(s"Retrieved ${unrefined.length} unrefined vulnerability summaries")
-      reposWithTeams <- teamsAndRepositoriesConnector.getCurrentReleases()
-      refined = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, allSvDeps)
-      assessments <- assessmentsRepository.getAssessments()
-      finalAssessments = assessments.map(a => a.id -> a).toMap
-      finalSummaries = vulnerabilitiesService.addInvestigationsToSummaries(refined, finalAssessments)
-      _ = logger.info("About to delete all documents from the vulnerabilitySummaries repository")
+      unrefined        <- rawReportsRepository.getNewDistinctVulnerabilities()
+      _                  = logger.info(s"Retrieved ${unrefined.length} unrefined vulnerability summaries")
+      reposWithTeams   <- teamsAndRepositoriesConnector.getCurrentReleases()
+      refined           = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, allSvDeps)
+      assessments      <- assessmentsRepository.getAssessments()
+      finalAssessments  = assessments.map(a => a.id -> a).toMap
+      finalSummaries    = vulnerabilitiesService.addInvestigationsToSummaries(refined, finalAssessments)
+      _                 = logger.info("About to delete all documents from the vulnerabilitySummaries repository")
       //Update final Collection
-      summariesCount <- vulnerabilitySummariesRepository.deleteOldAndInsertNewSummaries(finalSummaries)
+      summariesCount   <- vulnerabilitySummariesRepository.deleteOldAndInsertNewSummaries(finalSummaries)
     } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
   }
 }
