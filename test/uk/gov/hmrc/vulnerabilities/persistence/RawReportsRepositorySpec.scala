@@ -21,10 +21,8 @@ import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import play.api.Configuration
-
 import uk.gov.hmrc.mongo.play.json.CollectionFactory
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
-
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
 import uk.gov.hmrc.vulnerabilities.model.{CVE, CurationStatus, RawVulnerability, Report, TimelineEvent}
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
@@ -76,6 +74,16 @@ class RawReportsRepositorySpec
 
       resSorted.length shouldBe 4
       resSorted shouldBe (Seq("CVE-2021-99999", "CVE-2022-12345", "XRAY-000004", "XRAY-000006"))
+    }
+
+    "Transforming duplicate reports generated results in only one report returned" in new Setup {
+      repository.collection.insertMany(Seq(report1, report1.copy(generatedDate = now.minus(5, ChronoUnit.MINUTES)))).toFuture().futureValue
+
+      val result = repository.getNewDistinctVulnerabilities().futureValue
+      val resSorted = result.map(res => res.id).sorted
+
+      resSorted.length shouldBe 1
+      resSorted shouldBe (Seq("CVE-2022-12345"))
     }
   }
 
