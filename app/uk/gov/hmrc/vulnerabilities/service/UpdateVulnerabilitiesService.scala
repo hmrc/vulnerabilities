@@ -73,7 +73,7 @@ class UpdateVulnerabilitiesService @Inject()(
     for {
       //Transform raw reports to Vulnerability Summaries
       unrefined       <- rawReportsRepository.getNewDistinctVulnerabilities()
-      _                 = logger.info(s"Retrieved ${unrefined.length} unrefined vulnerability summaries")
+      _                = logger.info(s"Retrieved ${unrefined.length} unrefined vulnerability summaries")
       reposWithTeams  <- teamsAndRepositoriesConnector.getCurrentReleases()
       refined          = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, allSvDeps)
       assessments     <- assessmentsRepository.getAssessments()
