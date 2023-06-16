@@ -111,17 +111,17 @@ class DeploymentEventIntegrationSpec
 
       val expectedResult1 = VulnerabilitySummary(
         DistinctVulnerability(
-          vulnerableComponentName = "gav://com.testxml.test.core:test-bind",
+          vulnerableComponentName    = "gav://com.testxml.test.core:test-bind",
           vulnerableComponentVersion = "1.5.9",
-          vulnerableComponents = Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind", "1.5.9")),
-          id = "CVE-2022-12345", score = Some(8.0),
-          description = "This is an exploit",
-          fixedVersions = Some(Seq("1.6.0")),
-          references = Seq("foo.com", "bar.net"),
-          publishedDate = StubResponses.startOfYear,
-          assessment = None,
-          curationStatus = Some(CurationStatus.Uncurated),
-          ticket = None
+          vulnerableComponents       = Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind", "1.5.9")),
+          id                         = "CVE-2022-12345", score = Some(8.0),
+          description                = "This is an exploit",
+          fixedVersions              = Some(Seq("1.6.0")),
+          references                 = Seq("foo.com", "bar.net"),
+          publishedDate              = StubResponses.startOfYear,
+          assessment                 = None,
+          curationStatus             = Some(CurationStatus.Uncurated),
+          ticket                     = None
         ),
         occurrences = Seq(
           VulnerabilityOccurrence("Service1", "0.835.0", "Service1-0.835.0/some/physical/path", Seq("Team1", "Team2"), Seq("staging", "production"), "gav://com.testxml.test.core:test-bind", "1.5.9"),
