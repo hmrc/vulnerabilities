@@ -22,7 +22,7 @@ import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.model.{Environment, TotalVulnerabilityCount, VulnerabilitySummary}
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, VulnerabilitySummariesRepository}
-import uk.gov.hmrc.vulnerabilities.service.VulnerabilitiesService
+import uk.gov.hmrc.vulnerabilities.service.{UpdateVulnerabilitiesService, VulnerabilitiesService}
 import uk.gov.hmrc.vulnerabilities.utils.{AssessmentParser, Scheduler, TimelineScheduler}
 
 import javax.inject.{Inject, Singleton}
@@ -32,6 +32,7 @@ import scala.concurrent.ExecutionContext
 class VulnerabilitiesController @Inject()(
     cc: ControllerComponents,
     vulnerabilitiesService: VulnerabilitiesService,
+    updateVulnerabilitiesService: UpdateVulnerabilitiesService,
     assessmentParser: AssessmentParser,
     assessmentsRepository: AssessmentsRepository,
     scheduler: Scheduler,
@@ -82,6 +83,14 @@ with Logging {
     vulnerabilitySummariesRepository.getVulnerabilitySummaries().map {
       implicit val fmt = VulnerabilitySummary.apiFormat
       res => Ok(Json.toJson(res))
+    }
+  }
+
+  def testDeployment(serviceName: String, version: String, environment: String): Action[AnyContent] = Action.async {
+    implicit request => {
+      updateVulnerabilitiesService.updateVulnerabilities(serviceName, version, environment).map {
+        result => Ok
+      }
     }
   }
 

@@ -14,17 +14,14 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.vulnerabilities
+package uk.gov.hmrc.vulnerabilities.model
 
-import com.google.inject.AbstractModule
-import uk.gov.hmrc.vulnerabilities.notification.{DeadLetterHandler, DeploymentHandler}
-import uk.gov.hmrc.vulnerabilities.utils.{Scheduler, TimelineScheduler}
+import play.api.libs.json.Format
+import play.api.libs.functional.syntax._
 
-class VulnerabilitiesModule extends AbstractModule {
-  override def configure(): Unit = {
-    bind(classOf[Scheduler]).asEagerSingleton()
-    bind(classOf[TimelineScheduler]).asEagerSingleton()
-    bind(classOf[DeploymentHandler]).asEagerSingleton()
-    bind(classOf[DeadLetterHandler]).asEagerSingleton()
-  }
+case class ServiceName(asString: String) extends AnyVal
+
+object ServiceName {
+  val format: Format[ServiceName] =
+    implicitly[Format[String]].inmap(ServiceName.apply, unlift(ServiceName.unapply))
 }

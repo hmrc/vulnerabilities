@@ -13,6 +13,7 @@
 
 #Integration Test
 GET        /test-only/testResult               uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.testResult()
+GET        /test-only/testDeploymentEvent      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.testDeployment(serviceName, version, environment)
 
 POST       /test-only/vulnerabilitySummaries   uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.addVulnerabilitySummaries()
 DELETE     /test-only/vulnerabilitySummaries   uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteVulnerabilitySummaries

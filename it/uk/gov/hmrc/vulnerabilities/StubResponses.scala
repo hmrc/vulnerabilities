@@ -76,6 +76,37 @@ object StubResponses {
       |]
       |""".stripMargin
 
+  val wrwBody3 =
+    """[
+      |{
+      |"applicationName": "Service1",
+      |"versions": [
+      |               {
+      |                "environment": "staging",
+      |                "versionNumber": "0.835.0"
+      |                },
+      |               {
+      |                 "environment": "production",
+      |                 "versionNumber": "0.835.0"
+      |                }
+      |             ]
+      |},
+      |{
+      |"applicationName": "Service5",
+      |"versions": [
+      |               {
+      |                "environment": "staging",
+      |                "versionNumber": "5.0.4"
+      |                },
+      |               {
+      |                 "environment": "production",
+      |                 "versionNumber": "5.0.4"
+      |                }
+      |             ]
+      |}
+      |]
+      |""".stripMargin
+
   val reportRequestResponse1 = s"""{"report_id":1,"status":"pending"}"""
   val reportRequestResponse2 = s"""{"report_id":2,"status":"pending"}"""
 

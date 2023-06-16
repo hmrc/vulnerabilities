@@ -19,6 +19,7 @@ package uk.gov.hmrc.vulnerabilities.service
 import play.api.Logging
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector}
+import uk.gov.hmrc.vulnerabilities.model.ServiceVersionDeployments
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilitySummariesRepository}
 
 import javax.inject.{Inject, Singleton}
@@ -38,20 +39,43 @@ class UpdateVulnerabilitiesService @Inject()(
 )(implicit ec: ExecutionContext) extends
   Logging {
 
-  def updateVulnerabilities()(implicit hc: HeaderCarrier): Future[Unit] = {
+  def updateAllVulnerabilities()(implicit hc: HeaderCarrier): Future[Unit] = {
     for {
-      wrw             <- releasesConnector.getCurrentReleases()
-      svDeps           = whatsRunningWhereService.getEnvsForServiceVersion(wrw)
-      //Only download reports that don't exist in last 7 days in our raw reports collection
+      svDeps          <- getCurrentServiceDependencies
+      //Only download reports that don't exist in last 24 hours in our raw reports collection
       recentReports   <- rawReportsRepository.getReportsInLastXDays()
       outOfDateSVDeps  = whatsRunningWhereService.removeSVDIfRecentReportExists(svDeps, recentReports)
       _               <- xrayService.processReports(outOfDateSVDeps)
-      _                = logger.info(s"Finished generating and inserting reports into the rawReports collection")
+      _                = logger.info("Finished generating and inserting reports into the rawReports collection")
+      _               <- updateVulnerabilitySummaries(svDeps)
+    } yield ()
+  }
+
+
+  def updateVulnerabilities(serviceName: String,
+                            version: String,
+                            environment: String)(implicit hc: HeaderCarrier): Future[Unit] = for {
+      svDeps        <- getCurrentServiceDependencies
+      svDepsToUpdate = Seq(ServiceVersionDeployments(serviceName, version, Seq(environment)))
+      _             <- xrayService.processReports(svDepsToUpdate)
+      _              = logger.info("Finished generating and inserting reports into the rawReports collection")
+      _             <- updateVulnerabilitySummaries(svDeps)
+    } yield ()
+
+  private def getCurrentServiceDependencies()(implicit hc: HeaderCarrier) = {
+    for {
+      wrw <- releasesConnector.getCurrentReleases()
+      svDeps = whatsRunningWhereService.getEnvsForServiceVersion(wrw)
+    } yield svDeps
+  }
+
+  private def updateVulnerabilitySummaries(allSvDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) = {
+    for {
       //Transform raw reports to Vulnerability Summaries
       unrefined       <- rawReportsRepository.getNewDistinctVulnerabilities()
       _                = logger.info(s"Retrieved ${unrefined.length} unrefined vulnerability summaries")
       reposWithTeams  <- teamsAndRepositoriesConnector.getCurrentReleases()
-      refined          = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, svDeps)
+      refined          = vulnerabilitiesService.convertToVulnerabilitySummary(unrefined, reposWithTeams, allSvDeps)
       assessments     <- assessmentsRepository.getAssessments()
       finalAssessments = assessments.map(a => a.id -> a).toMap
       finalSummaries   = vulnerabilitiesService.addInvestigationsToSummaries(refined, finalAssessments)

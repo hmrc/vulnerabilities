@@ -52,23 +52,4 @@ class SchedulerSpec extends AnyWordSpec with Matchers {
 
   val scheduler = new Scheduler(mock[UpdateVulnerabilitiesService], schedulerConfigs, mock[VulnerabilitySummariesRepository], mock[MongoLockRepository], configuration)
 
-
-  "sevenDaysOld" when {
-    "given a date 6 days and 23 hours prior to it" should {
-      "return false" in {
-        val res = scheduler.sevenDaysOld(Instant.now().minus(167, ChronoUnit.HOURS), scheduler.getNow)
-        res shouldBe false
-      }
-    }
-
-    "given a date 7 days and 1 minute prior to it" should {
-      "return true" in {
-        val res = scheduler.sevenDaysOld(Instant.now()
-          .minus(168, ChronoUnit.HOURS)
-          .minus(1, ChronoUnit.MINUTES)
-        , scheduler.getNow)
-        res shouldBe true
-      }
-    }
-  }
 }

@@ -287,24 +287,6 @@ class VulnerabilitiesRepositorySpec
     }
   }
 
-  "getMostRecent" should {
-    "Return the dateTime Instant of the most recently generated document" in new Setup {
-      repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
-
-      val result = repository.getMostRecent().futureValue
-
-      result shouldBe now
-    }
-
-    "Return a default Instant that is 8 days old, if there are no documents in the collection" in {
-
-      val result = repository.getMostRecent().futureValue
-
-      result shouldBe < (now.minus(7, ChronoUnit.DAYS))
-      result shouldBe > (now.minus(9, ChronoUnit.DAYS))
-    }
-  }
-
   "deleteOldAndInsertNewSummaries" should {
     "delete the existing summary, and add a new summary to the collection" in new Setup {
 
