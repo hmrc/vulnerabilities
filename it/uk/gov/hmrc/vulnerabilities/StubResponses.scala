@@ -126,6 +126,9 @@ object StubResponses {
   val path2 = Paths.get("it/Resources/report2new.txt.zip")
   val zippedReport2 = Files.readAllBytes(path2)
 
+  val pathMultipleVulns = Paths.get("it/Resources/reportmultiplevulns.txt.zip")
+  val zippedReportMultipleVulns = Files.readAllBytes(pathMultipleVulns)
+
   val reportDelete = s"""{"info": "Report successfully deleted"}"""
 
   val teamsAndRepos = s"""{"Service1": ["Team1", "Team2"]}"""

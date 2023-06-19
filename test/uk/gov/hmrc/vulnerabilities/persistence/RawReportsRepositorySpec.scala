@@ -21,10 +21,8 @@ import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import play.api.Configuration
-
 import uk.gov.hmrc.mongo.play.json.CollectionFactory
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
-
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
 import uk.gov.hmrc.vulnerabilities.model.{CVE, CurationStatus, RawVulnerability, Report, TimelineEvent}
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
