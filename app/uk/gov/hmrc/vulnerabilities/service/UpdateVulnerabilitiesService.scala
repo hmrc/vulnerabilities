@@ -58,7 +58,7 @@ class UpdateVulnerabilitiesService @Inject()(
       svDeps        <- getCurrentServiceDependencies
       svDepsToUpdate = Seq(ServiceVersionDeployments(serviceName, version, Seq(environment)))
       _             <- xrayService.processReports(svDepsToUpdate)
-      _              = logger.info("Finished generating and inserting reports into the rawReports collection")
+      _              = logger.info(s"Finished generating and inserting reports into the rawReports collection for $serviceName version $version in $environment")
       _             <- updateVulnerabilitySummaries(svDeps)
     } yield ()
 
