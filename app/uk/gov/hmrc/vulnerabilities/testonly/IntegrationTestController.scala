@@ -29,11 +29,12 @@ import scala.concurrent.ExecutionContext
 
 @Singleton
 class IntegrationTestController @Inject()(
-                                           vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
-                                           vulnerabilitiesTimelineRepository: VulnerabilitiesTimelineRepository,
-                                           cc: ControllerComponents)
-                                         (implicit ec: ExecutionContext)
-  extends BackendController(cc) {
+  vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
+  vulnerabilitiesTimelineRepository: VulnerabilitiesTimelineRepository,
+  cc: ControllerComponents
+)(implicit
+  ec: ExecutionContext
+) extends BackendController(cc) {
 
   def addTimelineEvents: Action[Seq[TimelineEvent]] = {
     implicit val te: OFormat[TimelineEvent] = TimelineEvent.apiFormat

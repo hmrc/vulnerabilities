@@ -43,20 +43,17 @@ trait SchedulerUtils {
       val interval     = schedulerConfig.frequency
       logger.info(s"Enabling $label scheduler, running every $interval (after initial delay $initialDelay)")
       val cancellable =
-        actorSystem.scheduler.scheduleWithFixedDelay(initialDelay, interval) {
-          () =>
+        actorSystem.scheduler.scheduleWithFixedDelay(initialDelay, interval) { () =>
           val start = System.currentTimeMillis
           logger.info(s"Scheduler $label started")
           f.map { res =>
-            logger.info(s"Scheduler $label finished - took ${System.currentTimeMillis - start} millis")
-            res
-          }
-            .recover {
-              case e =>
-                logger.error(
-                  s"$label interrupted after ${System.currentTimeMillis - start} millis because: ${e.getMessage}",
-                  e)
-            }
+             logger.info(s"Scheduler $label finished - took ${System.currentTimeMillis - start} millis")
+             res
+           }
+           .recover {
+             case e =>
+               logger.error(s"$label interrupted after ${System.currentTimeMillis - start} millis because: ${e.getMessage}", e)
+           }
         }
 
       applicationLifecycle.addStopHook(() => Future(cancellable.cancel()))
@@ -64,16 +61,17 @@ trait SchedulerUtils {
       logger.info(
         s"$label scheduler is DISABLED. to enable, configure configure ${schedulerConfig.enabledKey}=true in config.")
     }
+
   def scheduleWithLock(
-  label          : String,
-  schedulerConfig: SchedulerConfig,
-  lock           : LockService
-)(f: => Future[Unit]
-)(implicit
-  actorSystem         : ActorSystem,
-  applicationLifecycle: ApplicationLifecycle,
-  ec                  : ExecutionContext
-): Unit =
+    label          : String,
+    schedulerConfig: SchedulerConfig,
+    lock           : LockService
+  )(f: => Future[Unit]
+  )(implicit
+    actorSystem         : ActorSystem,
+    applicationLifecycle: ApplicationLifecycle,
+    ec                  : ExecutionContext
+  ): Unit =
     schedule(label, schedulerConfig) {
       lock
         .withLock(f)
@@ -88,4 +86,3 @@ trait SchedulerUtils {
 }
 
 object SchedulerUtils extends SchedulerUtils
-

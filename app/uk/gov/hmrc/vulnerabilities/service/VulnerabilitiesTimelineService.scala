@@ -28,13 +28,15 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class VulnerabilitiesTimelineService @Inject()(
-  rawReportsRepository: RawReportsRepository,
+  rawReportsRepository             : RawReportsRepository,
   vulnerabilitiesTimelineRepository: VulnerabilitiesTimelineRepository,
-  teamsAndRepositoriesConnector: TeamsAndRepositoriesConnector,
-  vulnerabilitiesTimelineConfig: VulnerabilitiesTimelineConfig
-)(implicit ec: ExecutionContext
+  teamsAndRepositoriesConnector    : TeamsAndRepositoriesConnector,
+  vulnerabilitiesTimelineConfig    : VulnerabilitiesTimelineConfig
+)(implicit
+  ec: ExecutionContext
 ) {
-  val processingCutoff = Instant.now().minusMillis(vulnerabilitiesTimelineConfig.timelineProcessingCutoff.toMillis)
+  private val processingCutoff =
+    Instant.now().minusMillis(vulnerabilitiesTimelineConfig.timelineProcessingCutoff.toMillis)
 
   def updateTimelineData()(implicit hc: HeaderCarrier): Future[Unit] = {
    for {
@@ -47,10 +49,9 @@ class VulnerabilitiesTimelineService @Inject()(
 
   def addTeamsToServiceVulnerability(
     serviceVulnerabilities: Seq[TimelineEvent],
-    reposWithTeams:  Map[String, Seq[String]]
+    reposWithTeams        : Map[String, Seq[String]]
   ): Seq[TimelineEvent] =
     serviceVulnerabilities.map(sv =>
       sv.copy(teams = reposWithTeams.getOrElse(sv.service, Seq()))
     )
 }
-

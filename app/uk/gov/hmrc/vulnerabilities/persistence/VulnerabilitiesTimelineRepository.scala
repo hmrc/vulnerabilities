@@ -80,7 +80,7 @@ class VulnerabilitiesTimelineRepository @Inject()(
 
     val pipeline: Seq[Bson] = Seq(
       Some(`match`(Filters.and(Filters.gte("weekBeginning", from), Filters.lte("weekBeginning",to)))),
-      if(optFilters.isEmpty) None else Some(`match`(Filters.and(optFilters: _*))),
+      if (optFilters.isEmpty) None else Some(`match`(Filters.and(optFilters: _*))),
       Some(group(id = "$weekBeginning", Accumulators.sum("count", 1)))
     ).flatten
 

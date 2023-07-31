@@ -23,9 +23,9 @@ import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 import java.time.Instant
 
 case class ReportRequestPayload(
- name: String,
+ name     : String,
  resources: Resource,
- filters: Filter
+ filters  : Filter
 )
 
 object ReportRequestPayload {
@@ -33,11 +33,10 @@ object ReportRequestPayload {
     implicit val rf = Resource.apiFormat
     implicit val ff = Filter.apiFormat
 
-    ( (__ \ "name").format[String]
-      ~ (__ \ "resources").format[Resource]
-      ~ (__ \ "filters").format[Filter]
-      )(apply, unlift(unapply))
-
+    ( (__ \ "name"     ).format[String]
+    ~ (__ \ "resources").format[Resource]
+    ~ (__ \ "filters"  ).format[Filter]
+    )(apply, unlift(unapply))
   }
 }
 
@@ -49,7 +48,7 @@ object Resource {
   val apiFormat = {
     implicit val xrf = XrayRepo.apiFormat
     //Single field case classes require invariant map to format.
-    ((__ \ "repositories").format[Seq[XrayRepo]]).inmap(Resource.apply, unlift(Resource.unapply))
+    (__ \ "repositories").format[Seq[XrayRepo]].inmap(Resource.apply, unlift(Resource.unapply))
   }
 }
 
@@ -58,9 +57,8 @@ case class XrayRepo(
 )
 
 object XrayRepo {
-  val apiFormat = {
-    ((__ \ "name").format[String]).inmap(XrayRepo.apply, unlift(XrayRepo.unapply))
-  }
+  val apiFormat =
+    (__ \ "name").format[String].inmap(XrayRepo.apply, unlift(XrayRepo.unapply))
 }
 
 case class Filter(
@@ -68,23 +66,21 @@ case class Filter(
 )
 
 object Filter {
-  val apiFormat = {
-    ( (__ \ "impacted_artifact" ).format[String]).inmap(Filter.apply, unlift(Filter.unapply))
-  }
+  val apiFormat =
+    (__ \ "impacted_artifact" ).format[String].inmap(Filter.apply, unlift(Filter.unapply))
 }
 
 case class ReportRequestResponse(
   reportID: Int,
-  status: String,
+  status  : String,
 )
 
 object ReportRequestResponse {
 
-  val apiFormat = {
-    ( (__ \ "report_id").format[Int]
-      ~ (__ \ "status").format[String]
-      )(apply, unlift(unapply))
-  }
+  val apiFormat =
+  ( (__ \ "report_id").format[Int]
+  ~ (__ \ "status"   ).format[String]
+  )(apply, unlift(unapply))
 }
 
 case class ReportStatus(
@@ -93,11 +89,10 @@ case class ReportStatus(
 )
 
 object ReportStatus {
-  val apiFormat = {
+  val apiFormat =
     ( (__ \ "status" ).format[String]
     ~ (__ \ "number_of_rows").formatNullable[Int]
     )(apply, unlift(unapply))
-  }
 }
 
 case class ReportDelete(
@@ -106,7 +101,7 @@ case class ReportDelete(
 
 object ReportDelete {
   val apiFormat = {
-    ((__ \ "info").format[String].inmap(ReportDelete.apply, unlift(ReportDelete.unapply)))
+    (__ \ "info").format[String].inmap(ReportDelete.apply, unlift(ReportDelete.unapply))
   }
 }
 
@@ -124,17 +119,17 @@ object Report {
 
   val apiFormat = {
     implicit val rvf = RawVulnerability.apiFormat
-    ((__ \ "rows").format[Seq[RawVulnerability]]
-      ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
-      )(apply, unlift(unapply))
+    ( (__ \ "rows"         ).format[Seq[RawVulnerability]]
+    ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
+    )(apply, unlift(unapply))
   }
 
   val mongoFormat = {
-    implicit val instantFormat = MongoJavatimeFormats.instantFormat
-    implicit val rvf = RawVulnerability.mongoFormat
-    ((__ \ "rows").format[Seq[RawVulnerability]]
-      ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
-      )(apply, unlift(unapply))
+    implicit val instf = MongoJavatimeFormats.instantFormat
+    implicit val rvf   = RawVulnerability.mongoFormat
+    ( (__ \ "rows"         ).format[Seq[RawVulnerability]]
+    ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
+    )(apply, unlift(unapply))
   }
 }
 
@@ -166,50 +161,50 @@ object RawVulnerability {
     implicit val cvef          = CVE.apiFormat
     implicit val instantFormat = MongoJavatimeFormats.instantFormat
 
-    ( (__ \ "cves"                     ).format[Seq[CVE]]
-      ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
-      ~ (__ \ "summary"                ).format[String]
-      ~ (__ \ "severity"               ).format[String]
-      ~ (__ \ "severity_source"        ).format[String]
-      ~ (__ \ "vulnerable_component"   ).format[String]
-      ~ (__ \ "component_physical_path").format[String]
-      ~ (__ \ "impacted_artifact"      ).format[String]
-      ~ (__ \ "impact_path"            ).format[Seq[String]]
-      ~ (__ \ "path"                   ).format[String]
-      ~ (__ \ "fixed_versions"          ).format[Seq[String]]
-      ~ (__ \ "published"              ).format[Instant]
-      ~ (__ \ "artifact_scan_time"     ).format[Instant]
-      ~ (__ \ "issue_id"               ).format[String]
-      ~ (__ \ "package_type"           ).format[String]
-      ~ (__ \ "provider"               ).format[String]
-      ~ (__ \ "description"            ).format[String]
-      ~ (__ \ "references"             ).format[Seq[String]]
-      ~ (__ \ "project_keys"           ).format[Seq[String]]
-      )(apply, unlift(unapply))
+    ( (__ \ "cves"                   ).format[Seq[CVE]]
+    ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
+    ~ (__ \ "summary"                ).format[String]
+    ~ (__ \ "severity"               ).format[String]
+    ~ (__ \ "severity_source"        ).format[String]
+    ~ (__ \ "vulnerable_component"   ).format[String]
+    ~ (__ \ "component_physical_path").format[String]
+    ~ (__ \ "impacted_artifact"      ).format[String]
+    ~ (__ \ "impact_path"            ).format[Seq[String]]
+    ~ (__ \ "path"                   ).format[String]
+    ~ (__ \ "fixed_versions"         ).format[Seq[String]]
+    ~ (__ \ "published"              ).format[Instant]
+    ~ (__ \ "artifact_scan_time"     ).format[Instant]
+    ~ (__ \ "issue_id"               ).format[String]
+    ~ (__ \ "package_type"           ).format[String]
+    ~ (__ \ "provider"               ).format[String]
+    ~ (__ \ "description"            ).format[String]
+    ~ (__ \ "references"             ).format[Seq[String]]
+    ~ (__ \ "project_keys"           ).format[Seq[String]]
+    )(apply, unlift(unapply))
   }
 
   val apiFormat: OFormat[RawVulnerability] = {
     implicit val cvef = CVE.apiFormat
 
-    ( (__ \ "cves"                     ).format[Seq[CVE]]
-      ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
-      ~ (__ \ "summary"                ).format[String]
-      ~ (__ \ "severity"               ).format[String]
-      ~ (__ \ "severity_source"        ).format[String]
-      ~ (__ \ "vulnerable_component"   ).format[String]
-      ~ (__ \ "component_physical_path").format[String]
-      ~ (__ \ "impacted_artifact"      ).format[String]
-      ~ (__ \ "impact_path"            ).format[Seq[String]]
-      ~ (__ \ "path"                   ).format[String]
-      ~ (__ \ "fixed_versions"         ).format[Seq[String]]
-      ~ (__ \ "published"              ).format[Instant]
-      ~ (__ \ "artifact_scan_time"     ).format[Instant]
-      ~ (__ \ "issue_id"               ).format[String]
-      ~ (__ \ "package_type"           ).format[String]
-      ~ (__ \ "provider"               ).format[String]
-      ~ (__ \ "description"            ).format[String]
-      ~ (__ \ "references"             ).format[Seq[String]]
-      ~ (__ \ "project_keys"           ).format[Seq[String]]
+    ( (__ \ "cves"                   ).format[Seq[CVE]]
+    ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
+    ~ (__ \ "summary"                ).format[String]
+    ~ (__ \ "severity"               ).format[String]
+    ~ (__ \ "severity_source"        ).format[String]
+    ~ (__ \ "vulnerable_component"   ).format[String]
+    ~ (__ \ "component_physical_path").format[String]
+    ~ (__ \ "impacted_artifact"      ).format[String]
+    ~ (__ \ "impact_path"            ).format[Seq[String]]
+    ~ (__ \ "path"                   ).format[String]
+    ~ (__ \ "fixed_versions"         ).format[Seq[String]]
+    ~ (__ \ "published"              ).format[Instant]
+    ~ (__ \ "artifact_scan_time"     ).format[Instant]
+    ~ (__ \ "issue_id"               ).format[String]
+    ~ (__ \ "package_type"           ).format[String]
+    ~ (__ \ "provider"               ).format[String]
+    ~ (__ \ "description"            ).format[String]
+    ~ (__ \ "references"             ).format[Seq[String]]
+    ~ (__ \ "project_keys"           ).format[Seq[String]]
     )(apply, unlift(unapply))
   }
 }
@@ -221,10 +216,9 @@ case class CVE(
 )
 
 object CVE {
-  val apiFormat = {
-    ( (__ \ "cve"             ).formatNullable[String]
-      ~ (__ \ "cvss_v3_score" ).formatNullable[Double]
-      ~ (__ \ "cvss_v3_vector").formatNullable[String]
-      )(apply, unlift(unapply))
-  }
+  val apiFormat =
+    ( (__ \ "cve"           ).formatNullable[String]
+    ~ (__ \ "cvss_v3_score" ).formatNullable[Double]
+    ~ (__ \ "cvss_v3_vector").formatNullable[String]
+    )(apply, unlift(unapply))
 }

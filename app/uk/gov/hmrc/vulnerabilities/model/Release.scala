@@ -28,8 +28,8 @@ object WhatsRunningWhere {
 
   val apiFormat = {
     implicit val df = Deployment.apiFormat
-    ( (__ \ "applicationName"  ).format[String]
-      ~ (__ \ "versions"       ).format[Seq[Deployment]]
+    ( (__ \ "applicationName").format[String]
+    ~ (__ \ "versions"       ).format[Seq[Deployment]]
     )(apply, unlift(unapply))
   }
 }
@@ -40,11 +40,10 @@ case class Deployment(
 )
 
 object Deployment {
-  val apiFormat = {
-    ( (__ \ "environment"     ).format[String]
-      ~ (__ \ "versionNumber" ).format[String]
+  val apiFormat =
+    ( (__ \ "environment"  ).format[String]
+    ~ (__ \ "versionNumber").format[String]
     )(apply, unlift(unapply))
-  }
 }
 
 case class ServiceVersionDeployments(
@@ -52,6 +51,3 @@ case class ServiceVersionDeployments(
   version     : String,
   environments: Seq[String]
 )
-
-
-

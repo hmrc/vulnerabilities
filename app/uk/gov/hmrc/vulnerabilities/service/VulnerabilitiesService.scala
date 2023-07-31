@@ -49,35 +49,31 @@ class VulnerabilitiesService @Inject() (
     service        : Option[String],
     team           : Option[String],
     component      : Option[String]
-  ): Future[Seq[VulnerabilitySummary]] = {
+  ): Future[Seq[VulnerabilitySummary]] =
     vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team, component)
-  }
 
-  def vulnerabilitiesCountPerService(service: Option[String], team: Option[String], environment: Option[Environment]): Future[Seq[TotalVulnerabilityCount]] = {
+  def vulnerabilitiesCountPerService(service: Option[String], team: Option[String], environment: Option[Environment]): Future[Seq[TotalVulnerabilityCount]] =
     vulnerabilitySummariesRepository.vulnerabilitiesCount(service, team, environment).map(totalCountsPerService)
-  }
 
-  def totalCountsPerService(filteredCounts: Seq[VulnerabilityCount]): Seq[TotalVulnerabilityCount] = {
+  def totalCountsPerService(filteredCounts: Seq[VulnerabilityCount]): Seq[TotalVulnerabilityCount] =
     filteredCounts.foldLeft(Map.empty[String, TotalVulnerabilityCount])((acc, cur) => {
-      val record = acc.getOrElse(cur.service, TotalVulnerabilityCount(cur.service, 0, 0, 0, 0))
+      val record        = acc.getOrElse(cur.service, TotalVulnerabilityCount(cur.service, 0, 0, 0, 0))
       val updatedRecord = cur.curationStatus match {
-        case ActionRequired       => record.copy(actionRequired = record.actionRequired + cur.count)
-        case NoActionRequired     => record.copy(noActionRequired = record.noActionRequired + cur.count)
-        case InvestigationOngoing => record.copy(investigationOngoing = record.investigationOngoing + cur.count)
-        case Uncurated            => record.copy(uncurated = record.investigationOngoing + cur.count)
-      }
+                            case ActionRequired       => record.copy(actionRequired       = record.actionRequired + cur.count)
+                            case NoActionRequired     => record.copy(noActionRequired     = record.noActionRequired + cur.count)
+                            case InvestigationOngoing => record.copy(investigationOngoing = record.investigationOngoing + cur.count)
+                            case Uncurated            => record.copy(uncurated            = record.investigationOngoing + cur.count)
+                          }
       acc + (cur.service -> updatedRecord)
     }).values.toSeq.sortBy(_.service)
-  }
-
 
   def convertToVulnerabilitySummary(
     unrefined: Seq[UnrefinedVulnerabilitySummary],
     repoWithTeams: Map[String, Seq[String]],
     svds: Seq[ServiceVersionDeployments]
   ): Seq[VulnerabilitySummary] =
-    unrefined.map{u =>
-      val occs = u.occurrences.map{ occ =>
+    unrefined.map { u =>
+      val occs = u.occurrences.map { occ =>
         val service = occ.path.split("/")(2)
         val serviceVersion = occ.path.split("_")(1)
         VulnerabilityOccurrence(
@@ -119,14 +115,16 @@ class VulnerabilitiesService @Inject() (
   def addInvestigationsToSummaries(summaries: Seq[VulnerabilitySummary], investigations: Map[String, Assessment]): Seq[VulnerabilitySummary] =
     summaries.map { vs =>
       investigations.get(vs.distinctVulnerability.id) match {
-        case Some(inv) => vs.copy(
-          distinctVulnerability = vs.distinctVulnerability.copy(
-          assessment            = Some(inv.assessment),
-          curationStatus        = Some(inv.curationStatus),
-          ticket                = Some(inv.ticket.trim).filter(_.nonEmpty)
-              ))
-        case None => vs.copy(distinctVulnerability = vs.distinctVulnerability
-            .copy(curationStatus = Some(Uncurated))
+        case Some(inv) => vs.copy(distinctVulnerability =
+                            vs.distinctVulnerability.copy(
+                              assessment            = Some(inv.assessment),
+                              curationStatus        = Some(inv.curationStatus),
+                              ticket                = Some(inv.ticket.trim).filter(_.nonEmpty)
+                            )
+                          )
+        case None => vs.copy(distinctVulnerability =
+                        vs.distinctVulnerability.copy(curationStatus = Some(Uncurated)
+                     )
         )
       }
     }

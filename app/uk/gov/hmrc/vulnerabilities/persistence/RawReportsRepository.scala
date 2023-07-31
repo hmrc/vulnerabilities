@@ -49,7 +49,6 @@ class RawReportsRepository @Inject()(
   private val dataCutOff = configuration.get[FiniteDuration]("data.refresh-cutoff").toMillis.toInt
   private val logger = Logger(this.getClass)
 
-
   def insertReport(report: Report, name: String): Future[Unit] =
     collection
       .insertOne(report)

@@ -30,16 +30,17 @@ import scala.concurrent.ExecutionContext
 
 @Singleton()
 class VulnerabilitiesController @Inject()(
-    cc: ControllerComponents,
-    vulnerabilitiesService: VulnerabilitiesService,
-    updateVulnerabilitiesService: UpdateVulnerabilitiesService,
-    assessmentParser: AssessmentParser,
-    assessmentsRepository: AssessmentsRepository,
-    scheduler: Scheduler,
-    timelineScheduler: TimelineScheduler,
-    vulnerabilitySummariesRepository: VulnerabilitySummariesRepository
-)(implicit ec: ExecutionContext) extends BackendController(cc)
-with Logging {
+  cc                              : ControllerComponents,
+  vulnerabilitiesService          : VulnerabilitiesService,
+  updateVulnerabilitiesService    : UpdateVulnerabilitiesService,
+  assessmentParser                : AssessmentParser,
+  assessmentsRepository           : AssessmentsRepository,
+  scheduler                       : Scheduler,
+  timelineScheduler               : TimelineScheduler,
+  vulnerabilitySummariesRepository: VulnerabilitySummariesRepository
+)(implicit ec: ExecutionContext)
+  extends BackendController(cc)
+     with Logging {
 
   def distinctVulnerabilitySummaries(
     vulnerability  : Option[String] = None,
@@ -51,15 +52,12 @@ with Logging {
     Action.async {
       implicit val fmt: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
       vulnerabilitiesService.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team, component)
-        .map {
-          result => Ok(Json.toJson(result))
-        }
+        .map(result => Ok(Json.toJson(result)))
     }
 
   def getDistinctVulnerabilities(service: String): Action[AnyContent] = Action.async {
-    vulnerabilitiesService.countDistinctVulnerabilities(service).map {
-      result => Ok(Json.toJson(result))
-    }
+    vulnerabilitiesService.countDistinctVulnerabilities(service)
+      .map(result => Ok(Json.toJson(result)))
   }
 
   def updateAssessments: Action[AnyContent] = Action.async {
@@ -80,25 +78,24 @@ with Logging {
   }
 
   def testResult: Action[AnyContent] = Action.async {
-    vulnerabilitySummariesRepository.getVulnerabilitySummaries().map {
-      implicit val fmt = VulnerabilitySummary.apiFormat
-      res => Ok(Json.toJson(res))
-    }
+    implicit val fmt = VulnerabilitySummary.apiFormat
+    vulnerabilitySummariesRepository.getVulnerabilitySummaries()
+      .map(res => Ok(Json.toJson(res)))
   }
 
-  def testDeployment(serviceName: String, version: String, environment: String): Action[AnyContent] = Action.async {
-    implicit request => {
-      updateVulnerabilitiesService.updateVulnerabilities(serviceName, version, environment).map {
-        result => Ok
-      }
+  def testDeployment(serviceName: String, version: String, environment: String): Action[AnyContent] =
+    Action.async { implicit request =>
+      updateVulnerabilitiesService.updateVulnerabilities(serviceName, version, environment)
+        .map(result => Ok)
     }
-  }
 
-  def getVulnerabilityCountsPerService(service: Option[String], team: Option[String], environment: Option[Environment]): Action[AnyContent] = Action.async {
+  def getVulnerabilityCountsPerService(
+    service: Option[String],
+    team: Option[String],
+    environment: Option[Environment]
+  ): Action[AnyContent] = Action.async {
     implicit val tvw: Writes[TotalVulnerabilityCount] = TotalVulnerabilityCount.writes
-    vulnerabilitiesService.vulnerabilitiesCountPerService(service, team, environment).map {
-      result => Ok(Json.toJson(result))
-    }
+    vulnerabilitiesService.vulnerabilitiesCountPerService(service, team, environment)
+      .map(result => Ok(Json.toJson(result)))
   }
 }
-
