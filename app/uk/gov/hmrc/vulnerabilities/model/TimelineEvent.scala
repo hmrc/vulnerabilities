@@ -36,22 +36,21 @@ object TimelineEvent {
   val mongoFormat: OFormat[TimelineEvent] = {
     implicit val instantFormat = MongoJavatimeFormats.instantFormat
 
-    ( (__ \ "id"              ).format[String]
-      ~ (__ \ "service"       ).format[String]
-      ~ (__ \ "weekBeginning" ).format[Instant]
-      ~ (__ \ "teams"         ).format[Seq[String]]
-      ~ (__ \ "curationStatus").format[CurationStatus]
+    ( (__ \ "id"            ).format[String]
+    ~ (__ \ "service"       ).format[String]
+    ~ (__ \ "weekBeginning" ).format[Instant]
+    ~ (__ \ "teams"         ).format[Seq[String]]
+    ~ (__ \ "curationStatus").format[CurationStatus]
     )(apply, unlift(unapply))
   }
 
-  val apiFormat: OFormat[TimelineEvent] = {
+  val apiFormat: OFormat[TimelineEvent] =
     ( (__ \ "id"              ).format[String]
-      ~ (__ \ "service"       ).format[String]
-      ~ (__ \ "weekBeginning" ).format[Instant]
-      ~ (__ \ "teams"         ).format[Seq[String]]
-      ~ (__ \ "curationStatus").format[CurationStatus]
-      )(apply, unlift(unapply))
-  }
+    ~ (__ \ "service"       ).format[String]
+    ~ (__ \ "weekBeginning" ).format[Instant]
+    ~ (__ \ "teams"         ).format[Seq[String]]
+    ~ (__ \ "curationStatus").format[CurationStatus]
+    )(apply, unlift(unapply))
 }
 
 case class VulnerabilitiesTimelineCount(
@@ -63,14 +62,13 @@ object VulnerabilitiesTimelineCount {
 
   val mongoFormat: OFormat[VulnerabilitiesTimelineCount] = {
     implicit val instantFormat = MongoJavatimeFormats.instantFormat
-    ( (__ \ "_id"    ).format[Instant]
-      ~ (__ \ "count").format[Int]
-      )(apply, unlift(unapply))
+    ( (__ \ "_id"  ).format[Instant]
+    ~ (__ \ "count").format[Int]
+    )(apply, unlift(unapply))
   }
 
-  val apiFormat: OFormat[VulnerabilitiesTimelineCount] = {
+  val apiFormat: OFormat[VulnerabilitiesTimelineCount] =
     ( (__ \ "weekBeginning").format[Instant]
-      ~ (__ \ "count"      ).format[Int]
-      )(apply, unlift(unapply))
-  }
+    ~ (__ \ "count"        ).format[Int]
+    )(apply, unlift(unapply))
 }

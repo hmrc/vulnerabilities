@@ -22,7 +22,7 @@ import uk.gov.hmrc.vulnerabilities.utils.{Scheduler, TimelineScheduler}
 
 class VulnerabilitiesModule extends AbstractModule {
   override def configure(): Unit = {
-    bind(classOf[Scheduler]).asEagerSingleton()
+    bind(classOf[Scheduler        ]).asEagerSingleton()
     bind(classOf[TimelineScheduler]).asEagerSingleton()
     bind(classOf[DeploymentHandler]).asEagerSingleton()
     bind(classOf[DeadLetterHandler]).asEagerSingleton()

@@ -25,9 +25,8 @@ import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
 import uk.gov.hmrc.vulnerabilities.service.UpdateVulnerabilitiesService
 
-import java.time.Instant
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
@@ -45,10 +44,7 @@ class Scheduler @Inject()(
 
   private val logger = Logger(getClass)
 
-  private val dataCutOff = configuration.get[FiniteDuration]("data.refresh-cutoff")
-  private val dataReloadLock: LockService     = LockService(mongoLockRepository, "vuln-data-reload-lock", 165.minutes)
-
-  def getNow: Instant = Instant.now()
+  private val dataReloadLock: LockService = LockService(mongoLockRepository, "vuln-data-reload-lock", 165.minutes)
 
   scheduleWithLock("Vulnerabilities data Reloader", config.dataReloadScheduler, dataReloadLock) {
     implicit val hc: HeaderCarrier = HeaderCarrier()
@@ -58,12 +54,11 @@ class Scheduler @Inject()(
     } yield ()
   }
 
-  def manualReload()(implicit hc: HeaderCarrier): Future[Unit] = {
+  def manualReload()(implicit hc: HeaderCarrier): Future[Unit] =
     dataReloadLock
       .withLock {
         logger.info("Data refresh has been manually triggered")
         updateVulnerabilitiesService.updateAllVulnerabilities()
       }
       .map(_.getOrElse(logger.info(s"The Reload process is locked for ${dataReloadLock.lockId}")))
-  }
 }

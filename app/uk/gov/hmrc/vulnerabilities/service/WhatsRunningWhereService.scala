@@ -40,12 +40,11 @@ class WhatsRunningWhereService @Inject()(){
       .filterNot(_.environments.isEmpty)    //Remove any SVDs that were only deployed in Int/Dev
       .sortBy(sd => (sd.serviceName, sd.version))
 
-   def removeIntegrationAndDevelopment(wrw: WhatsRunningWhere): WhatsRunningWhere =
-     wrw.copy(deployments = wrw.deployments
-         .filterNot(dep => (dep.environment == "integration" || dep.environment == "development"))
-       )
+  def removeIntegrationAndDevelopment(wrw: WhatsRunningWhere): WhatsRunningWhere =
+    wrw.copy(deployments =
+      wrw.deployments.filterNot(dep => (dep.environment == "integration" || dep.environment == "development"))
+    )
 
   def removeSVDIfRecentReportExists(svds: Seq[ServiceVersionDeployments], recentReports: Seq[Report]): Seq[ServiceVersionDeployments] =
     svds.filterNot(svd =>recentReports.exists(rep =>rep.nameAndVersion().contains(svd.serviceName + "_" + svd.version)))
-
 }

@@ -31,14 +31,21 @@ import scala.concurrent.ExecutionContext
 class VulnerabilitiesTimelineController @Inject()(
  cc: ControllerComponents,
  vulnerabilitiesTimelineRepository: VulnerabilitiesTimelineRepository
-) (implicit ec: ExecutionContext) extends BackendController(cc)
-  with Logging {
+)(implicit ec: ExecutionContext)
+  extends BackendController(cc)
+     with Logging {
 
   implicit val fmt = VulnerabilitiesTimelineCount.apiFormat
 
-  def getTimelineCounts(service: Option[String], team: Option[String], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: Instant, to: Instant): Action[AnyContent] = Action.async {
-    vulnerabilitiesTimelineRepository.getTimelineCounts(service, team, vulnerability, curationStatus, from, to).map {
-      result => Ok(Json.toJson(result))
-    }
+  def getTimelineCounts(
+    service       : Option[String],
+    team          : Option[String],
+    vulnerability : Option[String],
+    curationStatus: Option[CurationStatus],
+    from          : Instant,
+    to            : Instant
+  ): Action[AnyContent] = Action.async {
+    vulnerabilitiesTimelineRepository.getTimelineCounts(service, team, vulnerability, curationStatus, from, to)
+      .map(result => Ok(Json.toJson(result)))
   }
 }

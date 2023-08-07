@@ -33,7 +33,7 @@ class TimelineScheduler @Inject()(
   vulnerabilitiesTimelineService: VulnerabilitiesTimelineService,
   config                        : SchedulerConfigs,
   mongoLockRepository           : MongoLockRepository,
- )( implicit
+ )(implicit
   actorSystem         : ActorSystem,
   applicationLifecycle: ApplicationLifecycle,
   ec                  : ExecutionContext
@@ -52,7 +52,7 @@ class TimelineScheduler @Inject()(
     } yield ()
   }
 
-  def manualReload()(implicit hc: HeaderCarrier): Future[Unit] = {
+  def manualReload()(implicit hc: HeaderCarrier): Future[Unit] =
     timelineUpdateLock
       .withLock {
         logger.info("vulnerabilitiesTimeline data update has been manually triggered")
@@ -62,5 +62,4 @@ class TimelineScheduler @Inject()(
         } yield ()
       }
       .map(_.getOrElse(logger.info(s"The vulnerabilitiesTimeline data update process is locked for ${timelineUpdateLock.lockId}")))
-  }
 }

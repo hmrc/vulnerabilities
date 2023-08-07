@@ -51,12 +51,12 @@ class XrayService @Inject()(
           case Left(XrayNoData)   => Future.successful(acc)
           case Left(XrayNotReady) => if (count > 0) go(count - 1)
                                      else Future.failed[Int](new RuntimeException(s"Tried to generate and download report $maxRetries times. Scheduler will cancel, and resume from this point the next time it runs. Manual cleanup will be required in the UI."))
-          case Right(report)      => rawReportsRepository.insertReport(report, payload.name).map {_ => acc + 1}
+          case Right(report)      => rawReportsRepository.insertReport(report, payload.name).map(_ => acc + 1)
       }
       go(maxRetries)
     }.map { processedCount =>
       logger.info(s"Finished processing $processedCount / ${payloads.size} payloads. " +
-      s"Note this number may differ to the number of raw reports in the collection, as we don't download reports with no rows in.")
+        s"Note this number may differ to the number of raw reports in the collection, as we don't download reports with no rows in.")
     }
   }
 
@@ -65,24 +65,24 @@ class XrayService @Inject()(
       resp    <- EitherT.liftF(xrayConnector.generateReport(payload))
       status  <- EitherT.liftF(checkIfReportReady(resp))
       report  <- status match {
-        case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, payload.name), XrayNoData: Status)
-        case XrayNoData   => for {
-                               deleted <- EitherT.liftF(xrayConnector.deleteReportFromXray((resp.reportID)))
-                               _       =  logger.info(s"${status.statusMessage} ${deleted.info}")
-                               res     <- EitherT.leftT[Future, Report](XrayNoData: Status)
-                             } yield res
-        case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)
-      }
+                   case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, payload.name), XrayNoData: Status)
+                   case XrayNoData   => for {
+                                          deleted <- EitherT.liftF(xrayConnector.deleteReportFromXray(resp.reportID))
+                                          _       =  logger.info(s"${status.statusMessage} ${deleted.info}")
+                                          res     <- EitherT.leftT[Future, Report](XrayNoData: Status)
+                                        } yield res
+                   case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)
+                 }
     } yield report
 
   def createXrayPayload(svd: ServiceVersionDeployments): ReportRequestPayload =
     ReportRequestPayload(
       name      = s"AppSec-report-${svd.serviceName}_${svd.version}",
       resources = Resource(
-        Seq(
-          XrayRepo(name = "webstore-local")
-        )
-      ),
+                    Seq(
+                      XrayRepo(name = "webstore-local")
+                    )
+                  ),
       filters   = Filter(impactedArtifact = s"*/${svd.serviceName}_${svd.version}*")
     )
 
@@ -116,12 +116,9 @@ class XrayService @Inject()(
         case ("completed", Some(rows)) if rows > 0 => Future.successful(XraySuccess)
         case ("completed", _)                      => Future.successful(XrayNoData)
         case _                                     => akka.pattern.after(1000.millis, system.scheduler) {
-          checkIfReportReady(reportRequestResponse, counter + 1)
-        }
+                                                        checkIfReportReady(reportRequestResponse, counter + 1)
+                                                      }
       }}
-    } else {
+    } else
       Future.successful(XrayNotReady)
-    }
-
-
 }
