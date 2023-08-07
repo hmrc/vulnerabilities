@@ -50,7 +50,6 @@ class UpdateVulnerabilitiesService @Inject()(
       _               <- updateVulnerabilitySummaries(svDeps)
     } yield ()
 
-
   def updateVulnerabilities(
     serviceName: String,
     version    : String,
