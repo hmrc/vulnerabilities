@@ -37,6 +37,7 @@ class VulnerabilitiesService @Inject() (
         id             = None,
         curationStatus = Some(ActionRequired.asString),
         service        = serviceWithQuotes,
+        version        = None,
         team           = None,
         component      = None
       )
@@ -47,10 +48,11 @@ class VulnerabilitiesService @Inject() (
     vulnerability  : Option[String],
     curationStatus : Option[String],
     service        : Option[String],
+    version        : Option[Version],
     team           : Option[String],
     component      : Option[String]
   ): Future[Seq[VulnerabilitySummary]] =
-    vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team, component)
+    vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, version, team, component)
 
   def vulnerabilitiesCountPerService(service: Option[String], team: Option[String], environment: Option[Environment]): Future[Seq[TotalVulnerabilityCount]] =
     vulnerabilitySummariesRepository.vulnerabilitiesCount(service, team, environment).map(totalCountsPerService)
