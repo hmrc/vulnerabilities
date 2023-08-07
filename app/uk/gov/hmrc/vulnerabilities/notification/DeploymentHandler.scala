@@ -17,9 +17,11 @@
 package uk.gov.hmrc.vulnerabilities.notification
 
 import akka.actor.ActorSystem
+import akka.NotUsed
+import akka.stream.{ActorAttributes, Materializer, Supervision}
 import akka.stream.alpakka.sqs.scaladsl.{SqsAckSink, SqsSource}
 import akka.stream.alpakka.sqs.{MessageAction, SqsSourceSettings}
-import akka.stream.{ActorAttributes, Materializer, Supervision}
+import akka.stream.scaladsl.Source
 import cats.data.EitherT
 import cats.implicits._
 import com.github.matsluni.akkahttpspi.AkkaHttpClient
@@ -39,8 +41,8 @@ import scala.util.{Failure, Try}
 
 @Singleton
 class DeploymentHandler @Inject()(
-                                   config         : DeploymentQueueConfig,
-                                   updateVulnerabilitiesService: UpdateVulnerabilitiesService
+  config                      : DeploymentQueueConfig,
+  updateVulnerabilitiesService: UpdateVulnerabilitiesService
 )(implicit
   actorSystem : ActorSystem,
   materializer: Materializer,
@@ -67,8 +69,8 @@ class DeploymentHandler @Inject()(
     }.get
 
   if (config.isEnabled)
-    SqsSource(queueUrl.toString, settings)(awsSqsClient)
-      .mapAsync(10)(processMessage)
+    dedupe(SqsSource(queueUrl.toString, settings)(awsSqsClient))
+      .mapAsync(1)(processMessage)
       .withAttributes(ActorAttributes.supervisionStrategy {
         t: Throwable => logger.error(s"Failed to process sqs messages: ${t.getMessage}", t); Supervision.Restart
       })
@@ -76,37 +78,50 @@ class DeploymentHandler @Inject()(
   else
     logger.warn("DeploymentHandler is disabled.")
 
+  def dedupe(source: Source[Message, NotUsed]): Source[Message, NotUsed] =
+    Source.single(Message.builder.messageId("----------").build) // dummy value since the dedupe will ignore the first entry
+    .concat(source)
+    // are we getting duplicates?
+    .sliding(2, 1)
+    .mapConcat { case prev +: current +: _=>
+        if (prev.messageId == current.messageId) {
+          logger.warn(s"Read the same slug message ID twice ${prev.messageId} - ignoring duplicate")
+          List.empty
+        }
+        else List(current)
+    }
+
   private def processMessage(message: Message): Future[MessageAction] = {
     logger.info(s"Starting processing Deployment message with ID '${message.messageId()}'")
-      (for {
-         payload <- EitherT.fromEither[Future](
-                      Json.parse(message.body)
-                        .validate(mdtpEventReads)
-                        .asEither.left.map(error => s"Could not parse message with ID '${message.messageId()}'.  Reason: " + error.toString)
-                    )
-         _       <- (payload.eventType, payload.optEnvironment) match {
-                      case ("deployment-complete", Some(environment)) =>
-                        EitherT.liftF[Future, String, Unit](updateVulnerabilitiesService.updateVulnerabilities(
-                            environment         = environment.asString,
-                            serviceName = payload.serviceName.asString,
-                            version  = payload.version.toString
-                          ))
-                      case (_, None) =>
-                        logger.info(s"Not processing message '${message.messageId()}' with unrecognised environment")
-                        EitherT.pure[Future, String](())
-                      case (eventType, _) =>
-                        logger.info(s"Not processing message '${message.messageId()}' with event_type $eventType")
-                        EitherT.pure[Future, String](())
-                    }
-        } yield {
-          logger.info(s"Deployment message with ID '${message.messageId()}' successfully processed.")
-          MessageAction.Delete(message)
-        }
-      ).value.map {
-        case Left(error)   => logger.error(error)
-                              MessageAction.Ignore(message)
-        case Right(action) => action
+    (for {
+       payload <- EitherT.fromEither[Future](
+                    Json.parse(message.body)
+                      .validate(mdtpEventReads)
+                      .asEither.left.map(error => s"Could not parse message with ID '${message.messageId()}'.  Reason: " + error.toString)
+                  )
+       _       <- (payload.eventType, payload.optEnvironment) match {
+                    case ("deployment-complete", Some(environment)) =>
+                      EitherT.liftF[Future, String, Unit](updateVulnerabilitiesService.updateVulnerabilities(
+                          environment = environment.asString,
+                          serviceName = payload.serviceName.asString,
+                          version     = payload.version.toString
+                        ))
+                    case (_, None) =>
+                      logger.info(s"Not processing message '${message.messageId()}' with unrecognised environment")
+                      EitherT.pure[Future, String](())
+                    case (eventType, _) =>
+                      logger.info(s"Not processing message '${message.messageId()}' with event_type $eventType")
+                      EitherT.pure[Future, String](())
+                  }
+      } yield {
+        logger.info(s"Deployment message with ID '${message.messageId()}' successfully processed.")
+        MessageAction.Delete(message)
       }
+    ).value.map {
+      case Left(error)   => logger.error(error)
+                            MessageAction.Ignore(message)
+      case Right(action) => action
+    }
   }
 }
 
