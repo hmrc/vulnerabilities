@@ -29,7 +29,7 @@ import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositoryS
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
-import uk.gov.hmrc.vulnerabilities.model.{CVE, Filter, RawVulnerability, Report, ReportDelete, ReportRequest, ReportResponse, ReportStatus, Resource, ServiceVersionDeployments, XrayNotReady, XrayNoData, XrayRepo, XraySuccess}
+import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report, ReportDelete, ReportResponse, ReportStatus, ServiceVersionDeployments, XrayNotReady, XrayNoData, XraySuccess}
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
 import java.io.ByteArrayInputStream
@@ -53,33 +53,6 @@ class XrayServiceSpec extends AnyWordSpec
   implicit val hc: HeaderCarrier = HeaderCarrier()
 
   override lazy val repository = new RawReportsRepository(mongoComponent, configuration)
-  "XrayService" when {
-    "creating an xray payload" should {
-      "Transform a serviceVersionDeployments into a ReportRequestPayload" in {
-        val svd1 = ServiceVersionDeployments(serviceName = "service1", version = "1.0", environments = Seq("production"))
-
-        val xrayConnector = mock[XrayConnector]
-        val actorSystem = mock[ActorSystem]
-        val repository = mock[RawReportsRepository]
-
-        val service = new XrayService(
-          xrayConnector,
-          actorSystem,
-          repository
-        )
-
-        val expectedResult = ReportRequest(
-          name = s"AppSec-report-service1_1.0",
-          resources = Resource(Seq(XrayRepo(name = "webstore-local"))),
-          filters = Filter(impactedArtifact = s"*/service1_1.0*")
-        )
-
-        val res = service.createXrayPayload(svd1)
-
-        res shouldBe (expectedResult)
-      }
-    }
-  }
 
   "processReports" when {
     "given a list of service version deployments" should {
@@ -126,8 +99,8 @@ class XrayServiceSpec extends AnyWordSpec
   "getReport" when {
     "given a reportId and Name" should {
       "request a report, unzip the report, and parse it to the Report case class" in new Setup {
-        when(xrayConnector.downloadReport(1, "AppSec-report-service1_1.0.4")).thenReturn(Future(new ByteArrayInputStream("".getBytes())))
-        Some(""""{total_rows": 1,
+        when(xrayConnector.downloadReport(1, svd)).thenReturn(Future(new ByteArrayInputStream("".getBytes())))
+        Some("""{"total_rows": 1,
                |  "rows": [
                |    {
                |      "cves": [{"cve": "CVE-2022-12345","cvss_v3_score": 8.0,"cvss_v3_vector": "test"}],
@@ -153,16 +126,16 @@ class XrayServiceSpec extends AnyWordSpec
                |    ]
                |}""".stripMargin) willBe returned by spy.unzipReport(any())
 
-        val res = spy.getReport(1, "AppSec-report-service1_1.0.4").futureValue.map(rep => rep.copy(generatedDate = now))
+        val res = spy.getReport(1, svd).futureValue.map(rep => rep.copy(generatedDate = now))
         res.get shouldBe report1
       }
     }
 
     "unzip report returns None" should {
       "return none, and not attempt to parse the case class" in new Setup {
-        when(xrayConnector.downloadReport(2, "AppSec-report-service1_1.0.4")).thenReturn(Future(new ByteArrayInputStream("".getBytes())))
+        when(xrayConnector.downloadReport(2, svd)).thenReturn(Future(new ByteArrayInputStream("".getBytes())))
         None willBe returned by spy.unzipReport(any())
-        spy.getReport(2, "AppSec-report-service1_1.0.4").futureValue shouldBe None
+        spy.getReport(2, svd).futureValue shouldBe None
       }
     }
 
@@ -219,6 +192,7 @@ class XrayServiceSpec extends AnyWordSpec
     //and also want to pass a real repository, rather than a mocked one into the test.
     val spy = Mockito.spy( new XrayService(xrayConnector, actorSystem, repository))
 
+    val svd = ServiceVersionDeployments(serviceName = "service1", version = "1.0.4", environments = Seq("production"))
 
     val svd1 = ServiceVersionDeployments(serviceName = "service1", version = "1.0", environments = Seq("production"))
     val svd2 = ServiceVersionDeployments(serviceName = "service2", version = "2.0", environments = Seq("production"))
@@ -226,23 +200,10 @@ class XrayServiceSpec extends AnyWordSpec
     val svd4 = ServiceVersionDeployments(serviceName = "service4", version = "4.0", environments = Seq("production"))
     val svds = Seq(svd1, svd2, svd3)
 
-
-    val payload1 = ReportRequest(name = s"AppSec-report-service1_1.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service1_1.0*"))
-    val payload2 = ReportRequest(name = s"AppSec-report-service2_2.0",   resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service2_2.0*"))
-    val payload3 = ReportRequest(name = s"AppSec-report-service3_3.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service3_3.0*"))
-    val payload4 = ReportRequest(name = s"AppSec-report-service4_4.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service4_4.0*"))
-
-
     val reportRequestResponse1 = ReportResponse(reportID = 1, status = "pending")
     val reportRequestResponse2 = ReportResponse(reportID = 2, status = "pending")
     val reportRequestResponse3 = ReportResponse(reportID = 3, status = "pending")
     val reportRequestResponse4 = ReportResponse(reportID = 4, status = "pending")
-
-    //mock createXrayPayload
-    payload1 willBe returned by spy.createXrayPayload(svd1)
-    payload2 willBe returned by spy.createXrayPayload(svd2)
-    payload3 willBe returned by spy.createXrayPayload(svd3)
-    payload4 willBe returned by spy.createXrayPayload(svd4)
 
     //mock checkXrayResponse
     Future(XraySuccess) willBe returned by spy.checkIfReportReady(reportRequestResponse1, anyInt())
@@ -251,17 +212,17 @@ class XrayServiceSpec extends AnyWordSpec
     Future(XrayNotReady) willBe returned by spy.checkIfReportReady(reportRequestResponse4, anyInt())
 
     //mock xray Connector
-    when(xrayConnector.generateReport(payload1)).thenReturn(Future(reportRequestResponse1))
-    when(xrayConnector.generateReport(payload2)).thenReturn(Future(reportRequestResponse2))
-    when(xrayConnector.generateReport(payload3)).thenReturn(Future(reportRequestResponse3))
-    when(xrayConnector.generateReport(payload4)).thenReturn(Future(reportRequestResponse4))
+    when(xrayConnector.generateReport(svd1)).thenReturn(Future(reportRequestResponse1))
+    when(xrayConnector.generateReport(svd2)).thenReturn(Future(reportRequestResponse2))
+    when(xrayConnector.generateReport(svd3)).thenReturn(Future(reportRequestResponse3))
+    when(xrayConnector.generateReport(svd4)).thenReturn(Future(reportRequestResponse4))
 
     when(xrayConnector.deleteReportFromXray(anyInt())(any[HeaderCarrier])).thenReturn(Future(ReportDelete("Report successfully deleted")))
 
     //mock getReport
 
-    Future(Some(report1)) willBe returned by spy.getReport(reportRequestResponse1.reportID, payload1.name)
-    Future(Some(report3)) willBe returned by spy.getReport(reportRequestResponse3.reportID, payload3.name)
+    Future(Some(report1)) willBe returned by spy.getReport(reportRequestResponse1.reportID, svd1)
+    Future(Some(report3)) willBe returned by spy.getReport(reportRequestResponse3.reportID, svd3)
 
     lazy val report1: Report =
       Report(

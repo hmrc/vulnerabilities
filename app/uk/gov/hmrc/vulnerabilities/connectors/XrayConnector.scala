@@ -20,10 +20,10 @@ import akka.stream.Materializer
 import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
 import play.api.Logging
-import play.api.libs.json.Json
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
+import play.api.libs.json.{Json, __}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.vulnerabilities.model.{ReportDelete, ReportRequest, ReportResponse, ReportStatus}
+import uk.gov.hmrc.vulnerabilities.model.{ReportDelete, ReportResponse, ReportStatus, ServiceVersionDeployments}
 import uk.gov.hmrc.vulnerabilities.config.XrayConfig
 
 import java.io.InputStream
@@ -42,16 +42,18 @@ class XrayConnector @Inject() (
 
   private val token = config.xrayToken
 
-  def generateReport(payload: ReportRequest)(implicit hc: HeaderCarrier): Future[ReportResponse] = {
-    implicit val pfmt = ReportRequest.apiFormat
+  def generateReport(svd: ServiceVersionDeployments)(implicit hc: HeaderCarrier): Future[ReportResponse] = {
     implicit val rfmt = ReportResponse.apiFormat
+
+    val requestBody =
+      s"""{"name":"AppSec-report-${svd.serviceName}_${svd.version}","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/${svd.serviceName}_${svd.version}*"}}"""
 
     httpClientV2
       .post(url"${config.xrayBaseUrl}/vulnerabilities")
       .setHeader(
         "Authorization" -> s"Bearer $token",
         "Content-Type"  -> "application/json"
-      ).withBody(Json.toJson(payload))
+      ).withBody(Json.parse(requestBody))
       .execute[ReportResponse]
   }
 
@@ -66,8 +68,9 @@ class XrayConnector @Inject() (
       .execute[ReportStatus]
   }
 
-  def downloadReport(reportId: Int, filename: String)(implicit hc: HeaderCarrier): Future[InputStream] = {
-    val url = url"${config.xrayBaseUrl}/export/$reportId?file_name=$filename&format=json"
+  def downloadReport(reportId: Int, svd: ServiceVersionDeployments)(implicit hc: HeaderCarrier): Future[InputStream] = {
+    val fileName = s"AppSec-report-${svd.serviceName}_${svd.version}"
+    val url = url"${config.xrayBaseUrl}/export/$reportId?file_name=${fileName}&format=json"
     httpClientV2
       .get(url)
       .setHeader(
