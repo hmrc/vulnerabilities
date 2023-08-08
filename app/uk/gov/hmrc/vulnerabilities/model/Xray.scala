@@ -22,13 +22,13 @@ import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant
 
-case class ReportRequestPayload(
+case class ReportRequest(
  name     : String,
  resources: Resource,
  filters  : Filter
 )
 
-object ReportRequestPayload {
+object ReportRequest {
   val apiFormat = {
     implicit val rf = Resource.apiFormat
     implicit val ff = Filter.apiFormat
@@ -70,12 +70,12 @@ object Filter {
     (__ \ "impacted_artifact" ).format[String].inmap(Filter.apply, unlift(Filter.unapply))
 }
 
-case class ReportRequestResponse(
+case class ReportResponse(
   reportID: Int,
   status  : String,
 )
 
-object ReportRequestResponse {
+object ReportResponse {
 
   val apiFormat =
   ( (__ \ "report_id").format[Int]

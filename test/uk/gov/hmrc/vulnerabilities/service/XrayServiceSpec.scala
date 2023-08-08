@@ -29,7 +29,7 @@ import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositoryS
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
-import uk.gov.hmrc.vulnerabilities.model.{CVE, Filter, RawVulnerability, Report, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus, Resource, ServiceVersionDeployments, XrayNotReady, XrayNoData, XrayRepo, XraySuccess}
+import uk.gov.hmrc.vulnerabilities.model.{CVE, Filter, RawVulnerability, Report, ReportDelete, ReportRequest, ReportResponse, ReportStatus, Resource, ServiceVersionDeployments, XrayNotReady, XrayNoData, XrayRepo, XraySuccess}
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
 import java.io.ByteArrayInputStream
@@ -68,7 +68,7 @@ class XrayServiceSpec extends AnyWordSpec
           repository
         )
 
-        val expectedResult = ReportRequestPayload(
+        val expectedResult = ReportRequest(
           name = s"AppSec-report-service1_1.0",
           resources = Resource(Seq(XrayRepo(name = "webstore-local"))),
           filters = Filter(impactedArtifact = s"*/service1_1.0*")
@@ -179,14 +179,14 @@ class XrayServiceSpec extends AnyWordSpec
     "a report that is ready" should {
       "return an XraySuccess" in {
         when(xrayConnector.checkStatus(id = 1)).thenReturn(Future(ReportStatus(status = "completed", rowCount = Some(1))))
-        service.checkIfReportReady((ReportRequestResponse(1, "pending")), 0).futureValue shouldBe XraySuccess
+        service.checkIfReportReady((ReportResponse(1, "pending")), 0).futureValue shouldBe XraySuccess
       }
     }
 
     "a report that has no rows" should {
       "return an XrayNoData" in {
         when(xrayConnector.checkStatus(id = 2)).thenReturn(Future(ReportStatus(status = "completed", rowCount = Some(0))))
-        service.checkIfReportReady((ReportRequestResponse(2, "pending")), 0).futureValue shouldBe XrayNoData
+        service.checkIfReportReady((ReportResponse(2, "pending")), 0).futureValue shouldBe XrayNoData
       }
     }
 
@@ -194,7 +194,7 @@ class XrayServiceSpec extends AnyWordSpec
       "eventually return an XrayFailure" in {
 
         when(xrayConnector.checkStatus(id = 3)).thenReturn(Future(ReportStatus(status = "creating", rowCount = None)))
-        val resF = service.checkIfReportReady((ReportRequestResponse(3, "pending")))
+        val resF = service.checkIfReportReady((ReportResponse(3, "pending")))
 
         Thread.sleep(16000) //as it should return XrayFailure after 15 loops of 1 second
 
@@ -227,16 +227,16 @@ class XrayServiceSpec extends AnyWordSpec
     val svds = Seq(svd1, svd2, svd3)
 
 
-    val payload1 = ReportRequestPayload(name = s"AppSec-report-service1_1.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service1_1.0*"))
-    val payload2 = ReportRequestPayload(name = s"AppSec-report-service2_2.0",   resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service2_2.0*"))
-    val payload3 = ReportRequestPayload(name = s"AppSec-report-service3_3.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service3_3.0*"))
-    val payload4 = ReportRequestPayload(name = s"AppSec-report-service4_4.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service4_4.0*"))
+    val payload1 = ReportRequest(name = s"AppSec-report-service1_1.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service1_1.0*"))
+    val payload2 = ReportRequest(name = s"AppSec-report-service2_2.0",   resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service2_2.0*"))
+    val payload3 = ReportRequest(name = s"AppSec-report-service3_3.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service3_3.0*"))
+    val payload4 = ReportRequest(name = s"AppSec-report-service4_4.0.4", resources = Resource(Seq(XrayRepo(name = "webstore-local"))), filters = Filter(impactedArtifact = s"*/service4_4.0*"))
 
 
-    val reportRequestResponse1 = ReportRequestResponse(reportID = 1, status = "pending")
-    val reportRequestResponse2 = ReportRequestResponse(reportID = 2, status = "pending")
-    val reportRequestResponse3 = ReportRequestResponse(reportID = 3, status = "pending")
-    val reportRequestResponse4 = ReportRequestResponse(reportID = 4, status = "pending")
+    val reportRequestResponse1 = ReportResponse(reportID = 1, status = "pending")
+    val reportRequestResponse2 = ReportResponse(reportID = 2, status = "pending")
+    val reportRequestResponse3 = ReportResponse(reportID = 3, status = "pending")
+    val reportRequestResponse4 = ReportResponse(reportID = 4, status = "pending")
 
     //mock createXrayPayload
     payload1 willBe returned by spy.createXrayPayload(svd1)

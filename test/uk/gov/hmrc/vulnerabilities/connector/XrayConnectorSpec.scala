@@ -29,7 +29,7 @@ import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.vulnerabilities.config.XrayConfig
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
-import uk.gov.hmrc.vulnerabilities.model.{Filter, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus, Resource, XrayRepo}
+import uk.gov.hmrc.vulnerabilities.model.{Filter, ReportDelete, ReportRequest, ReportResponse, ReportStatus, Resource, XrayRepo}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -55,7 +55,7 @@ class XrayConnectorSpec
   implicit private val materializer: Materializer = mock[Materializer]
   private val connector = new XrayConnector(httpClientV2, config)
 
-  val payload: ReportRequestPayload =  ReportRequestPayload(
+  val payload: ReportRequest =  ReportRequest(
     name      = s"AppSec-report-service1_5.4.0",
     resources = Resource(Seq(XrayRepo(name = "webstore-local"))),
     filters   = Filter(impactedArtifact = s"*/service1_5.4.0*")
@@ -69,7 +69,7 @@ class XrayConnectorSpec
         ))
 
         val res = connector.generateReport(payload).futureValue
-        res shouldBe ReportRequestResponse(reportID = 1, status = "pending")
+        res shouldBe ReportResponse(reportID = 1, status = "pending")
       }
     }
   }

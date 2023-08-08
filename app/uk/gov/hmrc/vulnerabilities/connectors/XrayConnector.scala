@@ -23,7 +23,7 @@ import play.api.Logging
 import play.api.libs.json.Json
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.vulnerabilities.model.{ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus}
+import uk.gov.hmrc.vulnerabilities.model.{ReportDelete, ReportRequest, ReportResponse, ReportStatus}
 import uk.gov.hmrc.vulnerabilities.config.XrayConfig
 
 import java.io.InputStream
@@ -42,9 +42,9 @@ class XrayConnector @Inject() (
 
   private val token = config.xrayToken
 
-  def generateReport(payload: ReportRequestPayload)(implicit hc: HeaderCarrier): Future[ReportRequestResponse] = {
-    implicit val pfmt = ReportRequestPayload.apiFormat
-    implicit val rfmt = ReportRequestResponse.apiFormat
+  def generateReport(payload: ReportRequest)(implicit hc: HeaderCarrier): Future[ReportResponse] = {
+    implicit val pfmt = ReportRequest.apiFormat
+    implicit val rfmt = ReportResponse.apiFormat
 
     httpClientV2
       .post(url"${config.xrayBaseUrl}/vulnerabilities")
@@ -52,7 +52,7 @@ class XrayConnector @Inject() (
         "Authorization" -> s"Bearer $token",
         "Content-Type"  -> "application/json"
       ).withBody(Json.toJson(payload))
-      .execute[ReportRequestResponse]
+      .execute[ReportResponse]
   }
 
   def checkStatus(id: Int)(implicit hc: HeaderCarrier): Future[ReportStatus] = {

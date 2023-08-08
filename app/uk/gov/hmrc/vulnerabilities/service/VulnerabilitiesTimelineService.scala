@@ -42,7 +42,7 @@ class VulnerabilitiesTimelineService @Inject()(
    for {
       reposWithTeams                  <- teamsAndRepositoriesConnector.getCurrentReleases()
       serviceVulnerabilities          <- rawReportsRepository.getTimelineData(processingCutoff)
-      serviceVulnerabilitiesWithTeams  = addTeamsToServiceVulnerability(serviceVulnerabilities, reposWithTeams)
+      serviceVulnerabilitiesWithTeams =  addTeamsToServiceVulnerability(serviceVulnerabilities, reposWithTeams)
       _                               <- vulnerabilitiesTimelineRepository.replaceOrInsert(serviceVulnerabilitiesWithTeams)
     } yield ()
   }

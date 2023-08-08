@@ -60,7 +60,7 @@ class XrayService @Inject()(
     }
   }
 
-  private def generateReport(payload: ReportRequestPayload)(implicit hc: HeaderCarrier): EitherT[Future, Status, Report] =
+  private def generateReport(payload: ReportRequest)(implicit hc: HeaderCarrier): EitherT[Future, Status, Report] =
     for {
       resp    <- EitherT.liftF(xrayConnector.generateReport(payload))
       status  <- EitherT.liftF(checkIfReportReady(resp))
@@ -75,8 +75,8 @@ class XrayService @Inject()(
                  }
     } yield report
 
-  def createXrayPayload(svd: ServiceVersionDeployments): ReportRequestPayload =
-    ReportRequestPayload(
+  def createXrayPayload(svd: ServiceVersionDeployments): ReportRequest =
+    ReportRequest(
       name      = s"AppSec-report-${svd.serviceName}_${svd.version}",
       resources = Resource(
                     Seq(
@@ -109,7 +109,7 @@ class XrayService @Inject()(
     }
    }
 
-  def checkIfReportReady(reportRequestResponse: ReportRequestResponse, counter: Int = 0)(implicit hc: HeaderCarrier): Future[Status] =
+  def checkIfReportReady(reportRequestResponse: ReportResponse, counter: Int = 0)(implicit hc: HeaderCarrier): Future[Status] =
     //Timeout after 15 secs
     if (counter < 15) {
       xrayConnector.checkStatus(reportRequestResponse.reportID).flatMap { rs => (rs.status, rs.rowCount) match {
