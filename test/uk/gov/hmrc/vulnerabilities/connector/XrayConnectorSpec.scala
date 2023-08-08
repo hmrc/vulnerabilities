@@ -18,9 +18,8 @@ package uk.gov.hmrc.vulnerabilities.connector
 
 import akka.stream.Materializer
 import com.github.tomakehurst.wiremock.client.WireMock
-import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, stubFor, urlMatching}
+import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, containing, equalToJson, postRequestedFor, stubFor, urlEqualTo, urlMatching}
 import org.mockito.MockitoSugar
-import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -29,7 +28,7 @@ import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.vulnerabilities.config.XrayConfig
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
-import uk.gov.hmrc.vulnerabilities.model.{Filter, ReportDelete, ReportRequestPayload, ReportRequestResponse, ReportStatus, Resource, XrayRepo}
+import uk.gov.hmrc.vulnerabilities.model.{ReportDelete, ReportResponse, ReportStatus, ServiceVersionDeployments}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -39,7 +38,6 @@ class XrayConnectorSpec
      with ScalaFutures
      with IntegrationPatience
      with HttpClientV2Support
-     with BeforeAndAfterAll
      with MockitoSugar
      with WireMockSupport {
 
@@ -55,21 +53,42 @@ class XrayConnectorSpec
   implicit private val materializer: Materializer = mock[Materializer]
   private val connector = new XrayConnector(httpClientV2, config)
 
-  val payload: ReportRequestPayload =  ReportRequestPayload(
-    name      = s"AppSec-report-service1_5.4.0",
-    resources = Resource(Seq(XrayRepo(name = "webstore-local"))),
-    filters   = Filter(impactedArtifact = s"*/service1_5.4.0*")
-  )
+  val svd = ServiceVersionDeployments(serviceName = "service1", version = "5.4.0", environments = Seq("production"))
 
   "generateReport" when {
-    "given a report request body" should {
-      "return a ReportRequestResponse" in {
-        stubFor(WireMock.post(urlMatching("/vulnerabilities")).willReturn(
+    "given a serviceVersionDeployments" should {
+      "generate the expected request body" in {
+        val expectedRequestBody =
+          """{"name":"AppSec-report-service1_5.4.0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*"}}"""
+
+        stubFor(WireMock.post(urlMatching("/vulnerabilities"))
+          .withRequestBody(containing(expectedRequestBody))
+          .willReturn(
             aResponse().withBody(s"""{"report_id":1,"status":"pending"}""")
         ))
 
-        val res = connector.generateReport(payload).futureValue
-        res shouldBe ReportRequestResponse(reportID = 1, status = "pending")
+        val res = connector.generateReport(svd).futureValue
+
+        wireMockServer.verify(postRequestedFor(urlEqualTo("/vulnerabilities"))
+          .withRequestBody(equalToJson(expectedRequestBody)
+        ))
+
+      }
+    }
+
+    "it receives a valid response" should {
+      "return a ReportRequestResponse" in {
+        val expectedRequestBody =
+          """{"name":"AppSec-report-service1_5.4.0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*"}}"""
+
+        stubFor(WireMock.post(urlMatching("/vulnerabilities"))
+          .withRequestBody(containing(expectedRequestBody))
+          .willReturn(
+            aResponse().withBody(s"""{"report_id":1,"status":"pending"}""")
+        ))
+
+        val res = connector.generateReport(svd).futureValue
+        res shouldBe ReportResponse(reportID = 1, status = "pending")
       }
     }
   }

@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities
 
-import uk.gov.hmrc.vulnerabilities.model.{CVE, Filter, RawVulnerability, Report, ReportRequestPayload, Resource, XrayRepo}
+import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report}
 
 import java.nio.file.{Files, Paths}
 import java.time.{Instant, LocalDateTime, ZoneOffset}
@@ -160,18 +160,5 @@ object StubResponses {
         projectKeys = Seq()
       )),
     generatedDate = now.minus(23, ChronoUnit.HOURS)
-  )
-}
-
-object generatedValues {
-  val payload1 = ReportRequestPayload(
-    name      = s"AppSec-report-Service1_0.835.0",
-    resources = Resource(Seq(XrayRepo(name = "webstore-local"))),
-    filters   = Filter(impactedArtifact = s"*/Service1_0.836.0*")
-  )
-  val payload2 = ReportRequestPayload(
-    name      = s"AppSec-report-Service1_0.836.0",
-    resources = Resource(Seq(XrayRepo(name = "webstore-local"))),
-    filters   = Filter(impactedArtifact = s"*/Service1_0.835.0*")
   )
 }

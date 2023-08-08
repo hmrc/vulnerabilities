@@ -22,60 +22,12 @@ import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant
 
-case class ReportRequestPayload(
- name     : String,
- resources: Resource,
- filters  : Filter
-)
-
-object ReportRequestPayload {
-  val apiFormat = {
-    implicit val rf = Resource.apiFormat
-    implicit val ff = Filter.apiFormat
-
-    ( (__ \ "name"     ).format[String]
-    ~ (__ \ "resources").format[Resource]
-    ~ (__ \ "filters"  ).format[Filter]
-    )(apply, unlift(unapply))
-  }
-}
-
-case class Resource(
-  repositories: Seq[XrayRepo]
-)
-
-object Resource {
-  val apiFormat = {
-    implicit val xrf = XrayRepo.apiFormat
-    //Single field case classes require invariant map to format.
-    (__ \ "repositories").format[Seq[XrayRepo]].inmap(Resource.apply, unlift(Resource.unapply))
-  }
-}
-
-case class XrayRepo(
-  name: String
-)
-
-object XrayRepo {
-  val apiFormat =
-    (__ \ "name").format[String].inmap(XrayRepo.apply, unlift(XrayRepo.unapply))
-}
-
-case class Filter(
-  impactedArtifact: String
-)
-
-object Filter {
-  val apiFormat =
-    (__ \ "impacted_artifact" ).format[String].inmap(Filter.apply, unlift(Filter.unapply))
-}
-
-case class ReportRequestResponse(
+case class ReportResponse(
   reportID: Int,
   status  : String,
 )
 
-object ReportRequestResponse {
+object ReportResponse {
 
   val apiFormat =
   ( (__ \ "report_id").format[Int]

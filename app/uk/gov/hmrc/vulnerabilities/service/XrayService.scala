@@ -43,29 +43,28 @@ class XrayService @Inject()(
   private val logger = Logger(this.getClass)
 
   def processReports(svds: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier): Future[Unit] = {
-    val payloads = svds.map(createXrayPayload).toList
-    payloads.foldLeftM(0){(acc, payload) =>
+    svds.foldLeftM(0){(acc, svd) =>
       val maxRetries = 3
       def go(count: Int): Future[Int] =
-        generateReport(payload).value.flatMap {
+        generateReport(svd).value.flatMap {
           case Left(XrayNoData)   => Future.successful(acc)
           case Left(XrayNotReady) => if (count > 0) go(count - 1)
-                                     else Future.failed[Int](new RuntimeException(s"Tried to generate and download report $maxRetries times. Scheduler will cancel, and resume from this point the next time it runs. Manual cleanup will be required in the UI."))
-          case Right(report)      => rawReportsRepository.insertReport(report, payload.name).map(_ => acc + 1)
+                                     else Future.failed[Int](new RuntimeException(s"Tried to generate and download report for ${svd.serviceName}:${svd.serviceName} $maxRetries times. Scheduler will cancel, and resume from this point the next time it runs. Manual cleanup will be required in the UI."))
+          case Right(report)      => rawReportsRepository.insertReport(report, svd.serviceName).map(_ => acc + 1)
       }
       go(maxRetries)
     }.map { processedCount =>
-      logger.info(s"Finished processing $processedCount / ${payloads.size} payloads. " +
+      logger.info(s"Finished processing $processedCount / ${svds.size} reports. " +
         s"Note this number may differ to the number of raw reports in the collection, as we don't download reports with no rows in.")
     }
   }
 
-  private def generateReport(payload: ReportRequestPayload)(implicit hc: HeaderCarrier): EitherT[Future, Status, Report] =
+  private def generateReport(svd: ServiceVersionDeployments)(implicit hc: HeaderCarrier): EitherT[Future, Status, Report] =
     for {
-      resp    <- EitherT.liftF(xrayConnector.generateReport(payload))
+      resp    <- EitherT.liftF(xrayConnector.generateReport(svd))
       status  <- EitherT.liftF(checkIfReportReady(resp))
       report  <- status match {
-                   case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, payload.name), XrayNoData: Status)
+                   case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, svd), XrayNoData: Status)
                    case XrayNoData   => for {
                                           deleted <- EitherT.liftF(xrayConnector.deleteReportFromXray(resp.reportID))
                                           _       =  logger.info(s"${status.statusMessage} ${deleted.info}")
@@ -75,21 +74,10 @@ class XrayService @Inject()(
                  }
     } yield report
 
-  def createXrayPayload(svd: ServiceVersionDeployments): ReportRequestPayload =
-    ReportRequestPayload(
-      name      = s"AppSec-report-${svd.serviceName}_${svd.version}",
-      resources = Resource(
-                    Seq(
-                      XrayRepo(name = "webstore-local")
-                    )
-                  ),
-      filters   = Filter(impactedArtifact = s"*/${svd.serviceName}_${svd.version}*")
-    )
-
-  def getReport(reportId: Int, name: String)(implicit hc: HeaderCarrier): Future[Option[Report]] = {
+  def getReport(reportId: Int, svd: ServiceVersionDeployments)(implicit hc: HeaderCarrier): Future[Option[Report]] = {
     implicit val rfmt = Report.apiFormat
     for {
-      zip     <- xrayConnector.downloadReport(reportId, name)
+      zip     <- xrayConnector.downloadReport(reportId, svd)
       _       <- xrayConnector.deleteReportFromXray(reportId)
       _        = logger.info("Report has been deleted from the Xray UI")
       text     = unzipReport(zip)
@@ -109,7 +97,7 @@ class XrayService @Inject()(
     }
    }
 
-  def checkIfReportReady(reportRequestResponse: ReportRequestResponse, counter: Int = 0)(implicit hc: HeaderCarrier): Future[Status] =
+  def checkIfReportReady(reportRequestResponse: ReportResponse, counter: Int = 0)(implicit hc: HeaderCarrier): Future[Status] =
     //Timeout after 15 secs
     if (counter < 15) {
       xrayConnector.checkStatus(reportRequestResponse.reportID).flatMap { rs => (rs.status, rs.rowCount) match {
