@@ -47,16 +47,6 @@ object ReportStatus {
     )(apply, unlift(unapply))
 }
 
-case class ReportDelete(
- info: String
-)
-
-object ReportDelete {
-  val apiFormat = {
-    (__ \ "info").format[String].inmap(ReportDelete.apply, unlift(ReportDelete.unapply))
-  }
-}
-
 case class Report(
  rows         : Seq[RawVulnerability],
  generatedDate: Instant

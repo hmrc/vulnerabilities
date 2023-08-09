@@ -21,9 +21,9 @@ import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
 import play.api.Logging
 import play.api.libs.json.{Json, __}
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, HttpResponse, StringContextOps, UpstreamErrorResponse}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.vulnerabilities.model.{ReportDelete, ReportResponse, ReportStatus, ServiceVersionDeployments}
+import uk.gov.hmrc.vulnerabilities.model.{ReportResponse, ReportStatus, ServiceVersionDeployments}
 import uk.gov.hmrc.vulnerabilities.config.XrayConfig
 
 import java.io.InputStream
@@ -88,14 +88,11 @@ class XrayConnector @Inject() (
       }
   }
 
-    def deleteReportFromXray(reportId: Int)(implicit hc: HeaderCarrier): Future[ReportDelete] = {
-      implicit val rdf = ReportDelete.apiFormat
-
+    def deleteReportFromXray(reportId: Int)(implicit hc: HeaderCarrier): Future[Unit] =
       httpClientV2
         .delete(url"${config.xrayBaseUrl}/$reportId")
         .setHeader(
           "Authorization" -> s"Bearer $token",
           "Content-Type"  -> "application/json"
-        ).execute[ReportDelete]
-    }
+        ).execute[Unit](throwOnFailure(implicitly[HttpReads[Either[UpstreamErrorResponse, Unit]]]), implicitly[ExecutionContext])
 }

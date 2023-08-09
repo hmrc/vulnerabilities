@@ -66,8 +66,8 @@ class XrayService @Inject()(
       report  <- status match {
                    case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, svd), XrayNoData: Status)
                    case XrayNoData   => for {
-                                          deleted <- EitherT.liftF(xrayConnector.deleteReportFromXray(resp.reportID))
-                                          _       =  logger.info(s"${status.statusMessage} ${deleted.info}")
+                                          _       <- EitherT.liftF(xrayConnector.deleteReportFromXray(resp.reportID))
+                                          _       =  logger.info(s"${status.statusMessage}. Report has been deleted from the Xray UI")
                                           res     <- EitherT.leftT[Future, Report](XrayNoData: Status)
                                         } yield res
                    case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)

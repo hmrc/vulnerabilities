@@ -29,7 +29,7 @@ import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositoryS
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
-import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report, ReportDelete, ReportResponse, ReportStatus, ServiceVersionDeployments, XrayNotReady, XrayNoData, XraySuccess}
+import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report, ReportResponse, ReportStatus, ServiceVersionDeployments, XrayNotReady, XrayNoData, XraySuccess}
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
 import java.io.ByteArrayInputStream
@@ -217,7 +217,7 @@ class XrayServiceSpec extends AnyWordSpec
     when(xrayConnector.generateReport(svd3)).thenReturn(Future(reportRequestResponse3))
     when(xrayConnector.generateReport(svd4)).thenReturn(Future(reportRequestResponse4))
 
-    when(xrayConnector.deleteReportFromXray(anyInt())(any[HeaderCarrier])).thenReturn(Future(ReportDelete("Report successfully deleted")))
+    when(xrayConnector.deleteReportFromXray(anyInt())(any[HeaderCarrier])).thenReturn(Future.unit)
 
     //mock getReport
 

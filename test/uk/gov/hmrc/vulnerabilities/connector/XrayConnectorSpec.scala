@@ -24,11 +24,11 @@ import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
-import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.vulnerabilities.config.XrayConfig
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
-import uk.gov.hmrc.vulnerabilities.model.{ReportDelete, ReportResponse, ReportStatus, ServiceVersionDeployments}
+import uk.gov.hmrc.vulnerabilities.model.{ReportResponse, ReportStatus, ServiceVersionDeployments}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -67,7 +67,7 @@ class XrayConnectorSpec
             aResponse().withBody(s"""{"report_id":1,"status":"pending"}""")
         ))
 
-        val res = connector.generateReport(svd).futureValue
+        connector.generateReport(svd).futureValue
 
         wireMockServer.verify(postRequestedFor(urlEqualTo("/vulnerabilities"))
           .withRequestBody(equalToJson(expectedRequestBody)
@@ -111,14 +111,25 @@ class XrayConnectorSpec
   }
 
   "deleteReport" when {
-    "given a reportId" should {
-      "return a ReportDelete for the given reportID" in {
+    "xray returns a 4XX response" should {
+      "return an UpstreamErrorResponse Exception" in {
         stubFor(WireMock.delete(urlMatching("/1")).willReturn(
-          aResponse().withBody(s"""{"info": "Report successfully deleted"}""")
+          aResponse().withStatus(404)
         ))
 
-        val res = connector.deleteReportFromXray(reportId = 1).futureValue
-        res shouldBe ReportDelete(info = "Report successfully deleted")
+        val res = connector.deleteReportFromXray(reportId = 1).failed.futureValue
+        res shouldBe a [UpstreamErrorResponse]
+      }
+    }
+
+    "xray returns a 5XX response" should {
+      "return an UpstreamErrorResponse Exception" in {
+        stubFor(WireMock.delete(urlMatching("/1")).willReturn(
+          aResponse().withStatus(500)
+        ))
+
+        val res = connector.deleteReportFromXray(reportId = 1).failed.futureValue
+        res shouldBe a [UpstreamErrorResponse]
       }
     }
   }
