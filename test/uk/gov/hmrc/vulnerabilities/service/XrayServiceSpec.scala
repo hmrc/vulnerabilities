@@ -182,7 +182,7 @@ class XrayServiceSpec extends AnyWordSpec
 
   "deleteStaleReports" should {
     val mockXrayConnector = mock[XrayConnector]
-    val mockActorSystem   = mock[ActorSystem] //Create a test Actor as this method uses akka.pattern.after{}
+    val mockActorSystem   = mock[ActorSystem]
     val mockRepository    = mock[RawReportsRepository]
 
     val service = new XrayService(

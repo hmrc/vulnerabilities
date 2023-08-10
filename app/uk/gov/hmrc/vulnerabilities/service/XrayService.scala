@@ -112,14 +112,14 @@ class XrayService @Inject()(
 
   def deleteStaleReports()(implicit hc: HeaderCarrier): Future[Unit] =
     for {
-      ids <- xrayConnector.getStaleReportIds()
-      _       = logger.info(s"Identified ${ids.size} stale reports to delete")
-      _       = ids.foldLeftM[Future, Int](0){(acc, repId) =>
-                for {
-                  _ <- xrayConnector.deleteReportFromXray(repId.id)
-                  _ =  logger.info(s"Deleted stale report with id: ${repId.id}")
-                } yield acc + 1
-              }
-      _       = logger.info(s"Deleted ${ids.size} stale reports")
+      ids          <- xrayConnector.getStaleReportIds()
+      _            =  logger.info(s"Identified ${ids.size} stale reports to delete")
+      deletedCount <- ids.foldLeftM[Future, Int](0){(acc, repId) =>
+                        for {
+                          _ <- xrayConnector.deleteReportFromXray(repId.id)
+                          _ =  logger.info(s"Deleted stale report with id: ${repId.id}")
+                        } yield acc + 1
+                      }
+      _            =  logger.info(s"Deleted ${deletedCount} stale reports")
     } yield ()
 }
