@@ -28,11 +28,16 @@ case class ReportResponse(
 )
 
 object ReportResponse {
-
   val apiFormat =
   ( (__ \ "report_id").format[Int]
   ~ (__ \ "status"   ).format[String]
   )(apply, unlift(unapply))
+}
+
+case class ReportId(id: Int) extends AnyVal
+
+object ReportId {
+  val reads = (__ \ "id").read[Int].map(ReportId.apply)
 }
 
 case class ReportStatus(

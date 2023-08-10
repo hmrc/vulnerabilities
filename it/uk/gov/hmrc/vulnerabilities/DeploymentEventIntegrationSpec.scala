@@ -207,6 +207,7 @@ class DeploymentEventIntegrationSpec
       stubFor(WireMock.get(urlPathMatching("/api/repository_teams"))
         .willReturn(aResponse().withStatus(200).withBody(StubResponses.teamsAndRepos))
       )
+
       //helpers
       implicit val fmt: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
 

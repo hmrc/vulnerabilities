@@ -20,11 +20,14 @@ import com.google.inject.AbstractModule
 import uk.gov.hmrc.vulnerabilities.notification.{DeadLetterHandler, DeploymentHandler}
 import uk.gov.hmrc.vulnerabilities.utils.{Scheduler, TimelineScheduler}
 
+import java.time.Clock
+
 class VulnerabilitiesModule extends AbstractModule {
   override def configure(): Unit = {
     bind(classOf[Scheduler        ]).asEagerSingleton()
     bind(classOf[TimelineScheduler]).asEagerSingleton()
     bind(classOf[DeploymentHandler]).asEagerSingleton()
     bind(classOf[DeadLetterHandler]).asEagerSingleton()
+    bind(classOf[Clock]).toInstance(Clock.systemUTC())
   }
 }
