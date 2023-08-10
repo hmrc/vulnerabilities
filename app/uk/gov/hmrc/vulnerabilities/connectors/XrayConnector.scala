@@ -20,20 +20,23 @@ import akka.stream.Materializer
 import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
 import play.api.Logging
-import play.api.libs.json.{Json, __}
+import play.api.libs.json.{Json, Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.vulnerabilities.model.{ReportResponse, ReportStatus, ServiceVersionDeployments}
+import uk.gov.hmrc.vulnerabilities.model.{ReportId, ReportResponse, ReportStatus, ServiceVersionDeployments}
 import uk.gov.hmrc.vulnerabilities.config.XrayConfig
 
 import java.io.InputStream
+import java.time.{Clock, Instant}
+import java.time.temporal.ChronoUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class XrayConnector @Inject() (
   httpClientV2: HttpClientV2,
-  config      : XrayConfig
+  config      : XrayConfig,
+  clock       : Clock
 )(implicit
   ec          : ExecutionContext,
   mat         : Materializer
@@ -95,4 +98,21 @@ class XrayConnector @Inject() (
           "Authorization" -> s"Bearer $token",
           "Content-Type"  -> "application/json"
         ).execute[Unit](throwOnFailure(implicitly[HttpReads[Either[UpstreamErrorResponse, Unit]]]), implicitly[ExecutionContext])
+
+    def getStaleReportIds()(implicit hc: HeaderCarrier): Future[Seq[ReportId]] = {
+      implicit val rir = {
+        implicit val rir = ReportId.reads
+        Reads.at[Seq[ReportId]](__ \ "reports")
+      }
+      val cutOff       = Instant.now(clock).minus(config.xrayReportsRetention.toMillis, ChronoUnit.MILLIS)
+      val requestBody  = s"""{"filters":{"author":"${config.xrayUsername}","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"$cutOff"}}}"""
+
+      httpClientV2
+        .post(url"${config.xrayBaseUrl}?page_num=1&num_of_rows=100")
+        .setHeader(
+          "Authorization" -> s"Bearer $token",
+          "Content-Type"  -> "application/json"
+        ).withBody(Json.parse(requestBody))
+        .execute[Seq[ReportId]]
+    }
 }

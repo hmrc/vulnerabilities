@@ -19,9 +19,12 @@ package uk.gov.hmrc.vulnerabilities.config
 import play.api.Configuration
 
 import javax.inject.{Inject, Singleton}
+import scala.concurrent.duration.FiniteDuration
 
 @Singleton
 class XrayConfig @Inject() (configuration: Configuration) {
-  lazy val xrayBaseUrl: String = configuration.get[String]("xray.url")
-  lazy val xrayToken  : String = configuration.get[String]("xray.token")
+  lazy val xrayBaseUrl         : String         = configuration.get[String]("xray.url")
+  lazy val xrayToken           : String         = configuration.get[String]("xray.token")
+  lazy val xrayUsername        : String         = configuration.get[String]("xray.username")
+  lazy val xrayReportsRetention: FiniteDuration = configuration.get[FiniteDuration]("xray.reports.retention")
 }

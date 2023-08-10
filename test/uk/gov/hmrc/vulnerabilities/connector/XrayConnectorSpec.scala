@@ -28,8 +28,10 @@ import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.vulnerabilities.config.XrayConfig
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
-import uk.gov.hmrc.vulnerabilities.model.{ReportResponse, ReportStatus, ServiceVersionDeployments}
+import uk.gov.hmrc.vulnerabilities.model.{ReportId, ReportResponse, ReportStatus, ServiceVersionDeployments}
 
+import java.time.temporal.ChronoUnit
+import java.time.{Clock, LocalDate, ZoneOffset}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class XrayConnectorSpec
@@ -45,13 +47,17 @@ class XrayConnectorSpec
 
   private val config = new XrayConfig(
     configuration = Configuration.from(Map(
-      "xray.url"     -> s"${wireMockUrl}",
-      "xray.token"   -> "testToken",
+      "xray.url"               -> s"${wireMockUrl}",
+      "xray.token"             -> "testToken",
+      "xray.username"          -> "user1",
+      "xray.reports.retention" -> "1 day"
     ))
   )
 
   implicit private val materializer: Materializer = mock[Materializer]
-  private val connector = new XrayConnector(httpClientV2, config)
+
+  val now               = LocalDate.now().atStartOfDay(ZoneOffset.UTC).toInstant
+  private val connector = new XrayConnector(httpClientV2, config, clock = Clock.fixed(now, ZoneOffset.UTC))
 
   val svd = ServiceVersionDeployments(serviceName = "service1", version = "5.4.0", environments = Seq("production"))
 
@@ -131,6 +137,66 @@ class XrayConnectorSpec
         val res = connector.deleteReportFromXray(reportId = 1).failed.futureValue
         res shouldBe a [UpstreamErrorResponse]
       }
+    }
+  }
+
+  "getStaleReportDetails" should {
+    "generated the expected request body" in {
+      stubFor(WireMock.post(urlMatching("/\\?page_num=1&num_of_rows=100")).willReturn(
+        aResponse()
+          .withStatus(200)
+          .withBody(
+            s"""{"total_reports":2,"reports":[{"id":439753,"name":"AppSec-report-service1_1.0","report_type":"vulnerability","status":"completed","total_artifacts":2,"num_of_processed_artifacts":2,"progress":100,"number_of_rows":14,"start_time":"2023-01-01T11:20:20Z","end_time":"2023-08-07T11:20:21Z","author":"user1"},
+               |{"id":439750,"name":"AppSec-report-service2>2.0","report_type":"vulnerability","status":"completed","total_artifacts":2,"num_of_processed_artifacts":2,"progress":100,"number_of_rows":14,"start_time":"2023-01-01T11:19:20Z","end_time":"2023-08-07T11:19:21Z","author":"user1"}]}""".stripMargin)
+      ))
+
+      connector.getStaleReportIds.futureValue
+
+      val expectedRequestBody =
+        s"""{"filters":{"author":"user1","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"${now.minus(1, ChronoUnit.DAYS)}"}}}"""
+
+      wireMockServer.verify(postRequestedFor(urlMatching("/\\?page_num=1&num_of_rows=100"))
+        .withRequestBody(equalToJson(expectedRequestBody)
+        ))
+    }
+
+    "return a Sequence of ReportIDs" in {
+      stubFor(WireMock.post(urlMatching("/\\?page_num=1&num_of_rows=100")).willReturn(
+        aResponse()
+          .withStatus(200)
+          .withBody(
+            s"""{"total_reports":2,"reports":[{"id":439753,"name":"AppSec-report-service1_1.0","report_type":"vulnerability","status":"completed","total_artifacts":2,"num_of_processed_artifacts":2,"progress":100,"number_of_rows":14,"start_time":"2023-01-01T11:20:20Z","end_time":"2023-08-07T11:20:21Z","author":"user1"},
+               |{"id":439750,"name":"AppSec-report-service2>2.0","report_type":"vulnerability","status":"completed","total_artifacts":2,"num_of_processed_artifacts":2,"progress":100,"number_of_rows":14,"start_time":"2023-01-01T11:19:20Z","end_time":"2023-08-07T11:19:21Z","author":"user1"}]}""".stripMargin)
+      ))
+
+      val res = connector.getStaleReportIds.futureValue
+
+      res shouldBe Seq(ReportId(439753), ReportId(439750))
+
+    }
+
+    "return an UpstreamErrorResponse for 4XX errors" in {
+      stubFor(WireMock.post(urlMatching("/\\?page_num=1&num_of_rows=100")).willReturn(
+        aResponse()
+          .withStatus(429)
+      ))
+
+      val res = connector.getStaleReportIds.failed.futureValue
+
+      res shouldBe a [UpstreamErrorResponse]
+
+    }
+
+    "return an UpstreamErrorResponse for 5XX errors" in {
+      stubFor(WireMock.post(urlMatching("/\\?page_num=1&num_of_rows=100")).willReturn(
+        aResponse()
+          .withStatus(500)
+      ))
+
+      val res = connector.getStaleReportIds.failed.futureValue
+
+      res shouldBe a [UpstreamErrorResponse]
+
     }
   }
 }

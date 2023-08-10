@@ -48,6 +48,7 @@ class UpdateVulnerabilitiesService @Inject()(
       _               <- xrayService.processReports(svDepsToUpdate)
       _               =  logger.info("Finished generating and inserting reports into the rawReports collection")
       _               <- updateVulnerabilitySummaries(svDeps)
+      _               <- xrayService.deleteStaleReports
     } yield ()
 
   def updateVulnerabilities(
