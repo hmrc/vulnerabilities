@@ -42,14 +42,14 @@ class UpdateVulnerabilitiesService @Inject()(
   def updateAllVulnerabilities()(implicit hc: HeaderCarrier): Future[Unit] =
     for {
       svDeps          <- getCurrentServiceVersionDeployments()
-      //Only download reports that don't exist in last 24 hours in our raw reports collection
+      //Only download reports that don't exist in last X hours in our raw reports collection
       recentReports   <- rawReportsRepository.getReportsInLastXDays()
       svDepsToUpdate  =  svDeps.filterNot(svd => recentReports.exists(rep => rep.nameAndVersion().contains(svd.serviceName + "_" + svd.version)))
       _               <- xrayService.processReports(svDepsToUpdate)
       _               =  logger.info("Finished generating and inserting reports into the rawReports collection")
       _               <- updateVulnerabilitySummaries(svDeps)
+      _               <- xrayService.deleteStaleReports
     } yield ()
-
 
   def updateVulnerabilities(
     serviceName: String,

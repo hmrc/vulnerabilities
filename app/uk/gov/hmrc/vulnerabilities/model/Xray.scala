@@ -28,11 +28,16 @@ case class ReportResponse(
 )
 
 object ReportResponse {
-
   val apiFormat =
   ( (__ \ "report_id").format[Int]
   ~ (__ \ "status"   ).format[String]
   )(apply, unlift(unapply))
+}
+
+case class ReportId(id: Int) extends AnyVal
+
+object ReportId {
+  val reads = (__ \ "id").read[Int].map(ReportId.apply)
 }
 
 case class ReportStatus(
@@ -45,16 +50,6 @@ object ReportStatus {
     ( (__ \ "status" ).format[String]
     ~ (__ \ "number_of_rows").formatNullable[Int]
     )(apply, unlift(unapply))
-}
-
-case class ReportDelete(
- info: String
-)
-
-object ReportDelete {
-  val apiFormat = {
-    (__ \ "info").format[String].inmap(ReportDelete.apply, unlift(ReportDelete.unapply))
-  }
 }
 
 case class Report(

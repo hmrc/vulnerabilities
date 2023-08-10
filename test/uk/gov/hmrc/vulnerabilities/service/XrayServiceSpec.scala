@@ -17,8 +17,10 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import akka.actor.ActorSystem
+import com.github.tomakehurst.wiremock.client.WireMock.{stubFor, verify}
 import org.mockito.ArgumentMatchers.{any, anyInt}
-import org.mockito.{IdiomaticMockito, Mockito}
+import org.mockito.IdiomaticMockito.returned
+import org.mockito.{IdiomaticMockito, Mockito, MockitoSugar}
 import org.mockito.MockitoSugar.when
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
@@ -29,7 +31,7 @@ import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositoryS
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
-import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report, ReportDelete, ReportResponse, ReportStatus, ServiceVersionDeployments, XrayNotReady, XrayNoData, XraySuccess}
+import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report, ReportId, ReportResponse, ReportStatus, ServiceVersionDeployments, XrayNoData, XrayNotReady, XraySuccess}
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
 import java.io.ByteArrayInputStream
@@ -138,6 +140,7 @@ class XrayServiceSpec extends AnyWordSpec
         spy.getReport(2, svd).futureValue shouldBe None
       }
     }
+  }
 
   "check if report ready" when {
     val xrayConnector = mock[XrayConnector]
@@ -177,7 +180,28 @@ class XrayServiceSpec extends AnyWordSpec
     }
   }
 
+  "deleteStaleReports" should {
+    val mockXrayConnector = mock[XrayConnector]
+    val mockActorSystem   = mock[ActorSystem]
+    val mockRepository    = mock[RawReportsRepository]
 
+    val service = new XrayService(
+      mockXrayConnector,
+      mockActorSystem,
+      mockRepository
+    )
+
+    "request deletion for all stale reports" in {
+      when(mockXrayConnector.getStaleReportIds()(any[HeaderCarrier])).thenReturn(Future.successful(Seq(ReportId(1), ReportId(2), ReportId(3))))
+      when(mockXrayConnector.deleteReportFromXray(anyInt())(any[HeaderCarrier])).thenReturn(Future.unit)
+
+      service.deleteStaleReports().futureValue
+
+      mockXrayConnector.deleteReportFromXray((1)) wasCalled once
+      mockXrayConnector.deleteReportFromXray((2)) wasCalled once
+      mockXrayConnector.deleteReportFromXray((3)) wasCalled once
+
+    }
   }
 
   trait Setup {
@@ -217,7 +241,7 @@ class XrayServiceSpec extends AnyWordSpec
     when(xrayConnector.generateReport(svd3)).thenReturn(Future(reportRequestResponse3))
     when(xrayConnector.generateReport(svd4)).thenReturn(Future(reportRequestResponse4))
 
-    when(xrayConnector.deleteReportFromXray(anyInt())(any[HeaderCarrier])).thenReturn(Future(ReportDelete("Report successfully deleted")))
+    when(xrayConnector.deleteReportFromXray(anyInt())(any[HeaderCarrier])).thenReturn(Future.unit)
 
     //mock getReport
 

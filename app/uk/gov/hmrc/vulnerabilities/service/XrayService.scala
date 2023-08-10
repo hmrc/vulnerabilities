@@ -66,8 +66,8 @@ class XrayService @Inject()(
       report  <- status match {
                    case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, svd), XrayNoData: Status)
                    case XrayNoData   => for {
-                                          deleted <- EitherT.liftF(xrayConnector.deleteReportFromXray(resp.reportID))
-                                          _       =  logger.info(s"${status.statusMessage} ${deleted.info}")
+                                          _       <- EitherT.liftF(xrayConnector.deleteReportFromXray(resp.reportID))
+                                          _       =  logger.info(s"${status.statusMessage}. Report has been deleted from the Xray UI")
                                           res     <- EitherT.leftT[Future, Report](XrayNoData: Status)
                                         } yield res
                    case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)
@@ -109,4 +109,17 @@ class XrayService @Inject()(
       }}
     } else
       Future.successful(XrayNotReady)
+
+  def deleteStaleReports()(implicit hc: HeaderCarrier): Future[Unit] =
+    for {
+      ids          <- xrayConnector.getStaleReportIds()
+      _            =  logger.info(s"Identified ${ids.size} stale reports to delete")
+      deletedCount <- ids.foldLeftM[Future, Int](0){(acc, repId) =>
+                        for {
+                          _ <- xrayConnector.deleteReportFromXray(repId.id)
+                          _ =  logger.info(s"Deleted stale report with id: ${repId.id}")
+                        } yield acc + 1
+                      }
+      _            =  logger.info(s"Deleted ${deletedCount} stale reports")
+    } yield ()
 }

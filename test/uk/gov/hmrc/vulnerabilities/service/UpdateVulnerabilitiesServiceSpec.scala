@@ -23,7 +23,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector}
-import uk.gov.hmrc.vulnerabilities.model.{CVE, CurationStatus, Deployment, DistinctVulnerability, RawVulnerability, Report, ServiceVersionDeployments, UnrefinedDistinctVulnerability, UnrefinedVulnerabilityOccurrence, UnrefinedVulnerabilitySummary, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent, WhatsRunningWhere}
+import uk.gov.hmrc.vulnerabilities.model.{CVE, CurationStatus, Deployment, DistinctVulnerability, RawVulnerability, Report, ReportId, ServiceVersionDeployments, UnrefinedDistinctVulnerability, UnrefinedVulnerabilityOccurrence, UnrefinedVulnerabilitySummary, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent, WhatsRunningWhere}
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
@@ -508,6 +508,9 @@ class UpdateVulnerabilitiesServiceSpec
               ))
           ))
       )
+
+      when(xrayService.deleteStaleReports()(any[HeaderCarrier])).thenReturn(Future.unit)
+
 
       when(xrayService.processReports(any[Seq[ServiceVersionDeployments]])(any[HeaderCarrier])).thenReturn(Future.unit)
 

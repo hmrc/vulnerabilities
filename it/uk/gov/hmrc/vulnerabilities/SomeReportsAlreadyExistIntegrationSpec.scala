@@ -112,6 +112,22 @@ class SomeReportsAlreadyExistIntegrationSpec
         .willReturn(aResponse().withStatus(200).withBody(StubResponses.teamsAndRepos))
       )
 
+      stubFor(WireMock.post(urlMatching("/\\?page_num=1&num_of_rows=100")).willReturn(
+        aResponse()
+          .withStatus(200)
+          .withBody(
+            s"""{"total_reports":2,"reports":[{"id":439753,"name":"AppSec-report-service1_1.0","report_type":"vulnerability","status":"completed","total_artifacts":2,"num_of_processed_artifacts":2,"progress":100,"number_of_rows":14,"start_time":"2023-01-01T11:20:20Z","end_time":"2023-08-07T11:20:21Z","author":"user1"},
+               |{"id":439750,"name":"AppSec-report-service2>2.0","report_type":"vulnerability","status":"completed","total_artifacts":2,"num_of_processed_artifacts":2,"progress":100,"number_of_rows":14,"start_time":"2023-01-01T11:19:20Z","end_time":"2023-08-07T11:19:21Z","author":"user1"}]}""".stripMargin)
+      ))
+
+      stubFor(WireMock.delete(urlMatching("/439753"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportDelete))
+      )
+
+      stubFor(WireMock.delete(urlMatching("/439750"))
+        .willReturn(aResponse().withStatus(200).withBody(StubResponses.reportDelete))
+      )
+
       //helpers
       implicit val fmt = VulnerabilitySummary.apiFormat
 
