@@ -83,7 +83,7 @@ class XrayConnector @Inject() (
       .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
       .flatMap {
         case Right(source) =>
-          logger.info(s"Successfully downloaded the zipped report from Xray")
+          logger.info(s"Successfully downloaded the zipped report for $fileName with id $reportId from Xray")
           Future.successful(source.runWith(StreamConverters.asInputStream()))
         case Left(error) =>
           logger.error(s"Could not download zip for: $url", error)

@@ -28,7 +28,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
-import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
+import uk.gov.hmrc.vulnerabilities.config.{DataConfig, SchedulerConfigs}
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
 import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report, ReportId, ReportResponse, ReportStatus, ServiceVersionDeployments, XrayNoData, XrayNotReady, XraySuccess}
@@ -48,9 +48,10 @@ class XrayServiceSpec extends AnyWordSpec
   with Matchers {
 
   val schedulerConfigs = mock[SchedulerConfigs]
-  val configuration: Configuration = Configuration(
-    "data.refresh-cutoff"    -> "7 days",
-  )
+  val configuration: DataConfig = new DataConfig(Configuration(
+    "data.refresh-cutoff"           -> "7 days",
+    "data.transformation-cutoff"    -> "8 days",
+  ))
 
   implicit val hc: HeaderCarrier = HeaderCarrier()
 

@@ -23,6 +23,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import play.api.Configuration
 import uk.gov.hmrc.mongo.play.json.CollectionFactory
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
+import uk.gov.hmrc.vulnerabilities.config.DataConfig
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
 import uk.gov.hmrc.vulnerabilities.model.{CVE, CurationStatus, RawVulnerability, Report, TimelineEvent}
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
@@ -42,9 +43,10 @@ class RawReportsRepositorySpec
   //Tests exercise aggregation pipeline, which don't make use of indices.
   override protected def checkIndexedQueries: Boolean = false
 
-  val configuration: Configuration = Configuration(
+  val configuration: DataConfig = new DataConfig(Configuration(
     "data.refresh-cutoff"    -> "7 days",
-  )
+    "data.transformation-cutoff"    -> "8 days",
+  ))
 
   override lazy val repository = new RawReportsRepository(mongoComponent, configuration)
   private val now: Instant = UnrefinedVulnerabilitySummariesData.now
@@ -66,7 +68,7 @@ class RawReportsRepositorySpec
       resSorted should contain theSameElementsInOrderAs (Seq(expected1, expected2, expected3))
     }
 
-    "Transform reports generated up to 6 days and 23 hours ago, but not reports generated 7 days ago" in new Setup {
+    "Transform reports generated up to data.transformation-cutoff, but not reports generated after the data.transformation-cutoff" in new Setup {
       repository.collection.insertMany(Seq(report1, report2, report3, report4, report5)).toFuture().futureValue
 
       val result = repository.getNewDistinctVulnerabilities().futureValue
@@ -75,15 +77,19 @@ class RawReportsRepositorySpec
       resSorted.length shouldBe 4
       resSorted shouldBe (Seq("CVE-2021-99999", "CVE-2022-12345", "XRAY-000004", "XRAY-000006"))
     }
+
   }
 
   "getReportsInLastXDays" should {
-    "Only return reports generated 6 days and 23 hours ago, but not reports generated 7 days ago" in new Setup {
-      repository.collection.insertMany(Seq(report1, report2, report3, report4, report5)).toFuture().futureValue
+    "Only return reports generated within the data.refresh-cutoff" in new Setup {
+      val rep6 = report5.copy(generatedDate = now.minus(configuration.dataRefreshCutoff.toMillis.toInt, ChronoUnit.MILLIS).plus(5, ChronoUnit.MINUTES))
+      val rep7 = report5.copy(generatedDate = now.minus(configuration.dataRefreshCutoff.toMillis.toInt, ChronoUnit.MILLIS))
+
+      repository.collection.insertMany(Seq(rep6,rep7)).toFuture().futureValue
 
       val result = repository.getReportsInLastXDays().futureValue
-      result.length shouldBe 4
-      result should contain theSameElementsAs(Seq(report1, report2, report3, report5))
+      result.length shouldBe 1
+      result should contain theSameElementsAs(Seq(rep6))
     }
   }
 
@@ -354,7 +360,8 @@ class RawReportsRepositorySpec
             references            = Seq("foo.com", "bar.net"),
             projectKeys           = Seq()
           )),
-        generatedDate = now.minus(7, ChronoUnit.DAYS)
+        generatedDate = now
+          .minus(configuration.dataTransformationCutoff.toMillis.toInt, ChronoUnit.DAYS)
       )
 
     lazy val report5: Report =
@@ -381,7 +388,9 @@ class RawReportsRepositorySpec
             references            = Seq("foo.com", "bar.net"),
             projectKeys           = Seq()
           )),
-        generatedDate = now.minus(167, ChronoUnit.HOURS)
+        generatedDate = now
+          .minus(configuration.dataTransformationCutoff.toMillis.toInt, ChronoUnit.MILLIS)
+          .plus(5, ChronoUnit.MINUTES)
       )
   }
 }

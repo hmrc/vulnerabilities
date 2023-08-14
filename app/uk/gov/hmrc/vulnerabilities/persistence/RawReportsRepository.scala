@@ -22,9 +22,10 @@ import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNull}
 import org.mongodb.scala.model.Aggregates.{`match`, group, lookup, project, replaceRoot, set, unwind}
 import org.mongodb.scala.model.Projections.{computed, fields}
 import org.mongodb.scala.model.{Accumulators, Field, Filters, IndexModel, IndexOptions}
-import play.api.{Configuration, Logger}
+import play.api.Logger
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
+import uk.gov.hmrc.vulnerabilities.config.DataConfig
 import uk.gov.hmrc.vulnerabilities.model.{Report, TimelineEvent, UnrefinedVulnerabilitySummary}
 
 import java.time.Instant
@@ -32,12 +33,11 @@ import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.duration.FiniteDuration
 
 @Singleton
 class RawReportsRepository @Inject()(
   mongoComponent: MongoComponent,
-  configuration : Configuration
+  config        : DataConfig
 )(implicit
   ec            : ExecutionContext
 ) extends PlayMongoRepository(
@@ -46,7 +46,8 @@ class RawReportsRepository @Inject()(
   domainFormat   = Report.mongoFormat,
   indexes        = Seq(IndexModel(Indexes.descending("generatedDate"), IndexOptions().name("generatedDate").background(true).expireAfter(2 * 365, TimeUnit.DAYS)))
 ){
-  private val dataCutOff = configuration.get[FiniteDuration]("data.refresh-cutoff").toMillis.toInt
+  private val dataRefreshCutoff        = config.dataRefreshCutoff.toMillis.toInt
+  private val dataTransformationCutoff = config.dataTransformationCutoff.toMillis.toInt
   private val logger = Logger(this.getClass)
 
   def insertReport(report: Report, name: String): Future[Unit] =
@@ -56,7 +57,9 @@ class RawReportsRepository @Inject()(
       .map(_ => logger.info(s"Inserted report for $name into rawReports repository"))
 
   def getReportsInLastXDays(): Future[Seq[Report]] =
-    collection.find(Filters.gt("generatedDate", recent())).toFuture()
+    collection.find(
+      Filters.gt("generatedDate", Instant.now().minus(dataRefreshCutoff, ChronoUnit.MILLIS)))
+      .toFuture()
 
   // use a different view to allow distinctVulnerabilitiesSummary to return a different case class
   private val vcsCollection: MongoCollection[UnrefinedVulnerabilitySummary] =
@@ -66,13 +69,17 @@ class RawReportsRepository @Inject()(
       UnrefinedVulnerabilitySummary.reads
     )
 
-  def recent() = Instant.now().minus(dataCutOff, ChronoUnit.MILLIS)
-  //Only transform data added to rawReports within last X Days
-  //This stops out of date, and since fixed reports being transformed into vulnerability summaries
+  def recent() = Instant.now()
+    .minus(dataTransformationCutoff, ChronoUnit.MILLIS)
+  //Having a separate config value for dataTranformationCutOff to dataRefreshCutoff, where the former is always larger than the latter, addresses edge case that occurs following a scheduler run,
+  //in which not all reports were redownloaded (as recent reports exist within the dataCutOff for those service/versions, perhaps due to a deployment event)
+  //But those same reports could then be outside of the dataCutOff following a new deploymentEvent, meaning they wouldn't be picked up by below query until the next scheduler run, causing (temporary) missing data.
 
   def getNewDistinctVulnerabilities(): Future[Seq[UnrefinedVulnerabilitySummary]] =
     vcsCollection.aggregate(
       Seq(
+        //Only transform data added to rawReports within last X Days
+        //This stops out of date, and since fixed reports being transformed into vulnerability summaries
         `match`(Filters.gt("generatedDate", recent())),
         unwind("$rows"),
         unwind("$rows.cves"),

@@ -62,12 +62,13 @@ class XrayService @Inject()(
   private def generateReport(svd: ServiceVersionDeployments)(implicit hc: HeaderCarrier): EitherT[Future, Status, Report] =
     for {
       resp    <- EitherT.liftF(xrayConnector.generateReport(svd))
+      _       =  logger.info(s"Began generating report for ${svd.serviceName}:${svd.version}. Report will have id ${resp.reportID}")
       status  <- EitherT.liftF(checkIfReportReady(resp))
       report  <- status match {
                    case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, svd), XrayNoData: Status)
                    case XrayNoData   => for {
                                           _       <- EitherT.liftF(xrayConnector.deleteReportFromXray(resp.reportID))
-                                          _       =  logger.info(s"${status.statusMessage}. Report has been deleted from the Xray UI")
+                                          _       =  logger.info(s"${status.statusMessage}. Report ${resp.reportID} has been deleted from the Xray UI")
                                           res     <- EitherT.leftT[Future, Report](XrayNoData: Status)
                                         } yield res
                    case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)
@@ -79,7 +80,7 @@ class XrayService @Inject()(
     for {
       zip     <- xrayConnector.downloadReport(reportId, svd)
       _       <- xrayConnector.deleteReportFromXray(reportId)
-      _        = logger.info("Report has been deleted from the Xray UI")
+      _        = logger.info(s"Report ${reportId} has been deleted from the Xray UI")
       text     = unzipReport(zip)
       report   = text.map(t => Json.parse(t).as[Report])
       _        = zip.close()
@@ -100,6 +101,7 @@ class XrayService @Inject()(
   def checkIfReportReady(reportRequestResponse: ReportResponse, counter: Int = 0)(implicit hc: HeaderCarrier): Future[Status] =
     //Timeout after 15 secs
     if (counter < 15) {
+      logger.info(s"checking report status for reportID: ${reportRequestResponse.reportID}")
       xrayConnector.checkStatus(reportRequestResponse.reportID).flatMap { rs => (rs.status, rs.rowCount) match {
         case ("completed", Some(rows)) if rows > 0 => Future.successful(XraySuccess)
         case ("completed", _)                      => Future.successful(XrayNoData)
