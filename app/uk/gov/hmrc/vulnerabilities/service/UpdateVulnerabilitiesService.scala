@@ -42,7 +42,9 @@ class UpdateVulnerabilitiesService @Inject()(
   def updateAllVulnerabilities()(implicit hc: HeaderCarrier): Future[Unit] =
     for {
       svDeps          <- getCurrentServiceVersionDeployments()
-      //Only download reports that don't exist in last X hours in our raw reports collection
+      //Only download reports that don't exist in last X hours in our raw reports collection. This allows the scheduler to pickup where it left off if it fails.
+      //This is more resilient than the alternative approach where we always redownload everything on a scheduler freq set to 24 hours
+      //as if something went wrong on a single run, we wouldn't retry for another 24 hours, at which point we could have missing data.
       recentReports   <- rawReportsRepository.getReportsInLastXDays()
       svDepsToUpdate  =  svDeps.filterNot(svd => recentReports.exists(rep => rep.nameAndVersion().contains(svd.serviceName + "_" + svd.version)))
       _               <- xrayService.processReports(svDepsToUpdate)
@@ -137,7 +139,7 @@ class UpdateVulnerabilitiesService @Inject()(
           teams                      = repoWithTeams.getOrElse(service, Seq.empty).sorted,
           envs                       = svds
             .find(s => s.serviceName == service && s.version == serviceVersion)
-            .getOrElse(ServiceVersionDeployments("", "", Seq.empty))
+            .getOrElse(ServiceVersionDeployments("", "", Seq.empty)) //We don't filter out when this serviceVersion is not deployed in any env, as it would miss edge cases like forms-aem-publisher, which break our releases logic
             .environments,
           vulnerableComponentName    = occ.vulnComponent.split(":").dropRight(1).mkString(":"),
           vulnerableComponentVersion = occ.vulnComponent.split(":").last
