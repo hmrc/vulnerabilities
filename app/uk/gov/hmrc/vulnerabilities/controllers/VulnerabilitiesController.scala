@@ -20,7 +20,7 @@ import play.api.Logging
 import play.api.libs.json.{Json, OFormat, Writes}
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.model.{Environment, TotalVulnerabilityCount, VulnerabilitySummary}
+import uk.gov.hmrc.vulnerabilities.model.{Environment, TotalVulnerabilityCount, Version, VulnerabilitySummary}
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.service.{UpdateVulnerabilitiesService, VulnerabilitiesService}
 import uk.gov.hmrc.vulnerabilities.utils.{AssessmentParser, Scheduler, TimelineScheduler}
@@ -43,15 +43,16 @@ class VulnerabilitiesController @Inject()(
      with Logging {
 
   def distinctVulnerabilitySummaries(
-    vulnerability  : Option[String] = None,
-    curationStatus : Option[String] = None,
-    service        : Option[String] = None,
-    team           : Option[String] = None,
-    component      : Option[String] = None
+    vulnerability  : Option[String ] = None,
+    curationStatus : Option[String ] = None,
+    service        : Option[String ] = None,
+    version        : Option[Version] = None,
+    team           : Option[String ] = None,
+    component      : Option[String ] = None
   ): Action[AnyContent] =
     Action.async {
       implicit val fmt: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
-      vulnerabilitiesService.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, team, component)
+      vulnerabilitiesService.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, version, team, component)
         .map(result => Ok(Json.toJson(result)))
     }
 
