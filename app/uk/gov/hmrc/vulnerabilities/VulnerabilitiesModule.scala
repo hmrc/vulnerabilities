@@ -16,18 +16,34 @@
 
 package uk.gov.hmrc.vulnerabilities
 
-import com.google.inject.AbstractModule
-import uk.gov.hmrc.vulnerabilities.notification.{DeadLetterHandler, DeploymentHandler}
+import play.api.inject.Binding
+import play.api.{Configuration, Environment, Logger}
+import uk.gov.hmrc.vulnerabilities.notification.{DeploymentDeadLetterHandler, DeploymentHandler}
 import uk.gov.hmrc.vulnerabilities.utils.{Scheduler, TimelineScheduler}
 
 import java.time.Clock
 
-class VulnerabilitiesModule extends AbstractModule {
-  override def configure(): Unit = {
-    bind(classOf[Scheduler        ]).asEagerSingleton()
-    bind(classOf[TimelineScheduler]).asEagerSingleton()
-    bind(classOf[DeploymentHandler]).asEagerSingleton()
-    bind(classOf[DeadLetterHandler]).asEagerSingleton()
-    bind(classOf[Clock]).toInstance(Clock.systemUTC())
+class VulnerabilitiesModule extends play.api.inject.Module {
+
+  private val logger = Logger(getClass)
+
+  private def ecsDeploymentsBindings(configuration: Configuration): Seq[Binding[_]] = {
+    if (configuration.get[Boolean]("aws.sqs.enabled"))
+      Seq(
+        bind[DeploymentHandler          ].toSelf.eagerly()
+      , bind[DeploymentDeadLetterHandler].toSelf.eagerly()
+      )
+    else {
+      logger.warn("SQS handlers are disabled")
+      Seq.empty
+    }
   }
+
+  override def bindings(environment: Environment, configuration: Configuration): Seq[Binding[_]] =
+    Seq(
+      bind[Scheduler        ].toSelf.eagerly()
+    , bind[TimelineScheduler].toSelf.eagerly()
+    , bind[Clock            ].toInstance(Clock.systemUTC())
+    ) ++
+    ecsDeploymentsBindings(configuration)
 }

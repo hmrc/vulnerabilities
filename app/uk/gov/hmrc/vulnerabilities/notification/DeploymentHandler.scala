@@ -17,81 +17,34 @@
 package uk.gov.hmrc.vulnerabilities.notification
 
 import akka.actor.ActorSystem
-import akka.NotUsed
-import akka.stream.{ActorAttributes, Materializer, Supervision}
-import akka.stream.alpakka.sqs.scaladsl.{SqsAckSink, SqsSource}
-import akka.stream.alpakka.sqs.{MessageAction, SqsSourceSettings}
-import akka.stream.scaladsl.Source
 import cats.data.EitherT
 import cats.implicits._
-import com.github.matsluni.akkahttpspi.AkkaHttpClient
-import play.api.Logging
+import play.api.Configuration
 import play.api.libs.json.{Format, Json}
-import software.amazon.awssdk.services.sqs.SqsAsyncClient
 import software.amazon.awssdk.services.sqs.model.Message
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.vulnerabilities.config.DeploymentQueueConfig
 import uk.gov.hmrc.vulnerabilities.model.{Environment, ServiceName, Version}
 import uk.gov.hmrc.vulnerabilities.service.UpdateVulnerabilitiesService
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.control.NonFatal
-import scala.util.{Failure, Try}
 
 @Singleton
 class DeploymentHandler @Inject()(
-  config                      : DeploymentQueueConfig,
+  configuration               : Configuration,
   updateVulnerabilitiesService: UpdateVulnerabilitiesService
 )(implicit
-  actorSystem : ActorSystem,
-  materializer: Materializer,
-  ec          : ExecutionContext
-) extends Logging {
+  actorSystem                 : ActorSystem,
+  ec                          : ExecutionContext
+) extends SqsConsumer(
+  name                        = "Deployment"
+, config                      = SqsConfig("aws.sqs.deployment", configuration)
+)(actorSystem, ec) {
   import DeploymentHandler._
-
-  private lazy val queueUrl = config.sqsDeploymentQueue
-  private lazy val settings = SqsSourceSettings()
 
   private implicit val hc = HeaderCarrier()
 
-  private lazy val awsSqsClient =
-    Try {
-      val client = SqsAsyncClient
-        .builder()
-        .httpClient(AkkaHttpClient.builder().withActorSystem(actorSystem).build())
-        .build()
-
-      actorSystem.registerOnTermination(client.close())
-      client
-    }.recoverWith {
-      case NonFatal(e) => logger.error(s"Failed to set up awsSqsClient: ${e.getMessage}", e); Failure(e)
-    }.get
-
-  if (config.isEnabled)
-    dedupe(SqsSource(queueUrl.toString, settings)(awsSqsClient))
-      .mapAsync(1)(processMessage)
-      .withAttributes(ActorAttributes.supervisionStrategy {
-        t: Throwable => logger.error(s"Failed to process sqs messages: ${t.getMessage}", t); Supervision.Restart
-      })
-      .runWith(SqsAckSink(queueUrl.toString)(awsSqsClient))
-  else
-    logger.warn("DeploymentHandler is disabled.")
-
-  def dedupe(source: Source[Message, NotUsed]): Source[Message, NotUsed] =
-    Source.single(Message.builder.messageId("----------").build) // dummy value since the dedupe will ignore the first entry
-    .concat(source)
-    // are we getting duplicates?
-    .sliding(2, 1)
-    .mapConcat { case prev +: current +: _=>
-        if (prev.messageId == current.messageId) {
-          logger.warn(s"Read the same slug message ID twice ${prev.messageId} - ignoring duplicate")
-          List.empty
-        }
-        else List(current)
-    }
-
-  private def processMessage(message: Message): Future[MessageAction] = {
+  override protected def processMessage(message: Message): Future[MessageAction] = {
     logger.info(s"Starting processing Deployment message with ID '${message.messageId()}'")
     (for {
        payload <- EitherT.fromEither[Future](

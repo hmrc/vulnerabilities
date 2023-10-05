@@ -17,10 +17,8 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import akka.actor.ActorSystem
-import com.github.tomakehurst.wiremock.client.WireMock.{stubFor, verify}
 import org.mockito.ArgumentMatchers.{any, anyInt}
-import org.mockito.IdiomaticMockito.returned
-import org.mockito.{IdiomaticMockito, Mockito, MockitoSugar}
+import org.mockito.{IdiomaticMockito, Mockito}
 import org.mockito.MockitoSugar.when
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
