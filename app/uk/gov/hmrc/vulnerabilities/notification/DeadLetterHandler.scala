@@ -18,20 +18,20 @@ package uk.gov.hmrc.vulnerabilities.notification
 
 import akka.actor.ActorSystem
 import javax.inject.{Inject, Singleton}
+import play.api.Configuration
 import software.amazon.awssdk.services.sqs.model.Message
-import uk.gov.hmrc.vulnerabilities.config.DeploymentDeadLetterSqsConfig
 
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class DeploymentDeadLetterHandler @Inject()(
-  config      : DeploymentDeadLetterSqsConfig
+  configuration: Configuration
 )(implicit
-  actorSystem : ActorSystem,
-  ec          : ExecutionContext
+  actorSystem  : ActorSystem,
+  ec           : ExecutionContext
 ) extends SqsConsumer(
-  name        = "Deployment Dead Letter"
-, config      = config
+  name         = "Deployment Dead Letter"
+, config       = SqsConfig("aws.sqs.deploymentDeadLetter", configuration)
 )(actorSystem, ec) {
 
   protected def processMessage(message: Message) = {

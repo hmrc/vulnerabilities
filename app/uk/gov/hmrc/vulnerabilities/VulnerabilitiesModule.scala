@@ -28,7 +28,7 @@ class VulnerabilitiesModule extends play.api.inject.Module {
   private val logger = Logger(getClass)
 
   private def ecsDeploymentsBindings(configuration: Configuration): Seq[Binding[_]] = {
-    if (configuration.get[Boolean]("update.vulnerabilities.enabled"))
+    if (configuration.get[Boolean]("aws.sqs.enabled"))
       Seq(
         bind[DeploymentHandler          ].toSelf.eagerly()
       , bind[DeploymentDeadLetterHandler].toSelf.eagerly()

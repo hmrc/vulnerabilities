@@ -19,10 +19,10 @@ package uk.gov.hmrc.vulnerabilities.notification
 import akka.actor.ActorSystem
 import cats.data.EitherT
 import cats.implicits._
+import play.api.Configuration
 import play.api.libs.json.{Format, Json}
 import software.amazon.awssdk.services.sqs.model.Message
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.vulnerabilities.config.DeploymentSqsConfig
 import uk.gov.hmrc.vulnerabilities.model.{Environment, ServiceName, Version}
 import uk.gov.hmrc.vulnerabilities.service.UpdateVulnerabilitiesService
 
@@ -31,14 +31,14 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class DeploymentHandler @Inject()(
-  config                      : DeploymentSqsConfig,
+  configuration               : Configuration,
   updateVulnerabilitiesService: UpdateVulnerabilitiesService
 )(implicit
   actorSystem                 : ActorSystem,
   ec                          : ExecutionContext
 ) extends SqsConsumer(
   name                        = "Deployment"
-, config                      = config
+, config                      = SqsConfig("aws.sqs.deployment", configuration)
 )(actorSystem, ec) {
   import DeploymentHandler._
 

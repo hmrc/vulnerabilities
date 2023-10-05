@@ -20,8 +20,6 @@ import java.net.URL
 import javax.inject.{Inject, Singleton}
 import play.api.Configuration
 
-import uk.gov.hmrc.http.StringContextOps
-
 trait SqsConfig {
   def queueUrl           : URL
   def maxNumberOfMessages: Int
@@ -29,23 +27,15 @@ trait SqsConfig {
 }
 
 @Singleton
-class CommonSqsConfig @Inject()(configuration: Configuration) {
-  lazy val urlPrefix          : URL    = new URL(configuration.get[String]("update.vulnerabilities.aws.sqs.queue-pr"))
-  lazy val deploymentQueue    : String = configuration.get[String]("update.vulnerabilities.aws.sqs.queue-deployment")
-  lazy val maxNumberOfMessages: Int    = configuration.get[Int]("update.vulnerabilities.aws.sqs.maxNumberOfMessages")
-  lazy val waitTimeSeconds    : Int    = configuration.get[Int]("update.vulnerabilities.aws.sqs.waitTimeSeconds")
+class DeploymentSqsConfig @Inject()(configuration: Configuration) extends SqsConfig {
+  override lazy val queueUrl           : URL = new URL(configuration.get[String]("aws.sqs.deployment.queueUrl"))
+  override lazy val maxNumberOfMessages: Int = configuration.get[Int]("aws.sqs.deployment.maxNumberOfMessages")
+  override lazy val waitTimeSeconds    : Int = configuration.get[Int]("aws.sqs.deployment.waitTimeSeconds")
 }
 
 @Singleton
-class DeploymentSqsConfig @Inject()(sqs: CommonSqsConfig) extends SqsConfig {
-  override lazy val queueUrl           : URL = url"${sqs.urlPrefix}/${sqs.deploymentQueue}"
-  override lazy val maxNumberOfMessages: Int = sqs.maxNumberOfMessages
-  override lazy val waitTimeSeconds    : Int = sqs.waitTimeSeconds
-}
-
-@Singleton
-class DeploymentDeadLetterSqsConfig @Inject()(sqs: CommonSqsConfig) extends SqsConfig {
-  override lazy val queueUrl           : URL = url"${sqs.urlPrefix}/${sqs.deploymentQueue}-deadletter"
-  override lazy val maxNumberOfMessages: Int = sqs.maxNumberOfMessages
-  override lazy val waitTimeSeconds    : Int = sqs.waitTimeSeconds
+class DeploymentDeadLetterSqsConfig @Inject()(configuration: Configuration) extends SqsConfig {
+  override lazy val queueUrl           : URL = new URL(configuration.get[String]("aws.sqs.deploymentDeadLetter.queueUrl"))
+  override lazy val maxNumberOfMessages: Int = configuration.get[Int]("aws.sqs.deploymentDeadLetter.maxNumberOfMessages")
+  override lazy val waitTimeSeconds    : Int = configuration.get[Int]("aws.sqs.deploymentDeadLetter.waitTimeSeconds")
 }
