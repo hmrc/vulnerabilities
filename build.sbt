@@ -1,13 +1,12 @@
 import play.sbt.routes.RoutesKeys
-import uk.gov.hmrc.DefaultBuildSettings.integrationTestSettings
-import uk.gov.hmrc.sbtdistributables.SbtDistributablesPlugin.publishingSettings
+
+ThisBuild / majorVersion := 0
+ThisBuild / scalaVersion := "2.13.10"
 
 lazy val microservice = Project("vulnerabilities", file("."))
   .enablePlugins(play.sbt.PlayScala, SbtDistributablesPlugin)
   .settings(
-    majorVersion                     := 0,
-    scalaVersion                     := "2.13.8",
-    libraryDependencies              ++= AppDependencies.compile ++ AppDependencies.test,
+    libraryDependencies     ++= AppDependencies.compile ++ AppDependencies.test,
     RoutesKeys.routesImport ++= Seq(
       "uk.gov.hmrc.vulnerabilities.model.{Environment, CurationStatus, Version}",
       "uk.gov.hmrc.vulnerabilities.binders.Binders._"
@@ -15,7 +14,10 @@ lazy val microservice = Project("vulnerabilities", file("."))
   )
   .settings(scalacOptions += "-Wconf:src=routes/.*:s")
   .settings(PlayKeys.playDefaultPort := 8857)
-  .configs(IntegrationTest)
-  .settings(integrationTestSettings(): _*)
   .settings(resolvers += Resolver.jcenterRepo)
   .settings(CodeCoverageSettings.settings: _*)
+
+  lazy val it =
+  (project in file("it"))
+    .enablePlugins(PlayScala)
+    .dependsOn(microservice % "test->test")

@@ -26,7 +26,6 @@ object StubResponses {
 
   private val now: Instant = Instant.now()
 
-
   val wrwBody =
     """[
       |{
@@ -120,14 +119,9 @@ object StubResponses {
                          |"number_of_rows":1,"start_time":"2022-09-20T11:06:21Z","end_time":"2022-09-20T11:06:21Z",
                          |"author":"joe.bloggs"}""".stripMargin
 
-  val path1 = Paths.get("it/Resources/report1new.txt.zip")
-  val zippedReport1 = Files.readAllBytes(path1)
-
-  val path2 = Paths.get("it/Resources/report2new.txt.zip")
-  val zippedReport2 = Files.readAllBytes(path2)
-
-  val pathMultipleVulns = Paths.get("it/Resources/reportmultiplevulns.txt.zip")
-  val zippedReportMultipleVulns = Files.readAllBytes(pathMultipleVulns)
+  val zippedReport1             = Files.readAllBytes(Paths.get(getClass.getResource("/report1new.txt.zip").toURI()))
+  val zippedReport2             = Files.readAllBytes(Paths.get(getClass.getResource("/report2new.txt.zip").toURI()))
+  val zippedReportMultipleVulns = Files.readAllBytes(Paths.get(getClass.getResource("/reportmultiplevulns.txt.zip").toURI()))
 
   val reportDelete = s"""{"info": "Report successfully deleted"}"""
 

@@ -19,13 +19,10 @@ package uk.gov.hmrc.vulnerabilities.service
 import org.mockito.MockitoSugar.mock
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
-import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
+import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired}
 import uk.gov.hmrc.vulnerabilities.model._
 import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
-import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
-import java.time.temporal.ChronoUnit
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class VulnerabilitiesServiceSpec extends AnyWordSpec with Matchers {
