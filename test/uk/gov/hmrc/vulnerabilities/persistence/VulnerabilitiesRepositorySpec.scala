@@ -20,7 +20,7 @@ import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, Environment, DistinctVulnerability, VulnerabilityCount, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, Environment, ServiceVersionDeployments, VulnerabilityCount, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -298,12 +298,70 @@ class VulnerabilitiesRepositorySpec
       intermediateRes.futureValue.length shouldBe 1
 
       val finalRes = for {
-        _   <- repository.deleteOldAndInsertNewSummaries(Seq(vulnerabilitySummary2, vulnerabilitySummary3))
+        _   <- repository.deleteOldAndInsertNewSummaries(Seq(vulnerabilitySummary2, vulnerabilitySummary3), Seq())
         res <- repository.collection.find().toFuture()
       } yield res
 
       finalRes.futureValue.length shouldBe 2
       finalRes.futureValue.map(res => res.distinctVulnerability.id).sorted shouldBe Seq("CVE-TEST-2", "XRAY-TEST-1")
+    }
+  }
+
+  "filterOutEnvironmentsNoLongerDeployedTo" should {
+    "no deployments should delete all" in new Setup {
+      val currentSummaries: Seq[VulnerabilitySummary] = Seq(vulnerabilitySummary1, vulnerabilitySummary2)
+      repository.filterOutEnvironmentsNoLongerDeployedTo(currentSummaries, Seq()).length shouldBe 0
+    }
+    "matches deployments should delete nothing" in new Setup {
+      private val currentSummaries = Seq(vulnerabilitySummary1, vulnerabilitySummary2)
+      private val svds = Seq(
+        ServiceVersionDeployments("service1", "1", Seq("development")),
+        ServiceVersionDeployments("service6", "2.55", Seq("staging", "production")),
+        ServiceVersionDeployments("service2", "2", Seq("staging")),
+        ServiceVersionDeployments("helloWorld", "2.51", Seq("qa")))
+      repository.filterOutEnvironmentsNoLongerDeployedTo(currentSummaries, svds) shouldBe Seq(vulnerabilitySummary1, vulnerabilitySummary2)
+    }
+    "remove one environment only" in new Setup {
+      private val currentSummaries = Seq(vulnerabilitySummary1)
+      private val currentEnvs = currentSummaries.flatMap(v => v.occurrences.map(o => o.envs)).flatten.toSet
+      private val svds = Seq(
+        ServiceVersionDeployments("service1", "1", Seq("development")),
+        ServiceVersionDeployments("service6", "2.55", Seq("staging")))
+      private val result = repository.filterOutEnvironmentsNoLongerDeployedTo(currentSummaries, svds)
+      private val remainingEnvs = result.flatMap(v => v.occurrences.map(o => o.envs)).flatten.toSet
+      currentEnvs shouldBe Set("development", "staging", "production")
+      remainingEnvs shouldBe Set("development", "staging")
+    }
+    "remove on summary only" in new Setup {
+      private val currentSummaries = Seq(vulnerabilitySummary1, vulnerabilitySummary2)
+      private val svds = Seq(
+        ServiceVersionDeployments("service1", "1", Seq("development")),
+        ServiceVersionDeployments("service6", "2.55", Seq("staging", "production")))
+      repository.filterOutEnvironmentsNoLongerDeployedTo(currentSummaries, svds) shouldBe Seq(vulnerabilitySummary1)
+    }
+  }
+
+  "ensureOldVulnerabilitiesStillIncluded" should {
+    "not change of no current" in new Setup {
+      repository.ensureOldVulnerabilitiesStillIncluded(Seq(), Seq(vulnerabilitySummary1, vulnerabilitySummary2)) shouldBe Seq(vulnerabilitySummary1, vulnerabilitySummary2)
+    }
+    "not change of current and new identical" in new Setup {
+      private val currentSummaries = Seq(vulnerabilitySummary1, vulnerabilitySummary2)
+      repository.ensureOldVulnerabilitiesStillIncluded(currentSummaries, Seq(vulnerabilitySummary1, vulnerabilitySummary2)) shouldBe Seq(vulnerabilitySummary1, vulnerabilitySummary2)
+    }
+    "add vulnerability if not in new" in new Setup {
+      private val currentSummaries = Seq(vulnerabilitySummary1, vulnerabilitySummary2)
+      repository.ensureOldVulnerabilitiesStillIncluded(currentSummaries, Seq(vulnerabilitySummary2)) shouldBe Seq(vulnerabilitySummary1, vulnerabilitySummary2)
+    }
+    "not change if old is missing environment" in new Setup {
+      private val summary1WithoutStaging = vulnerabilitySummary1.copy(occurrences = vulnerabilitySummary1.occurrences.map(occ => occ.copy(envs = occ.envs.filterNot(_ === "production"))))
+      private val currentSummaries = Seq(summary1WithoutStaging, vulnerabilitySummary2)
+      repository.ensureOldVulnerabilitiesStillIncluded(currentSummaries, Seq(vulnerabilitySummary1, vulnerabilitySummary2)) shouldBe Seq(vulnerabilitySummary1, vulnerabilitySummary2)
+    }
+    "add env change if new is missing environment" in new Setup {
+      private val summary1WithoutStaging = vulnerabilitySummary1.copy(occurrences = vulnerabilitySummary1.occurrences.map(occ => occ.copy(envs = occ.envs.filterNot(_ === "production"))))
+      private val currentSummaries = Seq(vulnerabilitySummary1)
+      repository.ensureOldVulnerabilitiesStillIncluded(currentSummaries, Seq(summary1WithoutStaging)) shouldBe Seq(vulnerabilitySummary1)
     }
   }
 

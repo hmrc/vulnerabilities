@@ -103,7 +103,7 @@ class UpdateVulnerabilitiesService @Inject()(
       finalSummaries   =  addInvestigationsToSummaries(refined, finalAssessments)
       _                =  logger.info("About to delete all documents from the vulnerabilitySummaries repository")
       //Update final Collection
-      summariesCount   <- vulnerabilitySummariesRepository.deleteOldAndInsertNewSummaries(finalSummaries)
+      summariesCount   <- vulnerabilitySummariesRepository.deleteOldAndInsertNewSummaries(finalSummaries, allSvDeps)
     } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
 
   private def addInvestigationsToSummaries(summaries: Seq[VulnerabilitySummary], investigations: Map[String, Assessment]): Seq[VulnerabilitySummary] =

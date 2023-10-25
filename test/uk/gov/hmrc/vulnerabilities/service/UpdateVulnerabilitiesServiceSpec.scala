@@ -144,7 +144,11 @@ class UpdateVulnerabilitiesServiceSpec
             teams         = List("team1", "team2", "teamA"),
             generatedDate = now
           )
-        )
+        ),
+        Seq(
+          ServiceVersionDeployments("service1","0.8",List("staging")),
+          ServiceVersionDeployments("service1","0.9",List("qa")),
+          ServiceVersionDeployments("service2","2.0",List("production", "staging")))
       )
     }
 
@@ -461,7 +465,11 @@ class UpdateVulnerabilitiesServiceSpec
             teams         = List("team1", "teamA"),
             generatedDate = now
           )
-        )
+        ),
+        Seq(
+          ServiceVersionDeployments("service1","0.8",List("staging")),
+          ServiceVersionDeployments("service1","0.9",List("qa")),
+          ServiceVersionDeployments("service2","2.0",List("production", "staging")))
       )
     }
   }
@@ -540,7 +548,7 @@ class UpdateVulnerabilitiesServiceSpec
         )
       )
 
-      when(vulnerabilitiesSummariesRepository.deleteOldAndInsertNewSummaries(any[Seq[VulnerabilitySummary]])).thenReturn(Future.successful(1))
+      when(vulnerabilitiesSummariesRepository.deleteOldAndInsertNewSummaries(any[Seq[VulnerabilitySummary]], any[Seq[ServiceVersionDeployments]])).thenReturn(Future.successful(1))
     }
 }
 
