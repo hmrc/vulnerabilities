@@ -5,6 +5,7 @@ ThisBuild / scalaVersion := "2.13.10"
 
 lazy val microservice = Project("vulnerabilities", file("."))
   .enablePlugins(play.sbt.PlayScala, SbtDistributablesPlugin)
+  .disablePlugins(JUnitXmlReportPlugin)
   .settings(
     libraryDependencies     ++= AppDependencies.compile ++ AppDependencies.test,
     RoutesKeys.routesImport ++= Seq(
