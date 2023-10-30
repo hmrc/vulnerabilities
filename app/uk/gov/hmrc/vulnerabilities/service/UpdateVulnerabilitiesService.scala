@@ -20,8 +20,8 @@ import play.api.Logging
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector}
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.Uncurated
-import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, ServiceVersionDeployments, UnrefinedVulnerabilitySummary, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent, WhatsRunningWhere}
-import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilitySummariesRepository}
+import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, Report, ServiceVersionDeployments, UnrefinedVulnerabilitySummary, VulnerabilityAge, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent, WhatsRunningWhere}
+import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilityAgeRepository, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
 import javax.inject.{Inject, Singleton}
@@ -34,23 +34,26 @@ class UpdateVulnerabilitiesService @Inject()(
   xrayService                     : XrayService,
   rawReportsRepository            : RawReportsRepository,
   assessmentsRepository           : AssessmentsRepository,
-  vulnerabilitySummariesRepository: VulnerabilitySummariesRepository
+  vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
+  vulnerabilityAgeRepository      : VulnerabilityAgeRepository
 
 )(implicit ec: ExecutionContext) extends
   Logging {
 
   def updateAllVulnerabilities()(implicit hc: HeaderCarrier): Future[Unit] =
     for {
-      svDeps          <- getCurrentServiceVersionDeployments()
+      svDeps         <- getCurrentServiceVersionDeployments()
       //Only download reports that don't exist in last X hours in our raw reports collection. This allows the scheduler to pickup where it left off if it fails.
       //This is more resilient than the alternative approach where we always redownload everything on a scheduler freq set to 24 hours
       //as if something went wrong on a single run, we wouldn't retry for another 24 hours, at which point we could have missing data.
-      recentReports   <- rawReportsRepository.getReportsInLastXDays()
-      svDepsToUpdate  =  svDeps.filterNot(svd => recentReports.exists(rep => rep.nameAndVersion().contains(svd.serviceName + "_" + svd.version)))
-      _               <- xrayService.processReports(svDepsToUpdate)
-      _               =  logger.info("Finished generating and inserting reports into the rawReports collection")
-      _               <- updateVulnerabilitySummaries(svDeps)
-      _               <- xrayService.deleteStaleReports()
+      recentReports  <- rawReportsRepository.getReportsInLastXDays()
+      agesToUpdate   =  toVulnerabilityAge(recentReports)
+      _              <- vulnerabilityAgeRepository.insertNonExisting(agesToUpdate)
+      svDepsToUpdate =  svDeps.filterNot(svd => recentReports.exists(rep => rep.nameAndVersion().contains(svd.serviceName + "_" + svd.version)))
+      _              <- xrayService.processReports(svDepsToUpdate)
+      _              =  logger.info("Finished generating and inserting reports into the rawReports collection")
+      _              <- updateVulnerabilitySummaries(svDeps)
+      _              <- xrayService.deleteStaleReports()
     } yield ()
 
   def updateVulnerabilities(
@@ -65,6 +68,20 @@ class UpdateVulnerabilitiesService @Inject()(
       _              =  logger.info(s"Finished generating and inserting reports into the rawReports collection for $serviceName version $version in $environment")
       _              <- updateVulnerabilitySummaries(svDeps)
     } yield ()
+
+
+  private def toVulnerabilityAge(reports: Seq[Report]): Seq[VulnerabilityAge] =
+    reports.flatMap { rep =>
+      rep.rows.map { raw =>
+        VulnerabilityAge(
+          service         = rep.serviceName(),
+          firstScanned    = raw.artifactScanTime,
+          vulnerabilityId = raw.cves.flatMap(cve => cve.cveId).headOption.getOrElse(raw.issueId)
+        )
+      }
+    }.groupBy(va => (va.service, va.vulnerabilityId))
+      .map { case (_, group) => group.minBy(_.firstScanned) }
+      .toSeq
 
   private def getCurrentServiceVersionDeployments()(implicit hc: HeaderCarrier): Future[Seq[ServiceVersionDeployments]] =
     for {
