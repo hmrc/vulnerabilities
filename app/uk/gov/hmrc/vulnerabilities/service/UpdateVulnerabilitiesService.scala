@@ -24,6 +24,7 @@ import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, Report, Service
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilityAgeRepository, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
+import cats.implicits._
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -114,7 +115,7 @@ class UpdateVulnerabilitiesService @Inject()(
       unrefined        <- rawReportsRepository.getNewDistinctVulnerabilities()
       _                =  logger.info(s"Retrieved ${unrefined.length} unrefined vulnerability summaries")
       reposWithTeams   <- teamsAndRepositoriesConnector.getCurrentReleases()
-      refined          =  convertToVulnerabilitySummary(unrefined, reposWithTeams, allSvDeps)
+      refined          <- convertToVulnerabilitySummary(unrefined, reposWithTeams, allSvDeps)
       assessments      <- assessmentsRepository.getAssessments()
       finalAssessments =  assessments.map(a => a.id -> a).toMap
       finalSummaries   =  addInvestigationsToSummaries(refined, finalAssessments)
@@ -144,43 +145,49 @@ class UpdateVulnerabilitiesService @Inject()(
     unrefined    : Seq[UnrefinedVulnerabilitySummary],
     repoWithTeams: Map[String, Seq[String]],
     svds         : Seq[ServiceVersionDeployments]
-  ): Seq[VulnerabilitySummary] =
-    unrefined.map { u =>
-      val occs = u.occurrences.map { occ =>
-        val service = occ.path.split("/")(2)
-        val serviceVersion = occ.path.split("_")(1)
-        VulnerabilityOccurrence(
-          service                    = service,
-          serviceVersion             = serviceVersion,
-          componentPathInSlug        = occ.componentPhysicalPath,
-          teams                      = repoWithTeams.getOrElse(service, Seq.empty).sorted,
-          envs                       = svds
-            .find(s => s.serviceName == service && s.version == serviceVersion)
-            .getOrElse(ServiceVersionDeployments("", "", Seq.empty)) //We don't filter out when this serviceVersion is not deployed in any env, as it would miss edge cases like forms-aem-publisher, which break our releases logic
-            .environments,
-          vulnerableComponentName    = occ.vulnComponent.split(":").dropRight(1).mkString(":"),
-          vulnerableComponentVersion = occ.vulnComponent.split(":").last
-        )
-      }
-
-      VulnerabilitySummary(
-        distinctVulnerability = DistinctVulnerability(
-          vulnerableComponentName    = occs.head.vulnerableComponentName,
-          vulnerableComponentVersion = occs.head.vulnerableComponentVersion,
-          vulnerableComponents       = occs.map( o => VulnerableComponent(o.vulnerableComponentName, o.vulnerableComponentVersion)).distinct.sortBy(o => (o.component, o.version)),
-          id                         = u.id,
-          score                      = u.score,
-          description                = u.distinctVulnerability.description,
-          fixedVersions              = u.distinctVulnerability.fixedVersions,
-          references                 = u.distinctVulnerability.references,
-          publishedDate              = u.distinctVulnerability.publishedDate,
-          assessment                 = None,
-          curationStatus             = None,
-          ticket                     = None,
-        ),
-        occurrences           = occs.sortBy(o => (o.service, o.serviceVersion)),
-        teams                 = occs.flatMap(_.teams).distinct.sorted,
-        generatedDate         = u.generatedDate
-      )
-    }
+  ): Future[Seq[VulnerabilitySummary]] =
+    unrefined.traverse { u =>
+      for {
+        firstScannedDate  <- vulnerabilityAgeRepository.filterById(u.id).map(_.minBy(_.firstScanned).firstScanned)
+        occurrences       =  u.occurrences.map { occ =>
+                               val service = occ.path.split("/")(2)
+                               val serviceVersion = occ.path.split("_")(1)
+                               VulnerabilityOccurrence(
+                                 service                    = service,
+                                 serviceVersion             = serviceVersion,
+                                 componentPathInSlug        = occ.componentPhysicalPath,
+                                 teams                      = repoWithTeams.getOrElse(service, Seq.empty).sorted,
+                                 vulnerableComponentName    = occ.vulnComponent.split(":").dropRight(1).mkString(":"),
+                                 vulnerableComponentVersion = occ.vulnComponent.split(":").last,
+                                 envs                       = svds.find(s => s.serviceName == service && s.version == serviceVersion)
+                                                               //We don't filter out when this serviceVersion is not deployed in any env,
+                                                               //as it would miss edge cases like forms-aem-publisher, which break our releases logic
+                                                               .getOrElse(ServiceVersionDeployments("", "", Seq.empty))
+                                                               .environments
+                               )
+                             }
+        optSummary        = occurrences.headOption.map { o =>
+                              VulnerabilitySummary(
+                                DistinctVulnerability(
+                                  vulnerableComponentName    = o.vulnerableComponentName,
+                                  vulnerableComponentVersion = o.vulnerableComponentVersion,
+                                  vulnerableComponents       = occurrences.map( o => VulnerableComponent(o.vulnerableComponentName, o.vulnerableComponentVersion)).distinct.sortBy(o => (o.component, o.version)),
+                                  id                         = u.id,
+                                  score                      = u.score,
+                                  description                = u.distinctVulnerability.description,
+                                  fixedVersions              = u.distinctVulnerability.fixedVersions,
+                                  references                 = u.distinctVulnerability.references,
+                                  publishedDate              = u.distinctVulnerability.publishedDate,
+                                  platformFirstScannedDate   = firstScannedDate,
+                                  assessment                 = None,
+                                  curationStatus             = None,
+                                  ticket                     = None
+                                ),
+                                occurrences   = occurrences.sortBy(o => (o.service, o.serviceVersion)),
+                                teams         = occurrences.flatMap(_.teams).distinct.sorted,
+                                generatedDate = u.generatedDate
+                              )
+        }
+      } yield optSummary
+    }.map(_.flatten)
 }

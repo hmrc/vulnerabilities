@@ -150,7 +150,7 @@ class XrayConnectorSpec
                |{"id":439750,"name":"AppSec-report-service2>2.0","report_type":"vulnerability","status":"completed","total_artifacts":2,"num_of_processed_artifacts":2,"progress":100,"number_of_rows":14,"start_time":"2023-01-01T11:19:20Z","end_time":"2023-08-07T11:19:21Z","author":"user1"}]}""".stripMargin)
       ))
 
-      connector.getStaleReportIds.futureValue
+      connector.getStaleReportIds().futureValue
 
       val expectedRequestBody =
         s"""{"filters":{"author":"user1","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"${now.minus(1, ChronoUnit.DAYS)}"}}}"""
@@ -169,7 +169,7 @@ class XrayConnectorSpec
                |{"id":439750,"name":"AppSec-report-service2>2.0","report_type":"vulnerability","status":"completed","total_artifacts":2,"num_of_processed_artifacts":2,"progress":100,"number_of_rows":14,"start_time":"2023-01-01T11:19:20Z","end_time":"2023-08-07T11:19:21Z","author":"user1"}]}""".stripMargin)
       ))
 
-      val res = connector.getStaleReportIds.futureValue
+      val res = connector.getStaleReportIds().futureValue
 
       res shouldBe Seq(ReportId(439753), ReportId(439750))
 
@@ -181,7 +181,7 @@ class XrayConnectorSpec
           .withStatus(429)
       ))
 
-      val res = connector.getStaleReportIds.failed.futureValue
+      val res = connector.getStaleReportIds().failed.futureValue
 
       res shouldBe a [UpstreamErrorResponse]
 
@@ -193,7 +193,7 @@ class XrayConnectorSpec
           .withStatus(500)
       ))
 
-      val res = connector.getStaleReportIds.failed.futureValue
+      val res = connector.getStaleReportIds().failed.futureValue
 
       res shouldBe a [UpstreamErrorResponse]
 
