@@ -30,7 +30,7 @@ import play.api.libs.ws.WSClient
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.test.CleanMongoCollectionSupport
 import uk.gov.hmrc.vulnerabilities.model._
-import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
+import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilityAgeRepository
 
 
 class DeploymentEventIntegrationSpec
@@ -55,10 +55,8 @@ class DeploymentEventIntegrationSpec
       ))
       .build()
 
-  private val wsClient = app.injector.instanceOf[WSClient]
-
-  val collection: RawReportsRepository = app.injector.instanceOf[RawReportsRepository]
-
+  private val wsClient                   = app.injector.instanceOf[WSClient]
+  private val vulnerabilityAgeCollection = app.injector.instanceOf[VulnerabilityAgeRepository]
 
   "updateVulnerabilities Service" should {
     "Should download report on deployment event" in {
@@ -119,6 +117,7 @@ class DeploymentEventIntegrationSpec
           fixedVersions              = Some(Seq("1.6.0")),
           references                 = Seq("foo.com", "bar.net"),
           publishedDate              = StubResponses.startOfYear,
+          firstDetected              = Some(StubResponses.startOfYear),
           assessment                 = None,
           curationStatus             = Some(CurationStatus.Uncurated),
           ticket                     = None
@@ -221,6 +220,7 @@ class DeploymentEventIntegrationSpec
           fixedVersions = Some(Seq("1.6.0")),
           references = Seq("foo.com", "bar.net"),
           publishedDate = StubResponses.startOfYear,
+          firstDetected = Some(StubResponses.startOfYear),
           assessment = None,
           curationStatus = Some(CurationStatus.Uncurated),
           ticket = None
@@ -242,6 +242,7 @@ class DeploymentEventIntegrationSpec
           fixedVersions = Some(Seq("1.6.0")),
           references = Seq("foo.com", "bar.net"),
           publishedDate = StubResponses.startOfYear,
+          firstDetected = Some(StubResponses.startOfYear),
           assessment = None,
           curationStatus = Some(CurationStatus.Uncurated),
           ticket = None
@@ -263,6 +264,7 @@ class DeploymentEventIntegrationSpec
           fixedVersions = Some(Seq("1.6.0")),
           references = Seq("foo.com", "bar.net"),
           publishedDate = StubResponses.startOfYear,
+          firstDetected = Some(StubResponses.startOfYear),
           assessment = None,
           curationStatus = Some(CurationStatus.Uncurated),
           ticket = None
@@ -284,6 +286,7 @@ class DeploymentEventIntegrationSpec
           fixedVersions = Some(Seq("1.6.0")),
           references = Seq("foo.com", "bar.net"),
           publishedDate = StubResponses.startOfYear,
+          firstDetected = Some(StubResponses.startOfYear),
           assessment = None,
           curationStatus = Some(CurationStatus.Uncurated),
           ticket = None
@@ -294,6 +297,13 @@ class DeploymentEventIntegrationSpec
         ),
         teams = List("Team1", "Team2"),
         generatedDate = StubResponses.startOfYear
+      )
+
+      vulnerabilityAgeCollection.insertNonExisting(
+        Seq(
+          VulnerabilityAge(service = "", vulnerabilityId = "CVE-2022-12345", firstScanned = StubResponses.startOfYear),
+          VulnerabilityAge(service = "", vulnerabilityId = "CVE-2021-99999",    firstScanned = StubResponses.startOfYear)
+        )
       )
       //Test occurs below
 

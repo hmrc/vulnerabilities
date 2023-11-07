@@ -17,7 +17,7 @@
 package uk.gov.hmrc.vulnerabilities
 
 import com.github.tomakehurst.wiremock.client.WireMock
-import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, containing, stubFor, urlMatching, urlPathMatching}
+import com.github.tomakehurst.wiremock.client.WireMock._
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -27,7 +27,8 @@ import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.ws.WSClient
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.test.CleanMongoCollectionSupport
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.vulnerabilities.model._
+import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilityAgeRepository
 
 class HappyPathIntegrationSpec
   extends AnyWordSpec
@@ -51,7 +52,8 @@ class HappyPathIntegrationSpec
       ))
       .build()
 
-  private val wsClient = app.injector.instanceOf[WSClient]
+  private val wsClient                   = app.injector.instanceOf[WSClient]
+  private val vulnerabilityAgeCollection = app.injector.instanceOf[VulnerabilityAgeRepository]
 
   "updateVulnerabilities Service" should {
     "download & process reports from Xray, before transforming them into VulnerabilitySummaries and inserting to the collection" in {
@@ -128,6 +130,7 @@ class HappyPathIntegrationSpec
           fixedVersions = Some(Seq("1.6.0")),
           references = Seq("foo.com", "bar.net"),
           publishedDate = StubResponses.startOfYear,
+          firstDetected = Some(StubResponses.startOfYear),
           assessment = None,
           curationStatus = Some(CurationStatus.Uncurated),
           ticket = None
@@ -138,6 +141,12 @@ class HappyPathIntegrationSpec
         ),
         teams = List("Team1", "Team2"),
         generatedDate = StubResponses.startOfYear
+      )
+
+      vulnerabilityAgeCollection.insertNonExisting(
+        Seq(
+          VulnerabilityAge(service = "", vulnerabilityId = "CVE-2022-12345", firstScanned = StubResponses.startOfYear)
+        )
       )
 
       //Test occurs below

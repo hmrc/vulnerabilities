@@ -19,8 +19,8 @@ package uk.gov.hmrc.vulnerabilities
 import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report}
 
 import java.nio.file.{Files, Paths}
-import java.time.{Instant, LocalDateTime, ZoneOffset}
 import java.time.temporal.ChronoUnit
+import java.time.{Instant, LocalDateTime, ZoneOffset}
 
 object StubResponses {
 

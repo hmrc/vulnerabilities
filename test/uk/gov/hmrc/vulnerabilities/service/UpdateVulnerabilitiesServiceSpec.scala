@@ -18,7 +18,7 @@ package uk.gov.hmrc.vulnerabilities.service
 
 import org.mockito.ArgumentMatchers.any
 import org.mockito.MockitoSugar.{mock, verify, when}
-import org.scalatest.concurrent.{ScalaFutures, IntegrationPatience}
+import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import uk.gov.hmrc.http.HeaderCarrier
@@ -68,12 +68,8 @@ class UpdateVulnerabilitiesServiceSpec
         ))
       )
 
-     when(vulnerabilityAgeRepository.filterById("CVE-1")).thenReturn(
-       Future.successful(Seq(
-         VulnerabilityAge(
-           service = "service2", vulnerabilityId = "CVE-1", firstScanned = now
-         )
-       ))
+     when(vulnerabilityAgeRepository.firstDetectedDate("CVE-1")).thenReturn(
+       Future.successful(Some(VulnerabilityAge(service = "service2", vulnerabilityId = "CVE-1", firstScanned = now)))
      )
 
       service.updateVulnerabilities(serviceName = "service2", version = "2.0", environment = "production").futureValue
@@ -110,12 +106,8 @@ class UpdateVulnerabilitiesServiceSpec
        Future.successful(Seq.empty)
      )
 
-     when(vulnerabilityAgeRepository.filterById("CVE-1")).thenReturn(
-       Future.successful(Seq(
-         VulnerabilityAge(
-           service = "service1", vulnerabilityId = "CVE-1", firstScanned = now
-         )
-       ))
+     when(vulnerabilityAgeRepository.firstDetectedDate("CVE-1")).thenReturn(
+       Future.successful(Some(VulnerabilityAge(service = "service2", vulnerabilityId = "CVE-1", firstScanned = now)))
      )
 
      service.updateVulnerabilities(serviceName = "service2", version = "2.0", environment = "production").futureValue
@@ -235,11 +227,11 @@ class UpdateVulnerabilitiesServiceSpec
      )
 
      when(vulnerabilityAgeRepository.insertNonExisting(any[Seq[VulnerabilityAge]])).thenReturn(
-       Future.successful(Seq.empty)
+       Future.successful(())
      )
 
-     when(vulnerabilityAgeRepository.filterById(any[String])).thenReturn(
-       Future.successful(Seq.empty[VulnerabilityAge])
+     when(vulnerabilityAgeRepository.firstDetectedDate("CVE-1")).thenReturn(
+       Future.successful(None)
      )
 
      when(rawReportsRepository.getReportsInLastXDays()).thenReturn(
@@ -390,15 +382,11 @@ class UpdateVulnerabilitiesServiceSpec
      )
 
      when(vulnerabilityAgeRepository.insertNonExisting(any[Seq[VulnerabilityAge]])).thenReturn(
-       Future.successful(Seq.empty)
+       Future.successful(())
      )
 
-     when(vulnerabilityAgeRepository.filterById(any[String])).thenReturn(
-       Future.successful(Seq(
-         VulnerabilityAge(
-           service = "service1", vulnerabilityId = "CVE-1", firstScanned = now
-         )
-       ))
+     when(vulnerabilityAgeRepository.firstDetectedDate(any[String])).thenReturn(
+       Future.successful(Some(VulnerabilityAge("service1", "CVE-1", now)))
      )
 
      service.updateAllVulnerabilities().futureValue
@@ -523,107 +511,6 @@ class UpdateVulnerabilitiesServiceSpec
          ServiceVersionDeployments("service2","2.0",List("production", "staging")))
      )
    }
-
-//   "transform raw reports into VulnerabilityAges and insert them into the VulnerabilityAgeRepository" in new Setup {
-//
-//     when(rawReportsRepository.getNewDistinctVulnerabilities()).thenReturn(
-//       Future.successful(Seq.empty[UnrefinedVulnerabilitySummary])
-//     )
-//
-//     when(rawReportsRepository.getReportsInLastXDays()).thenReturn(
-//       Future.successful(
-//         Seq(
-//           Report(
-//             rows = Seq(RawVulnerability(
-//               cves                  = Seq(CVE(cveId = Some("CVE-1"), cveV3Score = Some(6.0), cveV3Vector = None)),
-//               cvss3MaxScore         = Some(6.0),
-//               summary               = "",
-//               severity              = "",
-//               severitySource        = "",
-//               vulnerableComponent   = "",
-//               componentPhysicalPath = "",
-//               impactedArtifact      = "",
-//               impactPath            = Seq(""),
-//               path                  = "test/slugs/service1/service1_3.0_0.0.1.tgz",
-//               fixedVersions         = Seq(""),
-//               published             = now.minus(5,  ChronoUnit.MINUTES),
-//               artifactScanTime      = now.minus(10, ChronoUnit.MINUTES),
-//               issueId               = "CVE-1",
-//               packageType           = "",
-//               provider              = "",
-//               description           = "",
-//               references            = Seq(""),
-//               projectKeys           = Seq("")
-//             )),
-//             generatedDate = now.minus(5, ChronoUnit.MINUTES)
-//           ),
-//           Report(
-//             rows = Seq(RawVulnerability(
-//               cves                  = Seq(CVE(cveId = Some("CVE-1"), cveV3Score = Some(6.0), cveV3Vector = None)),
-//               cvss3MaxScore         = Some(6.0),
-//               summary               = "",
-//               severity              = "",
-//               severitySource        = "",
-//               vulnerableComponent   = "",
-//               componentPhysicalPath = "",
-//               impactedArtifact      = "",
-//               impactPath            = Seq(""),
-//               path                  = "test/slugs/service1/service1_3.0_0.0.2.tgz",
-//               fixedVersions         = Seq(""),
-//               published             = now.minus(5, ChronoUnit.MINUTES),
-//               artifactScanTime      = now.minus(5, ChronoUnit.MINUTES),
-//               issueId               = "CVE-1",
-//               packageType           = "",
-//               provider              = "",
-//               description           = "",
-//               references            = Seq(""),
-//               projectKeys           = Seq("")
-//             )),
-//             generatedDate = now.minus(5, ChronoUnit.MINUTES)
-//           ),
-//           Report(
-//             rows = Seq(RawVulnerability(
-//               cves                  = Seq(CVE(cveId = Some("CVE-2"), cveV3Score = Some(10.0), cveV3Vector = None)),
-//               cvss3MaxScore         = Some(10.0),
-//               summary               = "",
-//               severity              = "",
-//               severitySource        = "",
-//               vulnerableComponent   = "",
-//               componentPhysicalPath = "",
-//               impactedArtifact      = "",
-//               impactPath            = Seq(""),
-//               path                  = "test/slugs/service1/service1_0.9_0.0.1.tgz",
-//               fixedVersions         = Seq(""),
-//               published             = now.minus(5, ChronoUnit.MINUTES),
-//               artifactScanTime      = now.minus(5, ChronoUnit.MINUTES),
-//               issueId               = "CVE-2",
-//               packageType           = "",
-//               provider              = "",
-//               description           = "",
-//               references            = Seq(""),
-//               projectKeys           = Seq("")
-//             )),
-//             generatedDate = now.minus(5, ChronoUnit.MINUTES)
-//           )
-//         )
-//       )
-//     )
-//
-//     verify(vulnerabilityAgeRepository).insertNonExisting(
-//       Seq(
-//         VulnerabilityAge(
-//           service = "service1", vulnerabilityId = "CVE-1", firstScanned = now.minus(10, ChronoUnit.MINUTES)
-//         ),
-//         VulnerabilityAge(
-//           service = "service1", vulnerabilityId = "CVE-2", firstScanned = now.minus(5, ChronoUnit.MINUTES)
-//         )
-//       )
-//     )
-//   }
-//
-//   "transform the raw reports into VulnerabilitySummaries with the earliest scanned platform date" in new Setup {
-//
-//   }
  }
 
 
