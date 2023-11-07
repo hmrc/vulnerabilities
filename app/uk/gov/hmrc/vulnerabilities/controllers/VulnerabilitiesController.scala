@@ -69,12 +69,17 @@ class VulnerabilitiesController @Inject()(
   }
 
   def manualReload() = Action { implicit request =>
-    scheduler.manualReload()
+    scheduler
+      .manualReload()
+      .recover(ex => logger.error("Error running manual data reload", ex))
+
     Accepted("Vulnerabilities data reload triggered.")
   }
 
   def manualTimelineUpdate() = Action { implicit request =>
-    timelineScheduler.manualReload()
+    timelineScheduler
+      .manualReload()
+      .recover(ex => logger.error("Error running manual timeline data reload", ex))
     Accepted("Vulnerabilities timeline data update triggered.")
   }
 

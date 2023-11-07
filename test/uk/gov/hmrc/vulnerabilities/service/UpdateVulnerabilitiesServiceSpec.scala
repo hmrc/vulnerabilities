@@ -133,7 +133,7 @@ class UpdateVulnerabilitiesServiceSpec
              fixedVersions              = Some(Seq("4.0")),
              references                 = Seq("reference1"),
              publishedDate              = now,
-             platformFirstScannedDate   = now,
+             firstDetected              = Some(now),
              assessment                 = Some("must fix"),
              curationStatus             = Some(CurationStatus.ActionRequired),
              ticket                     = Some("BDOG-1")
@@ -416,7 +416,7 @@ class UpdateVulnerabilitiesServiceSpec
              fixedVersions              = Some(Seq("4.0")),
              references                 = Seq("reference1"),
              publishedDate              = now,
-             platformFirstScannedDate   = now,
+             firstDetected              = Some(now),
              assessment                 = Some("must fix"),
              curationStatus             = Some(CurationStatus.ActionRequired),
              ticket                     = Some("BDOG-1")
@@ -460,7 +460,7 @@ class UpdateVulnerabilitiesServiceSpec
              fixedVersions              = Some(Seq("3.0")),
              references                 = Seq("reference2"),
              publishedDate              = now,
-             platformFirstScannedDate   = now,
+             firstDetected              = Some(now),
              assessment                 = None,
              curationStatus             = Some(CurationStatus.Uncurated),
              ticket                     = None
@@ -497,7 +497,7 @@ class UpdateVulnerabilitiesServiceSpec
              fixedVersions              = Some(Seq("5.0")),
              references                 = Seq("reference3"),
              publishedDate              = now,
-             platformFirstScannedDate   = now,
+             firstDetected              = Some(now),
              assessment                 = Some("fix"),
              curationStatus             = Some(CurationStatus.NoActionRequired),
              ticket                     = None  //Whitespace should default to none
@@ -523,7 +523,109 @@ class UpdateVulnerabilitiesServiceSpec
          ServiceVersionDeployments("service2","2.0",List("production", "staging")))
      )
    }
-  }
+
+//   "transform raw reports into VulnerabilityAges and insert them into the VulnerabilityAgeRepository" in new Setup {
+//
+//     when(rawReportsRepository.getNewDistinctVulnerabilities()).thenReturn(
+//       Future.successful(Seq.empty[UnrefinedVulnerabilitySummary])
+//     )
+//
+//     when(rawReportsRepository.getReportsInLastXDays()).thenReturn(
+//       Future.successful(
+//         Seq(
+//           Report(
+//             rows = Seq(RawVulnerability(
+//               cves                  = Seq(CVE(cveId = Some("CVE-1"), cveV3Score = Some(6.0), cveV3Vector = None)),
+//               cvss3MaxScore         = Some(6.0),
+//               summary               = "",
+//               severity              = "",
+//               severitySource        = "",
+//               vulnerableComponent   = "",
+//               componentPhysicalPath = "",
+//               impactedArtifact      = "",
+//               impactPath            = Seq(""),
+//               path                  = "test/slugs/service1/service1_3.0_0.0.1.tgz",
+//               fixedVersions         = Seq(""),
+//               published             = now.minus(5,  ChronoUnit.MINUTES),
+//               artifactScanTime      = now.minus(10, ChronoUnit.MINUTES),
+//               issueId               = "CVE-1",
+//               packageType           = "",
+//               provider              = "",
+//               description           = "",
+//               references            = Seq(""),
+//               projectKeys           = Seq("")
+//             )),
+//             generatedDate = now.minus(5, ChronoUnit.MINUTES)
+//           ),
+//           Report(
+//             rows = Seq(RawVulnerability(
+//               cves                  = Seq(CVE(cveId = Some("CVE-1"), cveV3Score = Some(6.0), cveV3Vector = None)),
+//               cvss3MaxScore         = Some(6.0),
+//               summary               = "",
+//               severity              = "",
+//               severitySource        = "",
+//               vulnerableComponent   = "",
+//               componentPhysicalPath = "",
+//               impactedArtifact      = "",
+//               impactPath            = Seq(""),
+//               path                  = "test/slugs/service1/service1_3.0_0.0.2.tgz",
+//               fixedVersions         = Seq(""),
+//               published             = now.minus(5, ChronoUnit.MINUTES),
+//               artifactScanTime      = now.minus(5, ChronoUnit.MINUTES),
+//               issueId               = "CVE-1",
+//               packageType           = "",
+//               provider              = "",
+//               description           = "",
+//               references            = Seq(""),
+//               projectKeys           = Seq("")
+//             )),
+//             generatedDate = now.minus(5, ChronoUnit.MINUTES)
+//           ),
+//           Report(
+//             rows = Seq(RawVulnerability(
+//               cves                  = Seq(CVE(cveId = Some("CVE-2"), cveV3Score = Some(10.0), cveV3Vector = None)),
+//               cvss3MaxScore         = Some(10.0),
+//               summary               = "",
+//               severity              = "",
+//               severitySource        = "",
+//               vulnerableComponent   = "",
+//               componentPhysicalPath = "",
+//               impactedArtifact      = "",
+//               impactPath            = Seq(""),
+//               path                  = "test/slugs/service1/service1_0.9_0.0.1.tgz",
+//               fixedVersions         = Seq(""),
+//               published             = now.minus(5, ChronoUnit.MINUTES),
+//               artifactScanTime      = now.minus(5, ChronoUnit.MINUTES),
+//               issueId               = "CVE-2",
+//               packageType           = "",
+//               provider              = "",
+//               description           = "",
+//               references            = Seq(""),
+//               projectKeys           = Seq("")
+//             )),
+//             generatedDate = now.minus(5, ChronoUnit.MINUTES)
+//           )
+//         )
+//       )
+//     )
+//
+//     verify(vulnerabilityAgeRepository).insertNonExisting(
+//       Seq(
+//         VulnerabilityAge(
+//           service = "service1", vulnerabilityId = "CVE-1", firstScanned = now.minus(10, ChronoUnit.MINUTES)
+//         ),
+//         VulnerabilityAge(
+//           service = "service1", vulnerabilityId = "CVE-2", firstScanned = now.minus(5, ChronoUnit.MINUTES)
+//         )
+//       )
+//     )
+//   }
+//
+//   "transform the raw reports into VulnerabilitySummaries with the earliest scanned platform date" in new Setup {
+//
+//   }
+ }
+
 
     trait Setup {
       val now: Instant = Instant.now()

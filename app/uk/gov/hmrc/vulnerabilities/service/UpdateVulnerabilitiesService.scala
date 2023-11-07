@@ -16,15 +16,15 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
+import cats.implicits._
 import play.api.Logging
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.connectors.{ReleasesConnector, TeamsAndRepositoriesConnector}
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.Uncurated
-import uk.gov.hmrc.vulnerabilities.model.{DistinctVulnerability, Report, ServiceVersionDeployments, UnrefinedVulnerabilitySummary, VulnerabilityAge, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent, WhatsRunningWhere}
+import uk.gov.hmrc.vulnerabilities.model._
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilityAgeRepository, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
-import cats.implicits._
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -148,7 +148,7 @@ class UpdateVulnerabilitiesService @Inject()(
   ): Future[Seq[VulnerabilitySummary]] =
     unrefined.traverse { u =>
       for {
-        firstScannedDate  <- vulnerabilityAgeRepository.filterById(u.id).map(_.minBy(_.firstScanned).firstScanned)
+        firstDetected     <- vulnerabilityAgeRepository.filterById(u.id).map(_.minBy(_.firstScanned).firstScanned)
         occurrences       =  u.occurrences.map { occ =>
                                val service = occ.path.split("/")(2)
                                val serviceVersion = occ.path.split("_")(1)
@@ -178,7 +178,7 @@ class UpdateVulnerabilitiesService @Inject()(
                                   fixedVersions              = u.distinctVulnerability.fixedVersions,
                                   references                 = u.distinctVulnerability.references,
                                   publishedDate              = u.distinctVulnerability.publishedDate,
-                                  platformFirstScannedDate   = firstScannedDate,
+                                  firstDetected              = Some(firstDetected),
                                   assessment                 = None,
                                   curationStatus             = None,
                                   ticket                     = None
