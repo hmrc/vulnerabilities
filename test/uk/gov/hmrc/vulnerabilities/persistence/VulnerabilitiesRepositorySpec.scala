@@ -51,6 +51,7 @@ class VulnerabilitiesRepositorySpec
         description                = "desc1",
         references                 = Seq("test", "test"),
         publishedDate              = now,
+        firstDetected              = Some(now),
         assessment                 = Some(""),
         curationStatus             = Some(CurationStatus.ActionRequired), ticket = Some("BDOG-1"),
         fixedVersions              = None
@@ -64,6 +65,7 @@ class VulnerabilitiesRepositorySpec
         description                = "desc2",
         references                 = Seq("test", "test"),
         publishedDate              = now,
+        firstDetected              = Some(now),
         assessment                 = Some(""),
         curationStatus             = Some(CurationStatus.NoActionRequired),
         ticket                     = Some("BDOG-2"),
@@ -78,6 +80,7 @@ class VulnerabilitiesRepositorySpec
         description                = "desc3",
         references                 = Seq("test", "test"),
         publishedDate              = now,
+        firstDetected              = Some(now),
         assessment                 = Some(""),
         curationStatus             = Some(CurationStatus.ActionRequired),
         ticket                     = Some("BDOG-3"),
@@ -382,6 +385,7 @@ class VulnerabilitiesRepositorySpec
           fixedVersions              = None,
           references                 = Seq("test", "test"),
           publishedDate              = now,
+          firstDetected              = Some(now),
           assessment                 = Some(""),
           curationStatus             = Some(CurationStatus.ActionRequired),
           ticket                     = Some("BDOG-1")
@@ -408,6 +412,7 @@ class VulnerabilitiesRepositorySpec
           fixedVersions              = Some(Seq("1", "2")),
           references                 = Seq("test", "test"),
           publishedDate              = now,
+          firstDetected              = Some(now),
           assessment                 = Some(""),
           curationStatus             = Some(CurationStatus.NoActionRequired),
           ticket                     = Some("BDOG-2")
@@ -433,6 +438,7 @@ class VulnerabilitiesRepositorySpec
         fixedVersions              = None,
         references                 = Seq("test", "test"),
         publishedDate              = now,
+        firstDetected              = Some(now),
         assessment                 = Some(""),
         curationStatus             = Some(CurationStatus.ActionRequired),
         ticket                     = Some("BDOG-3")
@@ -459,6 +465,7 @@ class VulnerabilitiesRepositorySpec
         fixedVersions              = None,
         references                 = Seq("test", "test"),
         publishedDate              = now,
+        firstDetected              = Some(now),
         assessment                 = Some(""),
         curationStatus             = Some(CurationStatus.ActionRequired),
         ticket                     = Some("BDOG-3")
@@ -485,6 +492,7 @@ class VulnerabilitiesRepositorySpec
         fixedVersions              = None,
         references                 = Seq("test", "test"),
         publishedDate              = now,
+        firstDetected              = Some(now),
         assessment                 = Some(""),
         curationStatus             = Some(CurationStatus.NoActionRequired),
         ticket                     = Some("BDOG-3")

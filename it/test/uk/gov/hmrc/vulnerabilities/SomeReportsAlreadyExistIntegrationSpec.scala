@@ -27,9 +27,8 @@ import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.ws.WSClient
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.test.CleanMongoCollectionSupport
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
-import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
-
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, VulnerabilityAge, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilityAgeRepository}
 
 class SomeReportsAlreadyExistIntegrationSpec
   extends AnyWordSpec
@@ -55,7 +54,8 @@ class SomeReportsAlreadyExistIntegrationSpec
 
   private val wsClient = app.injector.instanceOf[WSClient]
 
-  val collection = app.injector.instanceOf[RawReportsRepository]
+  private val rawReportsCollection       = app.injector.instanceOf[RawReportsRepository]
+  private val vulnerabilityAgeCollection = app.injector.instanceOf[VulnerabilityAgeRepository]
 
   /**
    *
@@ -141,6 +141,7 @@ class SomeReportsAlreadyExistIntegrationSpec
           fixedVersions              = Some(Seq("1.6.0")),
           references                 = Seq("foo.com", "bar.net"),
           publishedDate              = StubResponses.startOfYear,
+          firstDetected              = Some(StubResponses.startOfYear),
           assessment                 = None,
           curationStatus             = Some(CurationStatus.Uncurated),
           ticket                     = None
@@ -163,6 +164,7 @@ class SomeReportsAlreadyExistIntegrationSpec
           fixedVersions              = Some(Seq("1.6.0")),
           references                 = Seq("foo.com", "bar.net"),
           publishedDate              = StubResponses.startOfYear,
+          firstDetected              = Some(StubResponses.startOfYear),
           assessment                 = None,
           curationStatus             = Some(CurationStatus.Uncurated),
           ticket                     = None
@@ -183,7 +185,14 @@ class SomeReportsAlreadyExistIntegrationSpec
       )
 
       //Test occurs below
-      collection.insertReport(StubResponses.alreadyDownloadedReport,  "AppSec-report-Service5_5.0.4")
+      rawReportsCollection.insertReport(StubResponses.alreadyDownloadedReport,  "AppSec-report-Service5_5.0.4")
+
+      vulnerabilityAgeCollection.insertNonExisting(
+        Seq(
+          VulnerabilityAge(service = "", vulnerabilityId = "CVE-2022-12345", firstScanned = StubResponses.startOfYear),
+          VulnerabilityAge(service = "", vulnerabilityId = "CVE-999-999",    firstScanned = StubResponses.startOfYear)
+        )
+      )
 
       eventually {
         val response = wsClient

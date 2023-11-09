@@ -124,7 +124,6 @@ class RawReportsRepositorySpec
       assessmentsCollection.insertMany(assessments).toFuture().futureValue
 
       val res = repository.getTimelineData(november).futureValue
-      println(res)
 
       res.head.weekBeginning shouldBe Instant.parse("2022-12-26T00:00:00.00Z")
     }
