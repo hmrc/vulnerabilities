@@ -76,7 +76,7 @@ class UpdateVulnerabilitiesService @Inject()(
       rep.rows.map { raw =>
         VulnerabilityAge(
           service         = rep.serviceName(),
-          firstScanned    = raw.artifactScanTime,
+          firstScanned    = rep.generatedDate,
           vulnerabilityId = raw.cves.flatMap(cve => cve.cveId).headOption.getOrElse(raw.issueId)
         )
       }
