@@ -128,6 +128,13 @@ class DeploymentEventIntegrationSpec
         teams = List("Team1", "Team2"),
         generatedDate = StubResponses.startOfYear
       )
+
+      vulnerabilityAgeCollection.insertNonExisting(
+        Seq(
+          VulnerabilityAge(service = "", vulnerabilityId = "CVE-2022-12345", firstScanned = StubResponses.startOfYear),
+          VulnerabilityAge(service = "", vulnerabilityId = "CVE-2021-99999", firstScanned = StubResponses.startOfYear)
+        )
+      )
       //Test occurs below
 
       eventually {
