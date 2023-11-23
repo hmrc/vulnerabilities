@@ -20,12 +20,12 @@ import akka.actor.ActorSystem
 import play.api.inject.ApplicationLifecycle
 import play.api.Logger
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.mongo.lock.{LockService, MongoLockRepository}
+import uk.gov.hmrc.mongo.TimestampSupport
+import uk.gov.hmrc.mongo.lock.{ScheduledLockService, MongoLockRepository}
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.service.VulnerabilitiesTimelineService
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
@@ -33,13 +33,20 @@ class TimelineScheduler @Inject()(
   vulnerabilitiesTimelineService: VulnerabilitiesTimelineService,
   config                        : SchedulerConfigs,
   mongoLockRepository           : MongoLockRepository,
+  timestampSupport              : TimestampSupport
  )(implicit
   actorSystem         : ActorSystem,
   applicationLifecycle: ApplicationLifecycle,
   ec                  : ExecutionContext
  ) extends SchedulerUtils {
 
-  private val timelineUpdateLock: LockService = LockService(mongoLockRepository, "vuln-timeline-update-lock", 60.minutes)
+  private val timelineUpdateLock: ScheduledLockService =
+    ScheduledLockService(
+      lockRepository    = mongoLockRepository,
+      lockId            = "vuln-timeline-update-lock",
+      timestampSupport  = timestampSupport,
+      schedulerInterval = config.timelineUpdateScheduler.frequency
+    )
 
   private val logger = Logger(getClass)
 
