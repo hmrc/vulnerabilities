@@ -18,24 +18,22 @@ package uk.gov.hmrc.vulnerabilities.utils
 
 import akka.actor.ActorSystem
 import play.api.inject.ApplicationLifecycle
-import play.api.{Configuration, Logger}
+import play.api.Logger
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.mongo.lock.{LockService, MongoLockRepository}
+import uk.gov.hmrc.mongo.TimestampSupport
+import uk.gov.hmrc.mongo.lock.{ScheduledLockService, MongoLockRepository}
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
-import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
 import uk.gov.hmrc.vulnerabilities.service.UpdateVulnerabilitiesService
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class Scheduler @Inject()(
-  updateVulnerabilitiesService    : UpdateVulnerabilitiesService,
-  config                          : SchedulerConfigs,
-  vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
-  mongoLockRepository             : MongoLockRepository,
-  configuration                   : Configuration
+  updateVulnerabilitiesService: UpdateVulnerabilitiesService,
+  config                      : SchedulerConfigs,
+  mongoLockRepository         : MongoLockRepository,
+  timestampSupport            : TimestampSupport
 )(implicit
   actorSystem         : ActorSystem,
   applicationLifecycle: ApplicationLifecycle,
@@ -44,7 +42,13 @@ class Scheduler @Inject()(
 
   private val logger = Logger(getClass)
 
-  private val dataReloadLock: LockService = LockService(mongoLockRepository, "vuln-data-reload-lock", 165.minutes)
+  private val dataReloadLock: ScheduledLockService =
+    ScheduledLockService(
+      lockRepository    = mongoLockRepository,
+      lockId            = "vuln-data-reload-lock",
+      timestampSupport  = timestampSupport,
+      schedulerInterval = config.dataReloadScheduler.frequency
+    )
 
   scheduleWithLock("Vulnerabilities data Reloader", config.dataReloadScheduler, dataReloadLock) {
     implicit val hc: HeaderCarrier = HeaderCarrier()

@@ -19,7 +19,7 @@ package uk.gov.hmrc.vulnerabilities.utils
 import akka.actor.ActorSystem
 import play.api.Logger
 import play.api.inject.ApplicationLifecycle
-import uk.gov.hmrc.mongo.lock.LockService
+import uk.gov.hmrc.mongo.lock.ScheduledLockService
 import uk.gov.hmrc.vulnerabilities.config.SchedulerConfig
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -29,7 +29,7 @@ trait SchedulerUtils {
 
   private val logger = Logger(this.getClass)
 
-  def schedule(
+  private def schedule(
     label: String,
     schedulerConfig: SchedulerConfig
   )(f: => Future[Unit]
@@ -63,21 +63,21 @@ trait SchedulerUtils {
     }
 
   def scheduleWithLock(
-    label          : String,
+    label: String,
     schedulerConfig: SchedulerConfig,
-    lock           : LockService
+    lock: ScheduledLockService
   )(f: => Future[Unit]
   )(implicit
-    actorSystem         : ActorSystem,
+    actorSystem: ActorSystem,
     applicationLifecycle: ApplicationLifecycle,
-    ec                  : ExecutionContext
+    ec: ExecutionContext
   ): Unit =
     schedule(label, schedulerConfig) {
       lock
         .withLock(f)
         .map {
           case Some(_) => logger.debug(s"$label finished - releasing lock")
-          case None    => logger.debug(s"$label cannot run - lock ${lock.lockId} is taken... skipping update")
+          case None => logger.debug(s"$label cannot run - lock ${lock.lockId} is taken... skipping update")
         }
         .recover {
           case NonFatal(e) => logger.error(s"$label interrupted because: ${e.getMessage}", e)
