@@ -17,7 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.controllers
 
 import play.api.Logging
-import play.api.libs.json.Json
+import play.api.libs.json.{Json, OFormat}
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, VulnerabilitiesTimelineCount}
@@ -35,7 +35,7 @@ class VulnerabilitiesTimelineController @Inject()(
   extends BackendController(cc)
      with Logging {
 
-  implicit val fmt = VulnerabilitiesTimelineCount.apiFormat
+  implicit val fmt: OFormat[VulnerabilitiesTimelineCount] = VulnerabilitiesTimelineCount.apiFormat
 
   def getTimelineCounts(
     service       : Option[String],

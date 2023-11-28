@@ -16,8 +16,9 @@
 
 package uk.gov.hmrc.vulnerabilities.notification
 
-import akka.actor.ActorSystem
-import akka.stream.scaladsl.Source
+import org.apache.pekko.{Done, NotUsed}
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.stream.scaladsl.Source
 import play.api.{Configuration, Logging}
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
 import software.amazon.awssdk.services.sqs.model.{DeleteMessageRequest, Message, ReceiveMessageRequest}
@@ -70,7 +71,7 @@ abstract class SqsConsumer(
     .map(_ => ())
 
 
-  private def dedupe(source: Source[Message, akka.NotUsed]): Source[Message, akka.NotUsed] =
+  private def dedupe(source: Source[Message, NotUsed]): Source[Message, NotUsed] =
     Source
       .single(Message.builder.messageId("----------").build) // dummy value since the dedupe will ignore the first entry
       .concat(source)
@@ -84,11 +85,11 @@ abstract class SqsConsumer(
           List(current)
       }
 
-  def runQueue(): Future[akka.Done] =
+  def runQueue(): Future[Done] =
     dedupe(
       Source.repeat(
         ReceiveMessageRequest.builder()
-          .queueUrl(config.queueUrl.toString())
+          .queueUrl(config.queueUrl.toString)
           .maxNumberOfMessages(config.maxNumberOfMessages)
           .waitTimeSeconds(config.waitTimeSeconds)
           .build()
@@ -97,7 +98,7 @@ abstract class SqsConsumer(
     )
     .mapAsync(parallelism = 1) { message =>
       processMessage(message)
-        .map {
+        .map[Unit] {
           case MessageAction.Delete(message) => deleteMessage(message)
           case MessageAction.Ignore(_)       => Future.unit
         }.recover {

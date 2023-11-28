@@ -17,7 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.model
 
 import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
-import play.api.libs.json.{OFormat, __}
+import play.api.libs.json.{Format, OFormat, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant
@@ -31,7 +31,7 @@ case class TimelineEvent(
 )
 
 object TimelineEvent {
-  implicit val csf = CurationStatus.format
+  implicit val csf: Format[CurationStatus] = CurationStatus.format
 
   val mongoFormat: OFormat[TimelineEvent] = {
     implicit val instantFormat = MongoJavatimeFormats.instantFormat

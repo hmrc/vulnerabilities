@@ -16,9 +16,9 @@
 
 package uk.gov.hmrc.vulnerabilities.connectors
 
-import akka.stream.Materializer
-import akka.stream.scaladsl.{Source, StreamConverters}
-import akka.util.ByteString
+import org.apache.pekko.stream.Materializer
+import org.apache.pekko.stream.scaladsl.{Source, StreamConverters}
+import org.apache.pekko.util.ByteString
 import play.api.Logging
 import play.api.libs.json.{Json, Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}

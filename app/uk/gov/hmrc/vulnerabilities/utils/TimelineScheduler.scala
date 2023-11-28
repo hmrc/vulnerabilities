@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.utils
 
-import akka.actor.ActorSystem
+import org.apache.pekko.actor.ActorSystem
 import play.api.inject.ApplicationLifecycle
 import play.api.Logger
 import uk.gov.hmrc.http.HeaderCarrier
