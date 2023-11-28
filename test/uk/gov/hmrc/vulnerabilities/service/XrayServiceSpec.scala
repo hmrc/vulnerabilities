@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
-import akka.actor.ActorSystem
+import org.apache.pekko.actor.ActorSystem
 import org.mockito.ArgumentMatchers.{any, anyInt}
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.mockito.MockitoSugar.when
@@ -143,7 +143,7 @@ class XrayServiceSpec extends AnyWordSpec
 
   "check if report ready" when {
     val xrayConnector = mock[XrayConnector]
-    val actorSystem = ActorSystem("testActor") //Create a test Actor as this method uses akka.pattern.after{}
+    val actorSystem = ActorSystem("testActor") //Create a test Actor as this method uses org.apache.pekko.pattern.after{}
     val repository = mock[RawReportsRepository]
 
     val service = new XrayService(

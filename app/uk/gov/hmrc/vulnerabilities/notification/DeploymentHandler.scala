@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.notification
 
-import akka.actor.ActorSystem
+import org.apache.pekko.actor.ActorSystem
 import cats.data.EitherT
 import cats.implicits._
 import play.api.Configuration
@@ -42,7 +42,7 @@ class DeploymentHandler @Inject()(
 )(actorSystem, ec) {
   import DeploymentHandler._
 
-  private implicit val hc = HeaderCarrier()
+  private implicit val hc: HeaderCarrier = HeaderCarrier()
 
   override protected def processMessage(message: Message): Future[MessageAction] = {
     logger.info(s"Starting processing Deployment message with ID '${message.messageId()}'")

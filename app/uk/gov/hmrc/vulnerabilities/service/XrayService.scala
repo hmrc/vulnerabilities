@@ -16,8 +16,8 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
-import akka.actor.ActorSystem
-import cats.data.{EitherT}
+import org.apache.pekko.actor.ActorSystem
+import cats.data.EitherT
 import play.api.Logger
 import play.api.libs.json.Json
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
@@ -105,7 +105,7 @@ class XrayService @Inject()(
       xrayConnector.checkStatus(reportRequestResponse.reportID).flatMap { rs => (rs.status, rs.rowCount) match {
         case ("completed", Some(rows)) if rows > 0 => Future.successful(XraySuccess)
         case ("completed", _)                      => Future.successful(XrayNoData)
-        case _                                     => akka.pattern.after(1000.millis, system.scheduler) {
+        case _                                     => org.apache.pekko.pattern.after(1000.millis, system.scheduler) {
                                                         checkIfReportReady(reportRequestResponse, counter + 1)
                                                       }
       }}

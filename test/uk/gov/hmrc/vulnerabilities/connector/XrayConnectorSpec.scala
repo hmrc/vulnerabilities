@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.connector
 
-import akka.stream.Materializer
+import org.apache.pekko.stream.Materializer
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, containing, equalToJson, postRequestedFor, stubFor, urlEqualTo, urlMatching}
 import org.mockito.MockitoSugar

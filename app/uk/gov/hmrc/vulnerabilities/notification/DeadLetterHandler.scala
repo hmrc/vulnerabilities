@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.notification
 
-import akka.actor.ActorSystem
+import org.apache.pekko.actor.ActorSystem
 import javax.inject.{Inject, Singleton}
 import play.api.Configuration
 import software.amazon.awssdk.services.sqs.model.Message

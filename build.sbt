@@ -1,7 +1,7 @@
 import play.sbt.routes.RoutesKeys
 
 ThisBuild / majorVersion := 0
-ThisBuild / scalaVersion := "2.13.10"
+ThisBuild / scalaVersion := "2.13.12"
 
 lazy val microservice = Project("vulnerabilities", file("."))
   .enablePlugins(play.sbt.PlayScala, SbtDistributablesPlugin)
