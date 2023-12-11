@@ -136,9 +136,11 @@ class VulnerabilitiesRepositorySpec
 
     "filter by exclusion regex and disregard vulnerability if occurrences are not defined" in new Setup {
 
-      repository.collection.insertMany(Seq(vulnerabilityWithValidAndExludedOccurrence, vulnerabilityWithExludedOccurrenceOnly1)).toFuture().futureValue
+      repository.collection.insertMany(Seq(vulnerabilityWithValidAndExludedOccurrence1, vulnerabilityWithExludedOccurrenceOnly1)).toFuture().futureValue
 
-      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(3), Seq(expectedOccurrences(2)), Seq("team1"), oneMinAgo)
+      val expectedOcc = VulnerabilityOccurrence(service = "test-service-1", serviceVersion = "3", componentPathInSlug = "c", teams = Seq(), envs = Seq("development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0")
+
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(3), Seq(expectedOcc), Seq("team1"), oneMinAgo)
 
       val results = repository.distinctVulnerabilitiesSummary(None, None, None, None, None, None).futureValue
       val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
@@ -157,7 +159,6 @@ class VulnerabilitiesRepositorySpec
 
       resultsSorted.length shouldBe 0
     }
-
 
     "filter by id" in new Setup {
       repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
@@ -274,6 +275,23 @@ class VulnerabilitiesRepositorySpec
   }
 
   "vulnerabilitiesCount" should {
+
+    "return counts for a services and excludes if regex is matched" in new Setup {
+      val expected = Seq(
+        VulnerabilityCount("test-service-1", Environment.Development.asString, CurationStatus.ActionRequired, 2),
+        VulnerabilityCount("service6", Environment.Production.asString, CurationStatus.ActionRequired, 1),
+        VulnerabilityCount("service6", Environment.Staging.asString, CurationStatus.ActionRequired, 1),
+        VulnerabilityCount("service1", Environment.Development.asString, CurationStatus.ActionRequired, 1)
+      )
+
+      repository.collection.insertMany(
+        Seq(vulnerabilityWithValidAndExludedOccurrence1, vulnerabilityWithValidAndExludedOccurrence2, vulnerabilityWithExludedOccurrenceOnly1, vulnerabilityWithExludedOccurrenceOnly2, vulnerabilitySummary1)
+      ).toFuture().futureValue
+
+      val result = repository.vulnerabilitiesCount(service = None, None, None)
+
+      result.futureValue should contain theSameElementsAs expected
+    }
 
     "return counts for a service" in new Setup {
       val expected = Seq(
@@ -552,7 +570,7 @@ class VulnerabilitiesRepositorySpec
       generatedDate = oneMinAgo
     )
 
-    lazy val vulnerabilityWithValidAndExludedOccurrence = VulnerabilitySummary(
+    lazy val vulnerabilityWithValidAndExludedOccurrence1 = VulnerabilitySummary(
       distinctVulnerability = DistinctVulnerability(
         vulnerableComponentName = "component7",
         vulnerableComponentVersion = "7.0",
@@ -571,8 +589,34 @@ class VulnerabilitiesRepositorySpec
         ticket = Some("BDOG-7")
       ),
       occurrences = Seq(
-        VulnerabilityOccurrence(service = "service3", serviceVersion = "3", componentPathInSlug = "c", teams = Seq(), envs = Seq("development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
-        VulnerabilityOccurrence(service = "service6", serviceVersion = "3.1", componentPathInSlug = "test-1.51.0/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0")
+        VulnerabilityOccurrence(service = "test-service-1", serviceVersion = "3", componentPathInSlug = "c", teams = Seq(), envs = Seq("development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+        VulnerabilityOccurrence(service = "test-service-2", serviceVersion = "3.1", componentPathInSlug = "test-1.51.0/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0")
+      ),
+      teams = Seq("team1"),
+      generatedDate = oneMinAgo
+    )
+
+    lazy val vulnerabilityWithValidAndExludedOccurrence2 = VulnerabilitySummary(
+      distinctVulnerability = DistinctVulnerability(
+        vulnerableComponentName = "test-component",
+        vulnerableComponentVersion = "10.0",
+        vulnerableComponents = Seq(
+          VulnerableComponent("test-component", "10.0")
+        ),
+        id = "XRAY-TEST-10",
+        score = Some(2.0),
+        description = "test-component",
+        fixedVersions = None,
+        references = Seq("test", "test"),
+        publishedDate = now,
+        firstDetected = Some(now),
+        assessment = Some(""),
+        curationStatus = Some(CurationStatus.ActionRequired),
+        ticket = Some("BDOG-10")
+      ),
+      occurrences = Seq(
+        VulnerabilityOccurrence(service = "test-service-1", serviceVersion = "3", componentPathInSlug = "c", teams = Seq(), envs = Seq("development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+        VulnerabilityOccurrence(service = "test-service-2", serviceVersion = "3.1", componentPathInSlug = "test-1.51.0/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0")
       ),
       teams = Seq("team1"),
       generatedDate = oneMinAgo
@@ -597,7 +641,7 @@ class VulnerabilitiesRepositorySpec
         ticket = Some("BDOG-7")
       ),
       occurrences = Seq(
-        VulnerabilityOccurrence(service = "service6", serviceVersion = "3.1", componentPathInSlug = "test-1.51.0/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0")
+        VulnerabilityOccurrence(service = "test-service-3", serviceVersion = "3.1", componentPathInSlug = "test-1.51.0/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0")
       ),
       teams = Seq("team1"),
       generatedDate = oneMinAgo
@@ -622,7 +666,7 @@ class VulnerabilitiesRepositorySpec
         ticket = Some("BDOG-8")
       ),
       occurrences = Seq(
-        VulnerabilityOccurrence(service = "service6", serviceVersion = "3.1", componentPathInSlug = "test-1.51.0/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0")
+        VulnerabilityOccurrence(service = "test-service-4", serviceVersion = "3.1", componentPathInSlug = "test-1.51.0/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0")
       ),
       teams = Seq("team1"),
       generatedDate = oneMinAgo
