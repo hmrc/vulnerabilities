@@ -16,10 +16,9 @@
 
 package uk.gov.hmrc.vulnerabilities.config
 
-import javax.inject.{Inject, Singleton}
 import play.api.Configuration
 
-import scala.util.matching.Regex
+import javax.inject.{Inject, Singleton}
 
 @Singleton
 class AppConfig @Inject()(config: Configuration) {
