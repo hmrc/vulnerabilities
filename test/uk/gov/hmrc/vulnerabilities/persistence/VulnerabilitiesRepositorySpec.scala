@@ -145,6 +145,7 @@ class VulnerabilitiesRepositorySpec
 
       resultsSorted.length shouldBe 1
       resultsSorted.head shouldBe expected1
+      resultsSorted.head.occurrences.length shouldBe 1
     }
 
     "filter by exclusion regex and return empty list if no occurrence is valid" in new Setup {
