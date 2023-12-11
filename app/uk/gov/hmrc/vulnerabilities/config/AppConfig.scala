@@ -19,8 +19,12 @@ package uk.gov.hmrc.vulnerabilities.config
 import javax.inject.{Inject, Singleton}
 import play.api.Configuration
 
+import scala.util.matching.Regex
+
 @Singleton
 class AppConfig @Inject()(config: Configuration) {
 
   val appName: String = config.get[String]("appName")
+
+  val exclusionRegex: String = config.get[String]("regex.exclusion")
 }

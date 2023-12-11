@@ -19,7 +19,9 @@ package uk.gov.hmrc.vulnerabilities.persistence
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
+import uk.gov.hmrc.vulnerabilities.config.AppConfig
 import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, Environment, ServiceVersionDeployments, VulnerabilityCount, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
 
 import java.time.Instant
@@ -30,9 +32,12 @@ class VulnerabilitiesRepositorySpec
   extends AnyWordSpecLike
     with Matchers
     with DefaultPlayMongoRepositorySupport[VulnerabilitySummary]
-    with IntegrationPatience {
+    with IntegrationPatience
+    with GuiceOneServerPerSuite {
 
-  override lazy val repository = new VulnerabilitySummariesRepository(mongoComponent)
+  private val appConfig = app.injector.instanceOf[AppConfig]
+
+  override lazy val repository = new VulnerabilitySummariesRepository(mongoComponent, appConfig)
 
   private val now = Instant.now().truncatedTo(ChronoUnit.MILLIS)
   private val oneMinAgo = now.minus(1, ChronoUnit.MINUTES)
@@ -85,19 +90,36 @@ class VulnerabilitiesRepositorySpec
         curationStatus             = Some(CurationStatus.ActionRequired),
         ticket                     = Some("BDOG-3"),
         fixedVersions              = None
+      ),
+      DistinctVulnerability(
+        vulnerableComponentName = "component7",
+        vulnerableComponentVersion = "7.0",
+        vulnerableComponents = Seq(VulnerableComponent("component7", "7.0")),
+        id = "XRAY-TEST-7",
+        score = Some(2.0),
+        description = "desc7",
+        references = Seq("test", "test"),
+        publishedDate = now,
+        firstDetected = Some(now),
+        assessment = Some(""),
+        curationStatus = Some(CurationStatus.ActionRequired),
+        ticket = Some("BDOG-7"),
+        fixedVersions = None
       )
     )
 
     //Building blocks for VulnerabilitySummary expected results
     val expectedOccurrences = Seq(
-      VulnerabilityOccurrence(service = "service1"  , serviceVersion = "1"   , componentPathInSlug = "a",        teams = Seq("team1"),          envs = Seq("development")          , vulnerableComponentName = "component1"  , vulnerableComponentVersion = "1.0"),
-      VulnerabilityOccurrence(service = "service2"  , serviceVersion = "2"   , componentPathInSlug = "b",        teams = Seq("team1"),          envs = Seq("staging")              , vulnerableComponentName = "component2"  , vulnerableComponentVersion = "2.0"),
-      VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3"   , componentPathInSlug = "c",        teams = Seq(),                 envs = Seq("development")          , vulnerableComponentName = "component3"  , vulnerableComponentVersion = "3.0"),
-      VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3.1" , componentPathInSlug = "d",        teams = Seq(),                 envs = Seq("production")           , vulnerableComponentName = "component3"  , vulnerableComponentVersion = "3.0"),
-      VulnerabilityOccurrence(service = "service33" , serviceVersion = "3"   , componentPathInSlug = "e",        teams = Seq("team1"),          envs = Seq("staging", "production"), vulnerableComponentName = "component3"  , vulnerableComponentVersion = "3.0"),
-      VulnerabilityOccurrence(service = "service6"  , serviceVersion = "2.55", componentPathInSlug = "apache:x", teams = Seq("team2"),          envs = Seq("staging", "production"), vulnerableComponentName = "component1.1", vulnerableComponentVersion = "0.8"),
-      VulnerabilityOccurrence(service = "helloWorld", serviceVersion = "2.51", componentPathInSlug = "apache:y", teams = Seq("team1", "team2"), envs = Seq("qa")                   , vulnerableComponentName = "component2"  , vulnerableComponentVersion = "2.0")
+      VulnerabilityOccurrence(service = "service1"  , serviceVersion = "1"    , componentPathInSlug = "a",        teams = Seq("team1"),          envs = Seq("development")          , vulnerableComponentName = "component1"  , vulnerableComponentVersion = "1.0"),
+      VulnerabilityOccurrence(service = "service2"  , serviceVersion = "2"    , componentPathInSlug = "b",        teams = Seq("team1"),          envs = Seq("staging")              , vulnerableComponentName = "component2"  , vulnerableComponentVersion = "2.0"),
+      VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3"    , componentPathInSlug = "c",        teams = Seq(),                 envs = Seq("development")          , vulnerableComponentName = "component3"  , vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3.1"  , componentPathInSlug = "d",        teams = Seq(),                 envs = Seq("production")           , vulnerableComponentName = "component3"  , vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service33" , serviceVersion = "3"    , componentPathInSlug = "e",        teams = Seq("team1"),          envs = Seq("staging", "production"), vulnerableComponentName = "component3"  , vulnerableComponentVersion = "3.0"),
+      VulnerabilityOccurrence(service = "service6"  , serviceVersion = "2.55" , componentPathInSlug = "apache:x", teams = Seq("team2"),          envs = Seq("staging", "production"), vulnerableComponentName = "component1.1", vulnerableComponentVersion = "0.8"),
+      VulnerabilityOccurrence(service = "helloWorld", serviceVersion = "2.51" , componentPathInSlug = "apache:y", teams = Seq("team1", "team2"), envs = Seq("qa")                   , vulnerableComponentName = "component2"  , vulnerableComponentVersion = "2.0"),
+      VulnerabilityOccurrence(service = "helloWorld", serviceVersion = "2.51" , componentPathInSlug = "apache:y", teams = Seq("team1", "team2"), envs = Seq("qa")                   , vulnerableComponentName = "component2"  , vulnerableComponentVersion = "2.0")
     )
+
 
     "default sort by descending score and ascending id" in new Setup {
       repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
@@ -112,6 +134,46 @@ class VulnerabilitiesRepositorySpec
       resultsSorted.length shouldBe 3
       resultsSorted shouldBe Seq(expected3, expected1, expected2)
     }
+
+    "filter by exclusion regex and disregard vulnerability if occurrences are not defined" in new Setup {
+
+      val vulnerabilityWithExcludedRegex = VulnerabilitySummary(
+        distinctVulnerability = DistinctVulnerability(
+          vulnerableComponentName = "component7",
+          vulnerableComponentVersion = "7.0",
+          vulnerableComponents = Seq(
+            VulnerableComponent("component7", "7.0")
+          ),
+          id = "XRAY-TEST-7",
+          score = Some(2.0),
+          description = "desc7",
+          fixedVersions = None,
+          references = Seq("test", "test"),
+          publishedDate = now,
+          firstDetected = Some(now),
+          assessment = Some(""),
+          curationStatus = Some(CurationStatus.ActionRequired),
+          ticket = Some("BDOG-7")
+        ),
+        occurrences = Seq(
+          VulnerabilityOccurrence(service = "service3", serviceVersion = "3", componentPathInSlug = "c", teams = Seq(), envs = Seq("development"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
+          VulnerabilityOccurrence(service = "service6", serviceVersion = "3.1", componentPathInSlug = "test-1.51.0/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0")
+        ),
+        teams = Seq("team1"),
+        generatedDate = oneMinAgo
+      )
+      
+      repository.collection.insertMany(Seq(vulnerabilitySummary6, vulnerabilityWithExcludedRegex)).toFuture().futureValue
+
+      val expected1 = VulnerabilitySummary(expectedDistinctVulnerabilities(3), Seq(expectedOccurrences(2)), Seq("team1"), oneMinAgo)
+
+      val results = repository.distinctVulnerabilitiesSummary(None, None, None, None, None, None).futureValue
+      val resultsSorted = results.map(res => res.copy(teams = res.teams.sorted, occurrences = res.occurrences.sortBy(_.service)))
+
+      resultsSorted.length shouldBe 1
+      resultsSorted.head shouldBe expected1
+    }
+
 
     "filter by id" in new Setup {
       repository.collection.insertMany(Seq(vulnerabilitySummary1, vulnerabilitySummary2, vulnerabilitySummary3)).toFuture().futureValue
@@ -503,6 +565,31 @@ class VulnerabilitiesRepositorySpec
         VulnerabilityOccurrence(service = "service6",serviceVersion = "3",componentPathInSlug = "e",teams = Seq("team1"), envs = Seq("staging", "production", "qa"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0"),
       ),
       teams         = Seq("team1"),
+      generatedDate = oneMinAgo
+    )
+
+    lazy val vulnerabilitySummary6 = VulnerabilitySummary(
+      distinctVulnerability = DistinctVulnerability(
+        vulnerableComponentName = "component6",
+        vulnerableComponentVersion = "6.0",
+        vulnerableComponents = Seq(
+          VulnerableComponent("component6", "6.0")
+        ),
+        id = "XRAY-TEST-6",
+        score = Some(2.0),
+        description = "desc6",
+        fixedVersions = None,
+        references = Seq("test", "test"),
+        publishedDate = now,
+        firstDetected = Some(now),
+        assessment = Some(""),
+        curationStatus = Some(CurationStatus.NoActionRequired),
+        ticket = Some("BDOG-6")
+      ),
+      occurrences = Seq(
+        VulnerabilityOccurrence(service = "service6", serviceVersion = "3.1", componentPathInSlug = "test-1.51.0/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml", teams = Seq(), envs = Seq("production"), vulnerableComponentName = "component3", vulnerableComponentVersion = "3.0")
+      ),
+      teams = Seq("team1"),
       generatedDate = oneMinAgo
     )
   }
