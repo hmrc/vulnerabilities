@@ -116,7 +116,6 @@ class VulnerabilitiesRepositorySpec
       VulnerabilityOccurrence(service = "service3"  , serviceVersion = "3.1"  , componentPathInSlug = "d",        teams = Seq(),                 envs = Seq("production")           , vulnerableComponentName = "component3"  , vulnerableComponentVersion = "3.0"),
       VulnerabilityOccurrence(service = "service33" , serviceVersion = "3"    , componentPathInSlug = "e",        teams = Seq("team1"),          envs = Seq("staging", "production"), vulnerableComponentName = "component3"  , vulnerableComponentVersion = "3.0"),
       VulnerabilityOccurrence(service = "service6"  , serviceVersion = "2.55" , componentPathInSlug = "apache:x", teams = Seq("team2"),          envs = Seq("staging", "production"), vulnerableComponentName = "component1.1", vulnerableComponentVersion = "0.8"),
-      VulnerabilityOccurrence(service = "helloWorld", serviceVersion = "2.51" , componentPathInSlug = "apache:y", teams = Seq("team1", "team2"), envs = Seq("qa")                   , vulnerableComponentName = "component2"  , vulnerableComponentVersion = "2.0"),
       VulnerabilityOccurrence(service = "helloWorld", serviceVersion = "2.51" , componentPathInSlug = "apache:y", teams = Seq("team1", "team2"), envs = Seq("qa")                   , vulnerableComponentName = "component2"  , vulnerableComponentVersion = "2.0")
     )
 
