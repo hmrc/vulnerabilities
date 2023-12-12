@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
+import com.typesafe.config.ConfigFactory
 import org.mongodb.scala.MongoCollection
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
@@ -23,7 +24,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import play.api.Configuration
 import uk.gov.hmrc.mongo.play.json.CollectionFactory
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
-import uk.gov.hmrc.vulnerabilities.config.DataConfig
+import uk.gov.hmrc.vulnerabilities.config.{AppConfig, DataConfig}
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
 import uk.gov.hmrc.vulnerabilities.model.{CVE, CurationStatus, RawVulnerability, Report, TimelineEvent}
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
@@ -31,6 +32,7 @@ import uk.gov.hmrc.vulnerabilities.utils.Assessment
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import scala.collection.immutable.Seq
 import scala.concurrent.ExecutionContext.Implicits.global
 
 
@@ -48,7 +50,9 @@ class RawReportsRepositorySpec
     "data.transformation-cutoff"    -> "8 days",
   ))
 
-  override lazy val repository = new RawReportsRepository(mongoComponent, configuration)
+  private val appConfig = new AppConfig(new Configuration(ConfigFactory.load()))
+
+  override lazy val repository = new RawReportsRepository(mongoComponent, configuration, appConfig)
   private val now: Instant = UnrefinedVulnerabilitySummariesData.now
 
   "getNewDistinctVulnerabilities" should {
@@ -213,6 +217,57 @@ class RawReportsRepositorySpec
         TimelineEvent(id = "CVE-2022-12345", service = "service3", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = NoActionRequired),
         TimelineEvent(id = "XRAY-000005", service = "service5", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = InvestigationOngoing),
         TimelineEvent(id = "XRAY-000006", service = "service6", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = Uncurated),
+      )
+    }
+
+    "fully transform raw reports to vulnerability timeline data, in which the data is grouped by service AND issue AND weekBeginning AND filter entry with invalid regex" in new Setup {
+      val rep1 = report1.copy(generatedDate = november)
+      val rep2 = report2.copy(generatedDate = november) //contains two cves, so will create two vulnerabilities
+      val rep3 = report3.copy(generatedDate = october) //should be omitted due to cutoff date
+      val rep4 = report4.copy(generatedDate = december)
+      val rep5 = report5.copy(generatedDate = december)
+      val rep6 = report5.copy(generatedDate = december) //should be de-duped, XRAY-00006 should appear only once in results.
+      val rep7 = report6.copy(generatedDate = december) //contains two rows, one valid and one with invalid regex
+
+      repository.collection.insertMany(Seq(rep1, rep2, rep3, rep4, rep5, rep6, rep7)).toFuture().futureValue
+      assessmentsCollection.insertMany(assessments).toFuture().futureValue
+
+      val res = repository.getTimelineData(november).futureValue
+
+      res.length shouldBe 6
+      res should contain theSameElementsAs Seq(
+        TimelineEvent(id = "CVE-2022-12345", service = "service1", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = NoActionRequired),
+        TimelineEvent(id = "CVE-2021-99999", service = "service3", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = ActionRequired),
+        TimelineEvent(id = "CVE-2022-12345", service = "service3", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = NoActionRequired),
+        TimelineEvent(id = "XRAY-000005", service = "service5", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = InvestigationOngoing),
+        TimelineEvent(id = "XRAY-000006", service = "service6", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = Uncurated),
+        TimelineEvent(id = "XRAY-000007", service = "service7", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = Uncurated),
+      )
+    }
+
+    "fully transform raw reports to vulnerability timeline data, in which the data is grouped by service AND issue AND weekBeginning AND filter row with invalid regex" in new Setup {
+      val rep1 = report1.copy(generatedDate = november)
+      val rep2 = report2.copy(generatedDate = november) //contains two cves, so will create two vulnerabilities
+      val rep3 = report3.copy(generatedDate = october) //should be omitted due to cutoff date
+      val rep4 = report4.copy(generatedDate = december)
+      val rep5 = report5.copy(generatedDate = december)
+      val rep6 = report5.copy(generatedDate = december) //should be de-duped, XRAY-00006 should appear only once in results.
+      val rep7 = report6.copy(generatedDate = december) //contains two rows, one valid and one with invalid regex
+      val rep8 = report7.copy(generatedDate = december) //contains two rows, both with invalid regex
+
+      repository.collection.insertMany(Seq(rep1, rep2, rep3, rep4, rep5, rep6, rep7, rep8)).toFuture().futureValue
+      assessmentsCollection.insertMany(assessments).toFuture().futureValue
+
+      val res = repository.getTimelineData(november).futureValue
+
+      res.length shouldBe 6
+      res should contain theSameElementsAs Seq(
+        TimelineEvent(id = "CVE-2022-12345", service = "service1", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = NoActionRequired),
+        TimelineEvent(id = "CVE-2021-99999", service = "service3", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = ActionRequired),
+        TimelineEvent(id = "CVE-2022-12345", service = "service3", weekBeginning = Instant.parse("2022-11-21T00:00:00.00Z"), teams = Seq(), curationStatus = NoActionRequired),
+        TimelineEvent(id = "XRAY-000005", service = "service5", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = InvestigationOngoing),
+        TimelineEvent(id = "XRAY-000006", service = "service6", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = Uncurated),
+        TimelineEvent(id = "XRAY-000007", service = "service7", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = Uncurated),
       )
     }
   }
@@ -391,5 +446,108 @@ class RawReportsRepositorySpec
           .minus(configuration.dataTransformationCutoff.toMillis.toInt, ChronoUnit.MILLIS)
           .plus(5, ChronoUnit.MINUTES)
       )
+
+    lazy val report6: Report =
+      Report(
+        rows = Seq(
+          RawVulnerability(
+            cves = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
+            cvss3MaxScore = None,
+            summary = "This is an exploit",
+            severity = "High",
+            severitySource = "Source",
+            vulnerableComponent = "gav://com.testxml.test.core:test-bind:1.9.0",
+            componentPhysicalPath = "service7-6.0.4/some/physical/path",
+            impactedArtifact = "fooBar",
+            impactPath = Seq("hello", "world"),
+            path = "test/slugs/service7/service7_5.0.4_0.0.1.tgz",
+            fixedVersions = Seq("1.8.1"),
+            published = now.minus(14, ChronoUnit.DAYS),
+            artifactScanTime = now.minus(1, ChronoUnit.HOURS),
+            issueId = "XRAY-000007",
+            packageType = "maven",
+            provider = "test",
+            description = "This is an exploit",
+            references = Seq("foo.com", "bar.net"),
+            projectKeys = Seq()
+          ),
+          RawVulnerability(
+            cves = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
+            cvss3MaxScore = None,
+            summary = "This is an exploit",
+            severity = "High",
+            severitySource = "Source",
+            vulnerableComponent = "gav://com.testxml.test.core:test-bind:1.9.0",
+            componentPhysicalPath = "service8-1.51.0/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml",
+            impactedArtifact = "fooBar",
+            impactPath = Seq("hello", "world"),
+            path = "test/slugs/service8/service8_5.0.4_0.0.1.tgz",
+            fixedVersions = Seq("1.8.1"),
+            published = now.minus(14, ChronoUnit.DAYS),
+            artifactScanTime = now.minus(1, ChronoUnit.HOURS),
+            issueId = "XRAY-000008",
+            packageType = "maven",
+            provider = "test",
+            description = "This is an exploit",
+            references = Seq("foo.com", "bar.net"),
+            projectKeys = Seq()
+          )
+        ),
+        generatedDate = now
+          .minus(configuration.dataTransformationCutoff.toMillis.toInt, ChronoUnit.MILLIS)
+          .plus(5, ChronoUnit.MINUTES)
+      )
+
+    lazy val report7: Report =
+      Report(
+        rows = Seq(
+          RawVulnerability(
+            cves = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
+            cvss3MaxScore = None,
+            summary = "This is an exploit",
+            severity = "High",
+            severitySource = "Source",
+            vulnerableComponent = "gav://com.testxml.test.core:test-bind:1.9.0",
+            componentPhysicalPath = "service9-1.51.0/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml",
+            impactedArtifact = "fooBar",
+            impactPath = Seq("hello", "world"),
+            path = "test/slugs/service9/service9_5.0.4_0.0.1.tgz",
+            fixedVersions = Seq("1.8.1"),
+            published = now.minus(14, ChronoUnit.DAYS),
+            artifactScanTime = now.minus(1, ChronoUnit.HOURS),
+            issueId = "XRAY-000009",
+            packageType = "maven",
+            provider = "test",
+            description = "This is an exploit",
+            references = Seq("foo.com", "bar.net"),
+            projectKeys = Seq()
+          ),
+          RawVulnerability(
+            cves = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
+            cvss3MaxScore = None,
+            summary = "This is an exploit",
+            severity = "High",
+            severitySource = "Source",
+            vulnerableComponent = "gav://com.testxml.test.core:test-bind:1.9.0",
+            componentPhysicalPath = "service10-1.51.0/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml",
+            impactedArtifact = "fooBar",
+            impactPath = Seq("hello", "world"),
+            path = "test/slugs/service10/service10_5.0.4_0.0.1.tgz",
+            fixedVersions = Seq("1.8.1"),
+            published = now.minus(14, ChronoUnit.DAYS),
+            artifactScanTime = now.minus(1, ChronoUnit.HOURS),
+            issueId = "XRAY-000010",
+            packageType = "maven",
+            provider = "test",
+            description = "This is an exploit",
+            references = Seq("foo.com", "bar.net"),
+            projectKeys = Seq()
+          )
+        ),
+        generatedDate = now
+          .minus(configuration.dataTransformationCutoff.toMillis.toInt, ChronoUnit.MILLIS)
+          .plus(5, ChronoUnit.MINUTES)
+      )
+
   }
 }

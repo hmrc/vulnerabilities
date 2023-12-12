@@ -16,13 +16,14 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
+import com.typesafe.config.ConfigFactory
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.scalatestplus.play.guice.GuiceOneServerPerSuite
+import play.api.Configuration
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
 import uk.gov.hmrc.vulnerabilities.config.AppConfig
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, Environment, ServiceVersionDeployments, VulnerabilityCount, VulnerabilityOccurrence, VulnerabilitySummary, VulnerableComponent}
+import uk.gov.hmrc.vulnerabilities.model._
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -32,10 +33,9 @@ class VulnerabilitiesRepositorySpec
   extends AnyWordSpecLike
     with Matchers
     with DefaultPlayMongoRepositorySupport[VulnerabilitySummary]
-    with IntegrationPatience
-    with GuiceOneServerPerSuite {
+    with IntegrationPatience {
 
-  private val appConfig = app.injector.instanceOf[AppConfig]
+  private val appConfig = new AppConfig(new Configuration(ConfigFactory.load()))
 
   override lazy val repository = new VulnerabilitySummariesRepository(mongoComponent, appConfig)
 

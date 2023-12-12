@@ -25,7 +25,7 @@ import org.mongodb.scala.model.{Accumulators, Field, Filters, IndexModel, IndexO
 import play.api.Logger
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.config.DataConfig
+import uk.gov.hmrc.vulnerabilities.config.{AppConfig, DataConfig}
 import uk.gov.hmrc.vulnerabilities.model.{Report, TimelineEvent, UnrefinedVulnerabilitySummary}
 
 import java.time.Instant
@@ -37,7 +37,8 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class RawReportsRepository @Inject()(
   mongoComponent: MongoComponent,
-  config        : DataConfig
+  config        : DataConfig,
+  appConfig: AppConfig
 )(implicit
   ec            : ExecutionContext
 ) extends PlayMongoRepository(
@@ -185,6 +186,7 @@ class RawReportsRepository @Inject()(
       Seq(
         `match`(Filters.gte("generatedDate", reportsAfter)), //Only process recent reports
         unwind("$rows"),
+        `match`(Filters.regex("rows.component_physical_path", appConfig.exclusionRegex)), //Exclude row elements if matching regex
         project(
           fields(
             //Not all Vulnerabilities have a CVE-id, so if doesn't exist, get the issueID as fallback.

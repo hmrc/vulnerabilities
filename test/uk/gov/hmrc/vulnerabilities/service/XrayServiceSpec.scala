@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
+import com.typesafe.config.ConfigFactory
 import org.apache.pekko.actor.ActorSystem
 import org.mockito.ArgumentMatchers.{any, anyInt}
 import org.mockito.{IdiomaticMockito, Mockito}
@@ -26,7 +27,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
-import uk.gov.hmrc.vulnerabilities.config.{DataConfig, SchedulerConfigs}
+import uk.gov.hmrc.vulnerabilities.config.{AppConfig, DataConfig, SchedulerConfigs}
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
 import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report, ReportId, ReportResponse, ReportStatus, ServiceVersionDeployments, XrayNoData, XrayNotReady, XraySuccess}
@@ -53,7 +54,9 @@ class XrayServiceSpec extends AnyWordSpec
 
   implicit val hc: HeaderCarrier = HeaderCarrier()
 
-  override lazy val repository = new RawReportsRepository(mongoComponent, configuration)
+  private val appConfig = new AppConfig(new Configuration(ConfigFactory.load()))
+
+  override lazy val repository = new RawReportsRepository(mongoComponent, configuration, appConfig)
 
   "processReports" when {
     "given a list of service version deployments" should {
