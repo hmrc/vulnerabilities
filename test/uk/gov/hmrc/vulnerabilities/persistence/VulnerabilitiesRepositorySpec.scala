@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
@@ -35,7 +35,12 @@ class VulnerabilitiesRepositorySpec
     with DefaultPlayMongoRepositorySupport[VulnerabilitySummary]
     with IntegrationPatience {
 
-  private val appConfig = new AppConfig(new Configuration(ConfigFactory.load()))
+  private val appConfig: AppConfig = new AppConfig(Configuration(
+    ConfigFactory.load().withValue(
+      "regex.exclusion", ConfigValueFactory.fromAnyRef(
+        "^(?!.*ehcache.*/rest-management-private-classpath/META-INF/maven/.*).*")
+    )
+  ))
 
   override lazy val repository = new VulnerabilitySummariesRepository(mongoComponent, appConfig)
 

@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ConfigFactory, ConfigValue, ConfigValueFactory}
 import org.mongodb.scala.MongoCollection
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
@@ -45,12 +45,17 @@ class RawReportsRepositorySpec
   //Tests exercise aggregation pipeline, which don't make use of indices.
   override protected def checkIndexedQueries: Boolean = false
 
-  val configuration: DataConfig = new DataConfig(Configuration(
+  private val configuration: DataConfig = new DataConfig(Configuration(
     "data.refresh-cutoff"    -> "7 days",
     "data.transformation-cutoff"    -> "8 days",
   ))
 
-  private val appConfig = new AppConfig(new Configuration(ConfigFactory.load()))
+  private val appConfig: AppConfig = new AppConfig(Configuration(
+    ConfigFactory.load().withValue(
+      "regex.exclusion", ConfigValueFactory.fromAnyRef(
+        "^(?!.*ehcache.*/rest-management-private-classpath/META-INF/maven/.*).*")
+    )
+  ))
 
   override lazy val repository = new RawReportsRepository(mongoComponent, configuration, appConfig)
   private val now: Instant = UnrefinedVulnerabilitySummariesData.now
