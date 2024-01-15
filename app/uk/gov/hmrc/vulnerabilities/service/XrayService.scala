@@ -76,7 +76,7 @@ class XrayService @Inject()(
     } yield report
 
   def getReport(reportId: Int, svd: ServiceVersionDeployments)(implicit hc: HeaderCarrier): Future[Option[Report]] = {
-    implicit val rfmt = Report.apiFormat
+    implicit val rfmt = Report.apiFormat(svd.serviceName, svd.version)
     for {
       zip     <- xrayConnector.downloadReport(reportId, svd)
       _       <- xrayConnector.deleteReportFromXray(reportId)

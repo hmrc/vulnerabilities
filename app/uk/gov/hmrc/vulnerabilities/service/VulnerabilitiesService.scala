@@ -16,31 +16,24 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
+import cats.data.OptionT
+
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired, Uncurated}
 import uk.gov.hmrc.vulnerabilities.model._
-import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
+import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilitySummariesRepository}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class VulnerabilitiesService @Inject() (
- vulnerabilitySummariesRepository: VulnerabilitySummariesRepository
+ vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
+ rawReportsRepository            : RawReportsRepository
 )(implicit val ec: ExecutionContext) {
 
-  def countDistinctVulnerabilities(service: String): Future[Int] = {
-    // adds quotes for regex exact match
-    val serviceWithQuotes = Some(s"\"$service\"")
-    vulnerabilitySummariesRepository
-      .distinctVulnerabilitiesSummary(
-        id             = None,
-        curationStatus = Some(ActionRequired.asString),
-        service        = serviceWithQuotes,
-        version        = None,
-        team           = None,
-        component      = None
-      )
-      .map(_.map(vs => vs.distinctVulnerability.id).toSet.size)
+  def countDistinctVulnerabilities(service: String): Future[Option[Int]] = {
+    distinctVulnerabilitiesSummary(None, Some(ActionRequired.asString), Some(service), None, None, None, exactMatch = true)
+      .map(_.map(_.map(_.distinctVulnerability.id).distinct.size))
   }
 
   def distinctVulnerabilitiesSummary(
@@ -49,9 +42,26 @@ class VulnerabilitiesService @Inject() (
     service        : Option[String],
     version        : Option[Version],
     team           : Option[String],
-    component      : Option[String]
-  ): Future[Seq[VulnerabilitySummary]] =
-    vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, version, team, component)
+    component      : Option[String],
+    exactMatch     : Boolean = false
+  ): Future[Option[Seq[VulnerabilitySummary]]] =
+    service.fold(
+      vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, version, team, component).map(Option(_))
+    )(s =>
+      (for {
+        count          <- OptionT(rawReportsRepository.vulnerabilitiesCount(s, version.map(_.original)))
+        // adds quotes for regex exact match
+        serviceQuery   = if (exactMatch)
+          service.map(s => s"\"$s\"")
+          else
+            service
+        distinctCount  <- if(count > 0) {
+          OptionT.liftF(vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, serviceQuery, version, team, component))
+          } else {
+            OptionT.liftF(Future.successful(Seq.empty[VulnerabilitySummary]))
+          }
+      } yield distinctCount).value
+    )
 
   def vulnerabilitiesCountPerService(service: Option[String], team: Option[String], environment: Option[Environment]): Future[Seq[TotalVulnerabilityCount]] =
     vulnerabilitySummariesRepository.vulnerabilitiesCount(service, team, environment).map(totalCountsPerService)

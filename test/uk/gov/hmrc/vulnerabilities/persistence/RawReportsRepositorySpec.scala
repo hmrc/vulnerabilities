@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-import com.typesafe.config.{ConfigFactory, ConfigValue, ConfigValueFactory}
+import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import org.mongodb.scala.MongoCollection
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
@@ -275,6 +275,36 @@ class RawReportsRepositorySpec
         TimelineEvent(id = "XRAY-000007", service = "service7", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = Uncurated),
       )
     }
+
+    "vulnerabilitiesCount" should {
+      "return None" when {
+        "there are no reports for a service" in new Setup {
+          val result = repository.vulnerabilitiesCount(report1.serviceName).futureValue
+
+          result shouldBe None
+        }
+      }
+
+      "return 0" when {
+        "there are no reports for a service" in new Setup {
+          repository.collection.insertOne(report1.copy(rows = Seq.empty)).toFuture().futureValue
+
+          val result = repository.vulnerabilitiesCount(report1.serviceName).futureValue
+
+          result shouldBe Some(0)
+        }
+      }
+
+      "return the number of raw reports" when {
+        "there are reports for a service" in new Setup {
+          repository.collection.insertOne(report1).toFuture().futureValue
+
+          val result = repository.vulnerabilitiesCount(report1.serviceName).futureValue
+
+          result shouldBe Some(report1.rows.size)
+        }
+      }
+    }
   }
 
   trait Setup {
@@ -294,7 +324,9 @@ class RawReportsRepositorySpec
 
    lazy val report1: Report =
       Report(
-        rows = Seq(
+        serviceName    = "service1",
+        serviceVersion = "1.0.4",
+        rows           = Seq(
           RawVulnerability(
             cves                  = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
             cvss3MaxScore         = Some(8.0),
@@ -321,7 +353,9 @@ class RawReportsRepositorySpec
 
     lazy val report2: Report =
       Report(
-        rows = Seq(
+        serviceName    = "service3",
+        serviceVersion = "3.0.4",
+        rows           = Seq(
           RawVulnerability(
             cves                  = Seq(CVE(cveId = Some("CVE-2021-99999"), cveV3Score = Some(7.0), cveV3Vector = Some("test2"))),
             cvss3MaxScore         = Some(7.0),
@@ -370,7 +404,9 @@ class RawReportsRepositorySpec
 
     lazy val report3: Report =
       Report(
-        rows = Seq(
+        serviceName    = "service4",
+        serviceVersion = "4.0.4",
+        rows           = Seq(
           RawVulnerability(
             cves                  = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
             cvss3MaxScore         = None,
@@ -397,7 +433,9 @@ class RawReportsRepositorySpec
 
     lazy val report4: Report =
       Report(
-        rows = Seq(
+        serviceName    = "service5",
+        serviceVersion = "5.0.4",
+        rows           = Seq(
           RawVulnerability(
             cves                  = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
             cvss3MaxScore         = None,
@@ -425,7 +463,9 @@ class RawReportsRepositorySpec
 
     lazy val report5: Report =
       Report(
-        rows = Seq(
+        serviceName    = "service6",
+        serviceVersion = "6.0.4",
+        rows           = Seq(
           RawVulnerability(
             cves                  = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
             cvss3MaxScore         = None,
@@ -454,7 +494,9 @@ class RawReportsRepositorySpec
 
     lazy val report6: Report =
       Report(
-        rows = Seq(
+        serviceName    = "service7",
+        serviceVersion = "7.0.4",
+        rows           = Seq(
           RawVulnerability(
             cves = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
             cvss3MaxScore = None,
@@ -505,7 +547,9 @@ class RawReportsRepositorySpec
 
     lazy val report7: Report =
       Report(
-        rows = Seq(
+        serviceName    = "service9",
+        serviceVersion = "5.0.4",
+        rows           = Seq(
           RawVulnerability(
             cves = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
             cvss3MaxScore = None,

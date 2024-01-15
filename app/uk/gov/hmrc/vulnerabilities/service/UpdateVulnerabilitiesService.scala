@@ -50,7 +50,7 @@ class UpdateVulnerabilitiesService @Inject()(
       recentReports  <- rawReportsRepository.getReportsInLastXDays()
       agesToUpdate   =  toVulnerabilityAge(recentReports)
       _              <- vulnerabilityAgeRepository.insertNonExisting(agesToUpdate)
-      svDepsToUpdate =  svDeps.filterNot(svd => recentReports.exists(rep => rep.nameAndVersion().contains(svd.serviceName + "_" + svd.version)))
+      svDepsToUpdate =  svDeps.filterNot(svd => recentReports.exists(rep => rep.nameAndVersion.contains(svd.serviceName + "_" + svd.version)))
       _              <- xrayService.processReports(svDepsToUpdate)
       _              =  logger.info("Finished generating and inserting reports into the rawReports collection")
       _              <- updateVulnerabilitySummaries(svDeps)
@@ -75,7 +75,7 @@ class UpdateVulnerabilitiesService @Inject()(
     reports.flatMap { rep =>
       rep.rows.map { raw =>
         VulnerabilityAge(
-          service         = rep.serviceName(),
+          service         = rep.serviceName,
           firstScanned    = rep.generatedDate,
           vulnerabilityId = raw.cves.flatMap(cve => cve.cveId).headOption.getOrElse(raw.issueId)
         )

@@ -53,28 +53,30 @@ object ReportStatus {
 }
 
 case class Report(
- rows         : Seq[RawVulnerability],
- generatedDate: Instant
+ serviceName   : String,
+ serviceVersion: String,
+ rows          : Seq[RawVulnerability],
+ generatedDate : Instant
 ){
-  def serviceName()   : String = rows.headOption.map(_.path.split("/")(2)).getOrElse("")
-  def serviceVersion(): String = rows.headOption.map(_.path.split("_")(1)).getOrElse("")
-  def nameAndVersion(): String = serviceName() + "_" + serviceVersion()
+  val nameAndVersion: String = serviceName + "_" + serviceVersion
 }
 
 object Report {
   def generateDateTime: Instant = Instant.now()
 
-  val apiFormat = {
+  def apiFormat(serviceName: String = "", version: String = "") = {
     implicit val rvf = RawVulnerability.apiFormat
-    ( (__ \ "rows"         ).format[Seq[RawVulnerability]]
-    ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
-    )(apply, unlift(unapply))
+    ( (__ \ "rows"          ).format[Seq[RawVulnerability]]
+    ~ (__ \ "generatedDate" ).formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
+    )(apply(serviceName, version, _, _),  (r: Report) => (r.rows, r.generatedDate))
   }
 
   val mongoFormat = {
     implicit val instf = MongoJavatimeFormats.instantFormat
     implicit val rvf   = RawVulnerability.mongoFormat
-    ( (__ \ "rows"         ).format[Seq[RawVulnerability]]
+    ( (__ \ "serviceName"   ).format[String]
+    ~ (__ \ "serviceVersion").format[String]
+    ~ (__ \ "rows"         ).format[Seq[RawVulnerability]]
     ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
     )(apply, unlift(unapply))
   }

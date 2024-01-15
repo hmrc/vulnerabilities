@@ -131,6 +131,8 @@ object StubResponses {
 
   val alreadyDownloadedReport =
   Report(
+    serviceName = "Service5",
+    serviceVersion = "5.0.4",
     rows = Seq(
       RawVulnerability(
         cves = Seq(CVE(cveId = Some("CVE-999-999"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
