@@ -29,7 +29,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class VulnerabilitiesService @Inject() (
  vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
  rawReportsRepository            : RawReportsRepository
-)(implicit val ec: ExecutionContext) {
+)(implicit val ec: ExecutionContext) extends play.api.Logging {
 
   def countDistinctVulnerabilities(service: String): Future[Option[Int]] = {
     distinctVulnerabilitiesSummary(None, Some(ActionRequired.asString), Some(service), None, None, None, exactMatch = true)
@@ -49,7 +49,7 @@ class VulnerabilitiesService @Inject() (
       vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, version, team, component).map(Option(_))
     )(s =>
       (for {
-        count          <- OptionT(rawReportsRepository.vulnerabilitiesCount(s, version.map(_.original)))
+        count          <- OptionT(rawReportsRepository.vulnerabilitiesCount(s.replace("\"", ""), version.map(_.original)))
         // adds quotes for regex exact match
         serviceQuery   = if (exactMatch)
           service.map(s => s"\"$s\"")
