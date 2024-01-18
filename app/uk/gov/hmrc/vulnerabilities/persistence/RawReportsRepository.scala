@@ -21,7 +21,7 @@ import org.mongodb.scala.MongoCollection
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNull}
 import org.mongodb.scala.model.Aggregates.{`match`, group, lookup, project, replaceRoot, set, unwind}
 import org.mongodb.scala.model.Projections.{computed, fields}
-import org.mongodb.scala.model.{Accumulators, Field, Filters, IndexModel, IndexOptions}
+import org.mongodb.scala.model.{Accumulators, Field, Filters, IndexModel, IndexOptions, Sorts}
 import play.api.Logger
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
@@ -45,7 +45,11 @@ class RawReportsRepository @Inject()(
   collectionName = "rawReports",
   mongoComponent = mongoComponent,
   domainFormat   = Report.mongoFormat,
-  indexes        = Seq(IndexModel(Indexes.descending("generatedDate"), IndexOptions().name("generatedDate").background(true).expireAfter(2 * 365, TimeUnit.DAYS)))
+  indexes        = Seq(
+                    IndexModel(Indexes.ascending("serviceName"), IndexOptions().unique(false).background(true)),
+                    IndexModel(Indexes.ascending("serviceVersion"), IndexOptions().unique(false).background(true)),
+                    IndexModel(Indexes.descending("generatedDate"), IndexOptions().name("generatedDate").background(true).expireAfter(2 * 365, TimeUnit.DAYS))
+                   )
 ){
   private val dataRefreshCutoff        = config.dataRefreshCutoff.toMillis.toInt
   private val dataTransformationCutoff = config.dataTransformationCutoff.toMillis.toInt
@@ -61,6 +65,18 @@ class RawReportsRepository @Inject()(
     collection.find(
       Filters.gt("generatedDate", Instant.now().minus(dataRefreshCutoff, ChronoUnit.MILLIS)))
       .toFuture()
+
+  def vulnerabilitiesCount(serviceName: String, version: Option[String] = None): Future[Option[Int]] =
+    collection.find(
+      Filters.and(
+        Filters.eq("serviceName", serviceName),
+        version.fold(Filters.empty())(v => Filters.eq("serviceVersion", v)),
+      )
+    )
+    .sort(Sorts.orderBy(Sorts.descending("serviceVersion")))
+    .limit(1)
+    .headOption()
+    .map(_.map(_.rows.size))
 
   // use a different view to allow distinctVulnerabilitiesSummary to return a different case class
   private val vcsCollection: MongoCollection[UnrefinedVulnerabilitySummary] =

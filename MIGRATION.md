@@ -52,3 +52,15 @@ db.getCollection("rawReports").aggregate([
     }
 ])
 ```
+
+## Populate service name and version on the existing rawReports collection:
+
+```javascript
+db.rawReports.find({}).forEach(function(rawReport){
+    if (rawReport.rows.length > 0 && rawReport.rows[0].path) {
+        let pathSegments = rawReport.rows[0].path.split("/");
+        let [serviceName, serviceVersion, _] = pathSegments[pathSegments.length - 1].replace(".tgz", "").split("_")
+        db.rawReports.updateOne({_id : rawReport._id}, {$set : {serviceName:  serviceName, serviceVersion: serviceVersion}})
+    }
+})
+```

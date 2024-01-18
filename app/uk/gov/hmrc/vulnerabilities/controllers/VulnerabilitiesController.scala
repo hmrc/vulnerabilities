@@ -53,12 +53,17 @@ class VulnerabilitiesController @Inject()(
     Action.async {
       implicit val fmt: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
       vulnerabilitiesService.distinctVulnerabilitiesSummary(vulnerability, curationStatus, service, version, team, component)
-        .map(result => Ok(Json.toJson(result)))
+        .map(_.fold(NotFound("Vulnerabilities not found"))(result => Ok(Json.toJson(result))))
     }
 
   def getDistinctVulnerabilities(service: String): Action[AnyContent] = Action.async {
     vulnerabilitiesService.countDistinctVulnerabilities(service)
-      .map(result => Ok(Json.toJson(result)))
+      .map(_.fold(
+          NotFound(s"Service ${service} not scanned for vulnerabilities yet.")
+        )(result =>
+          Ok(Json.toJson(result))
+        )
+      )
   }
 
   def updateAssessments: Action[AnyContent] = Action.async {

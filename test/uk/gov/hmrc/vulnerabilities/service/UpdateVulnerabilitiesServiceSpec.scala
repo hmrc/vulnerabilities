@@ -184,7 +184,9 @@ class UpdateVulnerabilitiesServiceSpec
        Future.successful(
          Seq(
            Report(
-             rows = Seq(RawVulnerability(
+             serviceName    = "service2",
+             serviceVersion = "2.0",
+             rows           = Seq(RawVulnerability(
                cves                  = Seq(CVE(cveId = Some("CVE-2"), cveV3Score = Some(6.0), cveV3Vector = None)),
                cvss3MaxScore         = Some(6.0),
                summary               = "",
@@ -238,7 +240,9 @@ class UpdateVulnerabilitiesServiceSpec
        Future.successful(
          Seq(
            Report(
-             rows = Seq(RawVulnerability(
+             serviceName    = "service2",
+             serviceVersion = "3.0",
+             rows           = Seq(RawVulnerability(
                cves                  = Seq(CVE(cveId = Some("CVE-2"), cveV3Score = Some(6.0), cveV3Vector = None)),
                cvss3MaxScore         = Some(6.0),
                summary               = "",
@@ -262,7 +266,9 @@ class UpdateVulnerabilitiesServiceSpec
              generatedDate = now.minus(5, ChronoUnit.MINUTES)
            ),
            Report(
-             rows = Seq(RawVulnerability(
+             serviceName    = "service3",
+             serviceVersion = "0.8",
+             rows           = Seq(RawVulnerability(
                cves                  = Seq(CVE(cveId = Some("CVE-1"), cveV3Score = Some(10.0), cveV3Vector = None)),
                cvss3MaxScore         = Some(10.0),
                summary               = "",
@@ -286,6 +292,8 @@ class UpdateVulnerabilitiesServiceSpec
              generatedDate = now.minus(5, ChronoUnit.MINUTES)
            ),
            Report( //serviceName and serviceVersion match SVD, so shouldn't get a new report)
+             serviceName    = "service1",
+             serviceVersion = "0.9",
              rows = Seq(RawVulnerability(
                cves                  = Seq(CVE(cveId = Some("CVE-1"), cveV3Score = Some(10.0), cveV3Vector = None)),
                cvss3MaxScore         = Some(10.0),

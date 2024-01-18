@@ -34,6 +34,8 @@ object UpdateTimelineData {
 
   lazy val report1: Report =
     Report(
+      serviceName = "service1",
+      serviceVersion = "1.0.4",
       rows = Seq(
         RawVulnerability(
           cves = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
@@ -61,6 +63,8 @@ object UpdateTimelineData {
 
   lazy val report2: Report =
     Report(
+      serviceName = "service3",
+      serviceVersion = "3.0.4",
       rows = Seq(
         RawVulnerability(
           cves = Seq(CVE(cveId = Some("CVE-2021-99999"), cveV3Score = Some(7.0), cveV3Vector = Some("test2"))),
@@ -110,6 +114,8 @@ object UpdateTimelineData {
 
   lazy val report3: Report =
     Report(
+      serviceName = "service4",
+      serviceVersion = "4.0.4",
       rows = Seq(
         RawVulnerability(
           cves = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),
@@ -137,6 +143,8 @@ object UpdateTimelineData {
 
   lazy val report4: Report =
     Report(
+      serviceName = "service4",
+      serviceVersion = "4.0.5",
       rows = Seq(
         RawVulnerability(
           cves = Seq(CVE(cveId = None, cveV3Score = None, cveV3Vector = None)),

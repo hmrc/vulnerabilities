@@ -16,16 +16,20 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
-import org.mockito.MockitoSugar.mock
+import org.mockito.ArgumentMatchers.any
+import org.mockito.MockitoSugar.{mock, when}
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus.{ActionRequired, InvestigationOngoing, NoActionRequired}
 import uk.gov.hmrc.vulnerabilities.model._
-import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitySummariesRepository
+import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilitySummariesRepository}
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
-class VulnerabilitiesServiceSpec extends AnyWordSpec with Matchers {
+class VulnerabilitiesServiceSpec extends AnyWordSpec with Matchers with ScalaFutures {
 
   "vulnerabilitiesService" when {
     "VulnerabilitiesService.totalCountsPerService" should {
@@ -39,12 +43,99 @@ class VulnerabilitiesServiceSpec extends AnyWordSpec with Matchers {
         vulnerabilitiesService.totalCountsPerService(vulnerabilityCounts) shouldBe totalVulnerabilityCounts
       }
     }
+    "VulnerabilitiesService.distinctVulnerabilitiesSummary" should {
+      "return None if there is no raw reports data" when {
+        "a service is specified" in new Setup {
+          when(rawReportsRepository.vulnerabilitiesCount(any[String], any[Option[String]]))
+            .thenReturn(Future.successful(None))
+
+          val result = vulnerabilitiesService.distinctVulnerabilitiesSummary(
+            vulnerability  = None,
+            curationStatus = None,
+            service        = Some("service"),
+            version        = None,
+            team           = None,
+            component      = None,
+          ).futureValue
+
+          result shouldBe empty
+        }
+      }
+      "return Some if there is raw reports data" when {
+        "a service is specified" in new Setup {
+
+          val result = vulnerabilitiesService.distinctVulnerabilitiesSummary(
+            vulnerability  = None,
+            curationStatus = None,
+            service        = Some("service"),
+            version        = None,
+            team           = None,
+            component      = None,
+          ).futureValue
+
+          result shouldBe defined
+        }
+      }
+      "return ignore if there is no raw reports data" when {
+        "a service is not specified" in new Setup {
+          when(rawReportsRepository.vulnerabilitiesCount(any[String], any[Option[String]]))
+            .thenReturn(Future.successful(None))
+
+          val result = vulnerabilitiesService.distinctVulnerabilitiesSummary(
+            vulnerability  = None,
+            curationStatus = None,
+            service        = None,
+            version        = None,
+            team           = None,
+            component      = None,
+          ).futureValue
+
+          result shouldBe defined
+        }
+      }
+    }
   }
 
   trait Setup {
 
     val vulnerabilitySummariesRepository: VulnerabilitySummariesRepository = mock[VulnerabilitySummariesRepository]
-    val vulnerabilitiesService = new VulnerabilitiesService(vulnerabilitySummariesRepository)
+    val rawReportsRepository: RawReportsRepository                         = mock[RawReportsRepository]
+    val vulnerabilitiesService: VulnerabilitiesService                     = new VulnerabilitiesService(
+                                                                                vulnerabilitySummariesRepository,
+                                                                                rawReportsRepository
+                                                                              )
+
+    when(vulnerabilitySummariesRepository.distinctVulnerabilitiesSummary(
+        any[Option[String]],
+        any[Option[String]],
+        any[Option[String]],
+        any[Option[Version]],
+        any[Option[String]],
+        any[Option[String]]
+      ))
+      .thenReturn(Future.successful(Seq(VulnerabilitySummary(
+        distinctVulnerability= DistinctVulnerability(
+          vulnerableComponentName   = "vulnerableComponentName",
+          vulnerableComponentVersion= "vulnerableComponentVersion",
+          vulnerableComponents      = Seq.empty,
+          id                        = "id",
+          score                     = None,
+          description               = "description",
+          fixedVersions             = None,
+          references                = Seq.empty,
+          publishedDate             = Instant.now,
+          firstDetected             = None,
+          assessment                = None,
+          curationStatus            = None,
+          ticket                    = None,
+        ),
+        occurrences          = Seq.empty,
+        teams                = Seq.empty,
+        generatedDate        = Instant.now
+      ))))
+
+    when(rawReportsRepository.vulnerabilitiesCount(any[String], any[Option[String]]))
+      .thenReturn(Future.successful(Some(0)))
 
     val vulnerabilityCounts = Seq(
       VulnerabilityCount("service-one", "production",   ActionRequired, 10),
