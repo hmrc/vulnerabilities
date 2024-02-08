@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.vulnerabilities.utils
+package uk.gov.hmrc.vulnerabilities.scheduler
 
 import org.apache.pekko.actor.ActorSystem
 import play.api.Logger

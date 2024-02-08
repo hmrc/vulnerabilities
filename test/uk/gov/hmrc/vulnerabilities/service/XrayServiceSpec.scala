@@ -27,9 +27,10 @@ import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.test.{CleanMongoCollectionSupport, PlayMongoRepositorySupport}
-import uk.gov.hmrc.vulnerabilities.config.{AppConfig, DataConfig, SchedulerConfigs}
+import uk.gov.hmrc.vulnerabilities.config.{AppConfig, DataConfig}
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.data.UnrefinedVulnerabilitySummariesData
+import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
 import uk.gov.hmrc.vulnerabilities.model.{CVE, RawVulnerability, Report, ReportId, ReportResponse, ReportStatus, ServiceVersionDeployments, XrayNoData, XrayNotReady, XraySuccess}
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 

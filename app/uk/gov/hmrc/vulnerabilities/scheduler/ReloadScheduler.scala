@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.vulnerabilities.utils
+package uk.gov.hmrc.vulnerabilities.scheduler
 
 import org.apache.pekko.actor.ActorSystem
 import play.api.inject.ApplicationLifecycle
@@ -29,7 +29,7 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class Scheduler @Inject()(
+class ReloadScheduler @Inject()(
   updateVulnerabilitiesService: UpdateVulnerabilitiesService,
   config                      : SchedulerConfigs,
   mongoLockRepository         : MongoLockRepository,

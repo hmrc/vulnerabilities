@@ -19,7 +19,7 @@ package uk.gov.hmrc.vulnerabilities
 import play.api.inject.Binding
 import play.api.{Configuration, Environment, Logger}
 import uk.gov.hmrc.vulnerabilities.notification.{DeploymentDeadLetterHandler, DeploymentHandler}
-import uk.gov.hmrc.vulnerabilities.utils.{Scheduler, TimelineScheduler}
+import uk.gov.hmrc.vulnerabilities.scheduler.{ReloadScheduler, TimelineScheduler}
 
 import java.time.Clock
 
@@ -41,7 +41,7 @@ class VulnerabilitiesModule extends play.api.inject.Module {
 
   override def bindings(environment: Environment, configuration: Configuration): Seq[Binding[_]] =
     Seq(
-      bind[Scheduler        ].toSelf.eagerly()
+      bind[ReloadScheduler  ].toSelf.eagerly()
     , bind[TimelineScheduler].toSelf.eagerly()
     , bind[Clock            ].toInstance(Clock.systemUTC())
     ) ++
