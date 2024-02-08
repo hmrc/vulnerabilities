@@ -53,7 +53,7 @@ class UpdateVulnerabilitiesService @Inject()(
       svDepsToUpdate =  svDeps.filterNot(svd => recentReports.exists(rep => rep.nameAndVersion.contains(svd.serviceName + "_" + svd.version)))
       _              <- xrayService.processReports(svDepsToUpdate)
       _              =  logger.info("Finished generating and inserting reports into the rawReports collection")
-      _              <- updateVulnerabilitySummaries(svDeps)
+      _              <- updateVulnerabilitySummaries(isRebuild = true, svDeps)
       _              <- xrayService.deleteStaleReports()
     } yield ()
 
@@ -67,7 +67,7 @@ class UpdateVulnerabilitiesService @Inject()(
       svDepsToUpdate =  Seq(ServiceVersionDeployments(serviceName, version, Seq(environment)))
       _              <- xrayService.processReports(svDepsToUpdate)
       _              =  logger.info(s"Finished generating and inserting reports into the rawReports collection for $serviceName version $version in $environment")
-      _              <- updateVulnerabilitySummaries(svDeps)
+      _              <- updateVulnerabilitySummaries(isRebuild = false, svDeps)
     } yield ()
 
 
@@ -109,7 +109,7 @@ class UpdateVulnerabilitiesService @Inject()(
       .sortBy(sd => (sd.serviceName, sd.version))
 
 
-  private def updateVulnerabilitySummaries(allSvDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) =
+  private def updateVulnerabilitySummaries(isRebuild: Boolean, allSvDeps: Seq[ServiceVersionDeployments])(implicit hc: HeaderCarrier) =
     for {
       //Transform raw reports to Vulnerability Summaries
       unrefined        <- rawReportsRepository.getNewDistinctVulnerabilities()
@@ -121,7 +121,8 @@ class UpdateVulnerabilitiesService @Inject()(
       finalSummaries   =  addInvestigationsToSummaries(refined, finalAssessments)
       _                =  logger.info("About to delete all documents from the vulnerabilitySummaries repository")
       //Update final Collection
-      summariesCount   <- vulnerabilitySummariesRepository.deleteOldAndInsertNewSummaries(finalSummaries, allSvDeps)
+      summariesCount   <- if (isRebuild) vulnerabilitySummariesRepository.putSummaries(finalSummaries)
+                          else           vulnerabilitySummariesRepository.mergeNewSummaries(finalSummaries, allSvDeps)
     } yield logger.info(s"Inserted ${summariesCount} documents into the vulnerabilitySummaries repository")
 
   private def addInvestigationsToSummaries(summaries: Seq[VulnerabilitySummary], investigations: Map[String, Assessment]): Seq[VulnerabilitySummary] =

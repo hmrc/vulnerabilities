@@ -112,7 +112,7 @@ class UpdateVulnerabilitiesServiceSpec
 
      service.updateVulnerabilities(serviceName = "service2", version = "2.0", environment = "production").futureValue
 
-     verify(vulnerabilitiesSummariesRepository).deleteOldAndInsertNewSummaries(
+     verify(vulnerabilitiesSummariesRepository).mergeNewSummaries(
        Seq(
          VulnerabilitySummary(
            DistinctVulnerability(
@@ -399,7 +399,7 @@ class UpdateVulnerabilitiesServiceSpec
 
      service.updateAllVulnerabilities().futureValue
 
-     verify(vulnerabilitiesSummariesRepository).deleteOldAndInsertNewSummaries(
+     verify(vulnerabilitiesSummariesRepository).putSummaries(
        Seq(
          VulnerabilitySummary(
            DistinctVulnerability(
@@ -512,11 +512,7 @@ class UpdateVulnerabilitiesServiceSpec
            teams         = List("team1", "teamA"),
            generatedDate = now
          )
-       ),
-       Seq(
-         ServiceVersionDeployments("service1","0.8",List("staging")),
-         ServiceVersionDeployments("service1","0.9",List("qa")),
-         ServiceVersionDeployments("service2","2.0",List("production", "staging")))
+       )
      )
    }
  }
@@ -568,7 +564,6 @@ class UpdateVulnerabilitiesServiceSpec
 
       when(xrayService.deleteStaleReports()(any[HeaderCarrier])).thenReturn(Future.unit)
 
-
       when(xrayService.processReports(any[Seq[ServiceVersionDeployments]])(any[HeaderCarrier])).thenReturn(Future.unit)
 
       when(teamsAndRepositoriesConnector.getCurrentReleases()).thenReturn(
@@ -598,7 +593,9 @@ class UpdateVulnerabilitiesServiceSpec
         )
       )
 
-      when(vulnerabilitiesSummariesRepository.deleteOldAndInsertNewSummaries(any[Seq[VulnerabilitySummary]], any[Seq[ServiceVersionDeployments]])).thenReturn(Future.successful(1))
+      when(vulnerabilitiesSummariesRepository.putSummaries(any[Seq[VulnerabilitySummary]])).thenReturn(Future.successful(1))
+
+      when(vulnerabilitiesSummariesRepository.mergeNewSummaries(any[Seq[VulnerabilitySummary]], any[Seq[ServiceVersionDeployments]])).thenReturn(Future.successful(1))
     }
 }
 

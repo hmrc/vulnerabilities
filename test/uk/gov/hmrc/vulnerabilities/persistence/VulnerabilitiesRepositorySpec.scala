@@ -371,7 +371,7 @@ class VulnerabilitiesRepositorySpec
       intermediateRes.futureValue.length shouldBe 1
 
       val finalRes = for {
-        _   <- repository.deleteOldAndInsertNewSummaries(Seq(vulnerabilitySummary2, vulnerabilitySummary3), Seq())
+        _   <- repository.putSummaries(Seq(vulnerabilitySummary2, vulnerabilitySummary3))
         res <- repository.collection.find().toFuture()
       } yield res
 
