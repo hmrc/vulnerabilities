@@ -35,8 +35,8 @@ class AssessmentsRepository @Inject()(
   mongoComponent = mongoComponent,
   domainFormat   = Assessment.mongoFormat,
   indexes        = Seq(
-    IndexModel(Indexes.ascending("id"), IndexOptions().name("id").background(true)),
-  )
+                     IndexModel(Indexes.ascending("id"), IndexOptions().unique(true).background(true)),
+                   )
 ) {
   // No ttl required for this collection - contains assessments created by ourselves which will evolve over time
   override lazy val requiresTtlIndex = false

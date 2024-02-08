@@ -23,7 +23,8 @@ import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.model.{Environment, TotalVulnerabilityCount, Version, VulnerabilitySummary}
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, VulnerabilitySummariesRepository}
 import uk.gov.hmrc.vulnerabilities.service.{UpdateVulnerabilitiesService, VulnerabilitiesService}
-import uk.gov.hmrc.vulnerabilities.utils.{AssessmentParser, Scheduler, TimelineScheduler}
+import uk.gov.hmrc.vulnerabilities.utils.AssessmentParser
+import uk.gov.hmrc.vulnerabilities.scheduler.{ReloadScheduler, TimelineScheduler}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
@@ -35,7 +36,7 @@ class VulnerabilitiesController @Inject()(
   updateVulnerabilitiesService    : UpdateVulnerabilitiesService,
   assessmentParser                : AssessmentParser,
   assessmentsRepository           : AssessmentsRepository,
-  scheduler                       : Scheduler,
+  reloadScheduler                 : ReloadScheduler,
   timelineScheduler               : TimelineScheduler,
   vulnerabilitySummariesRepository: VulnerabilitySummariesRepository
 )(implicit ec: ExecutionContext)
@@ -74,7 +75,7 @@ class VulnerabilitiesController @Inject()(
   }
 
   def manualReload() = Action { implicit request =>
-    scheduler
+    reloadScheduler
       .manualReload()
       .recover(ex => logger.error("Error running manual data reload", ex))
 
