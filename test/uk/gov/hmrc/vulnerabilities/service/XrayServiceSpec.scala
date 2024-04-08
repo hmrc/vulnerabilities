@@ -20,7 +20,7 @@ import com.typesafe.config.ConfigFactory
 import org.apache.pekko.actor.ActorSystem
 import org.mockito.ArgumentMatchers.{any, anyInt}
 import org.mockito.{IdiomaticMockito, Mockito}
-import org.mockito.MockitoSugar.when
+import org.mockito.MockitoSugar.{times, verify, when}
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -61,7 +61,7 @@ class XrayServiceSpec extends AnyWordSpec
 
   "processReports" when {
     "given a list of service version deployments" should {
-      "Generate a payload, request a report, download the report, and insert the report into the rawReportsrepository for each svd sequentially" in new Setup {
+      "Generate a payload, request a report, download the report, and insert the report into the rawReportsrepository, then delete from xray, for each svd sequentially" in new Setup {
         val res = spy.processReports(Seq(svd1, svd3))
 
         Thread.sleep(3000)
@@ -71,6 +71,8 @@ class XrayServiceSpec extends AnyWordSpec
 
         finalRes.length shouldBe 2
         finalRes should contain theSameElementsAs Seq(report1, report3)
+
+        verify(xrayConnector, times(2)).deleteReportFromXray(any())(any())
       }
     }
 

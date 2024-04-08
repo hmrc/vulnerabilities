@@ -275,34 +275,34 @@ class RawReportsRepositorySpec
         TimelineEvent(id = "XRAY-000007", service = "service7", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = Uncurated),
       )
     }
+  }
 
-    "vulnerabilitiesCount" should {
-      "return None" when {
-        "there are no reports for a service" in new Setup {
-          val result = repository.vulnerabilitiesCount(report1.serviceName).futureValue
+  "vulnerabilitiesCount" should {
+    "return None" when {
+      "there are no reports for a service" in new Setup {
+        val result = repository.vulnerabilitiesCount(report1.serviceName).futureValue
 
-          result shouldBe None
-        }
+        result shouldBe None
       }
+    }
 
-      "return 0" when {
-        "there are no reports for a service" in new Setup {
-          repository.collection.insertOne(report1.copy(rows = Seq.empty)).toFuture().futureValue
+    "return 0" when {
+      "there are no reports for a service" in new Setup {
+        repository.collection.insertOne(report1.copy(rows = Seq.empty)).toFuture().futureValue
 
-          val result = repository.vulnerabilitiesCount(report1.serviceName).futureValue
+        val result = repository.vulnerabilitiesCount(report1.serviceName).futureValue
 
-          result shouldBe Some(0)
-        }
+        result shouldBe Some(0)
       }
+    }
 
-      "return the number of raw reports" when {
-        "there are reports for a service" in new Setup {
-          repository.collection.insertOne(report1).toFuture().futureValue
+    "return the number of raw reports" when {
+      "there are reports for a service" in new Setup {
+        repository.collection.insertOne(report1).toFuture().futureValue
 
-          val result = repository.vulnerabilitiesCount(report1.serviceName).futureValue
+        val result = repository.vulnerabilitiesCount(report1.serviceName).futureValue
 
-          result shouldBe Some(report1.rows.size)
-        }
+        result shouldBe Some(report1.rows.size)
       }
     }
   }

@@ -51,10 +51,10 @@ class UpdateVulnerabilitiesService @Inject()(
       agesToUpdate   =  toVulnerabilityAge(recentReports)
       _              <- vulnerabilityAgeRepository.insertNonExisting(agesToUpdate)
       svDepsToUpdate =  svDeps.filterNot(svd => recentReports.exists(rep => rep.nameAndVersion.contains(svd.serviceName + "_" + svd.version)))
+      _              <- xrayService.deleteStaleReports()
       _              <- xrayService.processReports(svDepsToUpdate)
       _              =  logger.info("Finished generating and inserting reports into the rawReports collection")
       _              <- updateVulnerabilitySummaries(isRebuild = true, svDeps)
-      _              <- xrayService.deleteStaleReports()
     } yield ()
 
   def updateVulnerabilities(
