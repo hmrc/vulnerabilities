@@ -47,10 +47,15 @@ class XrayService @Inject()(
       val maxRetries = 3
       def go(count: Int): Future[Int] =
         generateReport(svd).value.flatMap {
-          case Left(XrayNoData)   => Future.successful(acc)
-          case Left(XrayNotReady) => if (count > 0) go(count - 1)
-                                     else Future.failed[Int](new RuntimeException(s"Tried to generate and download report for ${svd.serviceName}:${svd.serviceName} $maxRetries times. Scheduler will cancel, and resume from this point the next time it runs. Manual cleanup will be required in the UI."))
-          case Right(report)      => rawReportsRepository.insertReport(report, svd.serviceName).map(_ => acc + 1)
+          case Left(XrayNoData)          => Future.successful(acc)
+          case Left(XrayNotReady)        =>
+            if (count > 0) go(count - 1)
+            else Future.failed[Int](new RuntimeException(s"Tried to generate and download report for ${svd.serviceName}:${svd.serviceName} $maxRetries times. Scheduler will cancel, and resume from this point the next time it runs. Manual cleanup will be required in the UI."))
+          case Right((reportId, report)) =>
+            for {
+              _ <- rawReportsRepository.insertReport(report, svd.serviceName)
+              _ <- xrayConnector.deleteReportFromXray(reportId)
+            } yield acc + 1
       }
       go(maxRetries)
     }.map { processedCount =>
@@ -59,7 +64,7 @@ class XrayService @Inject()(
     }
   }
 
-  private def generateReport(svd: ServiceVersionDeployments)(implicit hc: HeaderCarrier): EitherT[Future, Status, Report] =
+  private def generateReport(svd: ServiceVersionDeployments)(implicit hc: HeaderCarrier): EitherT[Future, Status, (Int, Report)] =
     for {
       resp    <- EitherT.liftF(xrayConnector.generateReport(svd))
       _       =  logger.info(s"Began generating report for ${svd.serviceName}:${svd.version}. Report will have id ${resp.reportID}")
@@ -73,7 +78,7 @@ class XrayService @Inject()(
                                         } yield res
                    case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)
                  }
-    } yield report
+    } yield (resp.reportID, report)
 
   def getReport(reportId: Int, svd: ServiceVersionDeployments)(implicit hc: HeaderCarrier): Future[Option[Report]] = {
     implicit val rfmt = Report.apiFormat(svd.serviceName, svd.version)
