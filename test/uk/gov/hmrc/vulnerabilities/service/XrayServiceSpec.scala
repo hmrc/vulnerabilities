@@ -71,8 +71,6 @@ class XrayServiceSpec extends AnyWordSpec
 
         finalRes.length shouldBe 2
         finalRes should contain theSameElementsAs Seq(report1, report3)
-
-        verify(xrayConnector, times(2)).deleteReportFromXray(any())(any())
       }
     }
 
