@@ -1,12 +1,13 @@
 # microservice specific routes
 
-GET        /api/vulnerabilities/distinct      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.distinctVulnerabilitySummaries(vulnerability: Option[String], curationStatus: Option[String], service: Option[String], version: Option[Version], team: Option[String], component: Option[String])
-GET        /api/vulnerabilities/count         uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.getDistinctVulnerabilities(service: String)
-GET        /api/vulnerabilities/counts        uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.getVulnerabilityCountsPerService(service: Option[String] ?= None, team: Option[String] ?= None, environment: Option[Environment] ?= None)
+GET        /api/summaries                   uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.getSummaries(flag: Option[SlugInfoFlag], service: Option[ServiceName], version: Option[Version], team: Option[String], curationStatus: Option[CurationStatus])
 
-GET        /api/vulnerabilities/timeline      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesTimelineController.getTimelineCounts(service: Option[String], team: Option[String], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: java.time.Instant, to: java.time.Instant)
+GET        /api/reports/:flag/counts        uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.getReportCounts(flag: SlugInfoFlag, service: Option[ServiceName], team: Option[String])
+
+# temp endpoint till we work out how to display vulnerabilities on the service page
+GET        /api/services/:service/deployed-report-count   uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.getDeployedReportCount(service: ServiceName)
+
+GET        /api/reports/timeline            uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesTimelineController.getTimelineCounts(service: Option[ServiceName], team: Option[String], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: java.time.Instant, to: java.time.Instant)
 
 # Admin
-GET        /api/vulnerabilities/admin/updateAssessments      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.updateAssessments
-POST       /api/vulnerabilities/admin/reload                 uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.manualReload()
-POST       /api/vulnerabilities/admin/updateTimeline         uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.manualTimelineUpdate()
+GET        /api/admin/updateAssessments      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.updateAssessments()

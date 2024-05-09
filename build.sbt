@@ -9,7 +9,7 @@ lazy val microservice = Project("vulnerabilities", file("."))
   .settings(
     libraryDependencies     ++= AppDependencies.compile ++ AppDependencies.test,
     RoutesKeys.routesImport ++= Seq(
-      "uk.gov.hmrc.vulnerabilities.model.{Environment, CurationStatus, Version}",
+      "uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, SlugInfoFlag, Version}",
       "uk.gov.hmrc.vulnerabilities.binders.Binders._"
     )
   )

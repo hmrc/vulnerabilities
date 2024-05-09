@@ -18,55 +18,53 @@ package uk.gov.hmrc.vulnerabilities.scheduler
 
 import org.apache.pekko.actor.ActorSystem
 import play.api.inject.ApplicationLifecycle
-import play.api.Logger
+import play.api.{Configuration, Logging}
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.TimestampSupport
 import uk.gov.hmrc.mongo.lock.{ScheduledLockService, MongoLockRepository}
-import uk.gov.hmrc.vulnerabilities.config.SchedulerConfigs
-import uk.gov.hmrc.vulnerabilities.service.VulnerabilitiesTimelineService
+import uk.gov.hmrc.vulnerabilities.connectors.TeamsAndRepositoriesConnector
+import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilitiesTimelineRepository}
 
+
+import java.time.{DayOfWeek, LocalDate, ZoneOffset}
+import java.time.temporal.TemporalAdjusters
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 @Singleton
 class TimelineScheduler @Inject()(
-  vulnerabilitiesTimelineService: VulnerabilitiesTimelineService,
-  config                        : SchedulerConfigs,
-  mongoLockRepository           : MongoLockRepository,
-  timestampSupport              : TimestampSupport
+  configuration         : Configuration,
+  teamsAndReposConnector: TeamsAndRepositoriesConnector,
+  rawReportsRepository  : RawReportsRepository,
+  timelineRepository    : VulnerabilitiesTimelineRepository,
+  mongoLockRepository   : MongoLockRepository,
+  timestampSupport      : TimestampSupport
  )(implicit
-  actorSystem         : ActorSystem,
-  applicationLifecycle: ApplicationLifecycle,
-  ec                  : ExecutionContext
- ) extends SchedulerUtils {
+  actorSystem           : ActorSystem,
+  applicationLifecycle  : ApplicationLifecycle,
+  ec                    : ExecutionContext
+ ) extends SchedulerUtils with Logging {
 
-  private val timelineUpdateLock: ScheduledLockService =
+  private val schedulerConfigs =
+    SchedulerConfig(configuration, "scheduler.timeline")
+
+  private val lock: ScheduledLockService =
     ScheduledLockService(
       lockRepository    = mongoLockRepository,
       lockId            = "vuln-timeline-update-lock",
       timestampSupport  = timestampSupport,
-      schedulerInterval = config.timelineUpdateScheduler.frequency
+      schedulerInterval = schedulerConfigs.interval
     )
 
-  private val logger = Logger(getClass)
+  implicit val hc: HeaderCarrier = HeaderCarrier()
 
-  scheduleWithLock("Vulnerabilities timeline updater", config.timelineUpdateScheduler, timelineUpdateLock) {
-    implicit val hc: HeaderCarrier = HeaderCarrier()
-    logger.info("Starting to update the vulnerabilities timeline data")
-    for {
-      _      <- vulnerabilitiesTimelineService.updateTimelineData()
-      _      = logger.info("Finished updating vulnerabilities timeline data")
+  scheduleWithLock("Vulnerabilities timeline updater", schedulerConfigs, lock) {
+   for {
+      repositoryTeams   <- teamsAndReposConnector.repositoryTeams()
+      weekBeginning     =  LocalDate.now().`with`(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay().toInstant(ZoneOffset.UTC)
+      timeline          <- rawReportsRepository.getTimelineData(weekBeginning)
+      timelineWithTeams =  timeline.map(sv => sv.copy(teams = repositoryTeams.getOrElse(sv.service, Seq())))
+      _                 <- timelineRepository.replaceOrInsert(timelineWithTeams)
     } yield ()
   }
-
-  def manualReload()(implicit hc: HeaderCarrier): Future[Unit] =
-    timelineUpdateLock
-      .withLock {
-        logger.info("vulnerabilitiesTimeline data update has been manually triggered")
-        for {
-          _      <- vulnerabilitiesTimelineService.updateTimelineData()
-          _      = logger.info("Finished updating vulnerabilities timeline data")
-        } yield ()
-      }
-      .map(_.getOrElse(logger.info(s"The vulnerabilitiesTimeline data update process is locked for ${timelineUpdateLock.lockId}")))
 }

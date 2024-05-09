@@ -1,5 +1,39 @@
 # Migration Guide
 
+Add deployment flags
+
+```javascript
+// stop the vulnerabilities task
+db.rawReports.aggregate([{ $out: "rawReports-bk" }])
+
+// Removes duplicates - Takes it down from 783624 to 20423
+db.getCollection('rawReports').aggregate([
+{ $group: {_id: {"serviceName": "$serviceName", "serviceVersion": "$serviceVersion" }, "last": { $last: "$$ROOT" } } },
+{ $unwind: "$last"},
+{ $replaceRoot: { newRoot: "$last" }},
+{ $out: "rawReports" }
+], { allowDiskUse: true })
+
+// Add default flags for missing deployments - shouldn't be any
+db.rawReports.updateMany({}, [
+    {$set: {
+        "latest":       false,
+        "production":   false,
+        "integration":  false,
+        "qa":           false,
+        "externaltest": false,
+        "staging":      false,
+        "development":  false
+    }}
+])
+
+// Add deployments flags to raw reports
+use service-dependencies
+db.deployments.find({$or: [{"latest": true},{"production": true},{"integration": true},{"qa": true},{"external test": true},{"staging": true},{"development": true}]}).forEach(d => {
+    db.getSiblingDB('vulnerabilities')['rawReports'].updateOne({"serviceName": d.name, "serviceVersion": d.version}, [{$set: {"latest": d.latest, "production": d.production, "integration": d.integration, "qa": d.qa, "externaltest": d['external test'], "staging": d.staging, "development": d.development}}])
+})
+```
+
 ## Populate vulnerabilityAge using the existing rawReports collection:
 
 ```javascript

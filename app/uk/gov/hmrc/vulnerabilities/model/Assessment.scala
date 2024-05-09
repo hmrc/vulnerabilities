@@ -14,30 +14,14 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.vulnerabilities.utils
+package uk.gov.hmrc.vulnerabilities.model
 
 import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
-import play.api.libs.json.{Json, __}
+import play.api.libs.json.__
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 import uk.gov.hmrc.vulnerabilities.model.CurationStatus
 
-import java.io.FileInputStream
 import java.time.Instant
-import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
-
-@Singleton
-class AssessmentParser @Inject() ()(implicit val ec: ExecutionContext) {
-
-  def getAssessments(): Future[Map[String, Assessment]] = {
-    implicit val fmt = Assessment.reads
-
-    val stream = new FileInputStream("app/uk/gov/hmrc/vulnerabilities/assets/investigations-idx.json")
-    val json = Future(try { Json.parse(stream) } finally { stream.close() } )
-
-    json.map(_.as[Map[String, Assessment]])
-  }
-}
 
 case class Assessment(
   id            : String,

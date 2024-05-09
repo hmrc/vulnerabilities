@@ -20,7 +20,7 @@ import com.mongodb.client.model.Indexes
 import org.mongodb.scala.model.{IndexModel, IndexOptions}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
-import uk.gov.hmrc.vulnerabilities.utils.Assessment
+import uk.gov.hmrc.vulnerabilities.model.Assessment
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}

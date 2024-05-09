@@ -16,232 +16,190 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
+import play.api.Configuration
 import com.mongodb.client.model.Indexes
-import org.mongodb.scala.MongoCollection
-import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonNull}
-import org.mongodb.scala.model.Aggregates.{`match`, group, lookup, project, replaceRoot, set, unwind}
-import org.mongodb.scala.model.Projections.{computed, fields}
-import org.mongodb.scala.model.{Accumulators, Field, Filters, IndexModel, IndexOptions, Sorts}
-import play.api.Logger
+import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonDateTime}
+import org.mongodb.scala.ClientSession
+import org.mongodb.scala.model.{Aggregates, Field, Filters, IndexModel, IndexOptions, ReplaceOptions, Projections, Updates, UpdateOptions}
+import uk.gov.hmrc.mongo.transaction.{TransactionConfiguration, Transactions}
+
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.config.{AppConfig, DataConfig}
-import uk.gov.hmrc.vulnerabilities.model.{Report, TimelineEvent, UnrefinedVulnerabilitySummary}
+import uk.gov.hmrc.vulnerabilities.model.{Report, ServiceName, SlugInfoFlag, TimelineEvent, Version}
 
 import java.time.Instant
-import java.time.temporal.ChronoUnit
-import java.util.concurrent.TimeUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
+
 @Singleton
 class RawReportsRepository @Inject()(
-  mongoComponent: MongoComponent,
-  config        : DataConfig,
-  appConfig: AppConfig
+  final val mongoComponent: MongoComponent
+, config                  : Configuration
 )(implicit
   ec            : ExecutionContext
 ) extends PlayMongoRepository(
-  collectionName = "rawReports",
-  mongoComponent = mongoComponent,
-  domainFormat   = Report.mongoFormat,
-  indexes        = Seq(
-                    IndexModel(Indexes.ascending("serviceName"), IndexOptions().unique(false).background(true)),
-                    IndexModel(Indexes.ascending("serviceVersion"), IndexOptions().unique(false).background(true)),
-                    IndexModel(Indexes.descending("generatedDate"), IndexOptions().name("generatedDate").background(true).expireAfter(2 * 365, TimeUnit.DAYS))
-                   )
-){
-  private val dataRefreshCutoff        = config.dataRefreshCutoff.toMillis.toInt
-  private val dataTransformationCutoff = config.dataTransformationCutoff.toMillis.toInt
-  private val logger = Logger(this.getClass)
+  collectionName = "rawReports"
+, mongoComponent = mongoComponent
+, domainFormat   = Report.mongoFormat
+, indexes        = IndexModel(Indexes.ascending("serviceName", "serviceVersion"), IndexOptions().unique(true)) ::
+                   SlugInfoFlag.values.map(f => IndexModel(Indexes.hashed(f.asString)))
+, replaceIndexes = true
+) with Transactions {
 
-  def insertReport(report: Report, name: String): Future[Unit] =
-    collection
-      .insertOne(report)
-      .toFuture()
-      .map(_ => logger.info(s"Inserted report for $name into rawReports repository"))
+  // No ttl required for this collection - managed by SQS
+  override lazy val requiresTtlIndex = false
 
-  def getReportsInLastXDays(): Future[Seq[Report]] =
-    collection.find(
-      Filters.gt("generatedDate", Instant.now().minus(dataRefreshCutoff, ChronoUnit.MILLIS)))
-      .toFuture()
+  private implicit val tc: TransactionConfiguration =
+    TransactionConfiguration.strict
 
-  def vulnerabilitiesCount(serviceName: String, version: Option[String] = None): Future[Option[Int]] =
-    collection.find(
-      Filters.and(
-        Filters.eq("serviceName", serviceName),
-        version.fold(Filters.empty())(v => Filters.eq("serviceVersion", v)),
-      )
-    )
-    .sort(Sorts.orderBy(Sorts.descending("serviceVersion")))
-    .limit(1)
-    .headOption()
-    .map(_.map(_.rows.size))
+  private val exclusionRegex: String = config.get[String]("regex.exclusion")
 
-  // use a different view to allow distinctVulnerabilitiesSummary to return a different case class
-  private val vcsCollection: MongoCollection[UnrefinedVulnerabilitySummary] =
-    CollectionFactory.collection(
-      mongoComponent.database,
-      "rawReports",
-      UnrefinedVulnerabilitySummary.reads
-    )
+  private val deployedSlugsInfoFlags: List[SlugInfoFlag] =
+    SlugInfoFlag.values.filterNot(f => f == SlugInfoFlag.Latest || f == SlugInfoFlag.Integration || f == SlugInfoFlag.Development)
 
-  def recent() = Instant.now()
-    .minus(dataTransformationCutoff, ChronoUnit.MILLIS)
-  //Having a separate config value for dataTranformationCutOff to dataRefreshCutoff, where the former is always larger than the latter, addresses edge case that occurs following a scheduler run,
-  //in which not all reports were redownloaded (as recent reports exist within the dataCutOff for those service/versions, perhaps due to a deployment event)
-  //But those same reports could then be outside of the dataCutOff following a new deploymentEvent, meaning they wouldn't be picked up by below query until the next scheduler run, causing (temporary) missing data.
-
-  def getNewDistinctVulnerabilities(): Future[Seq[UnrefinedVulnerabilitySummary]] =
-    vcsCollection.aggregate(
-      Seq(
-        //Only transform data added to rawReports within last X Days
-        //This stops out of date, and since fixed reports being transformed into vulnerability summaries
-        `match`(Filters.gt("generatedDate", recent())),
-        unwind("$rows"),
-        unwind("$rows.cves"),
-        project(
-          BsonDocument(
-            "id"            -> BsonDocument("$ifNull" -> BsonArray("$rows.cves.cve", "$rows.issue_id")),
-            "vuln"          -> "$rows",
-            "generatedDate" -> "$generatedDate",
-            "score"         -> BsonDocument("$ifNull" -> BsonArray("$rows.cvss3_max_score", 0.0))
-          )
-        ),
-        group(
-          "$id",
-          Accumulators.addToSet("vulns", "$vuln"),
-          Accumulators.first("generatedDate", "$generatedDate"),
-          Accumulators.first("score", "$score")
-        ),
-        project(
-          BsonDocument(
-            "distinctVulnerability" -> BsonDocument("$arrayElemAt" -> BsonArray("$vulns", 0)),
-            "generatedDate" -> "$generatedDate",
-            "occurrences" -> BsonDocument("$map" -> BsonDocument(
-              "input" -> "$vulns",
-              "as"    -> "v",
-              "in"    -> BsonDocument(
-                "vulnComponent" -> "$$v.vulnerable_component",
-                "path"          -> "$$v.path",
-                "componentPhysicalPath" -> "$$v.component_physical_path"
-              )
-            )),
-            "score" ->
-              BsonDocument("$cond" -> BsonDocument(
-              "if" -> BsonDocument("$eq" -> BsonArray("$score", 0.0)),
-              "then" -> BsonNull.apply(),
-              "else" -> "$score"
-            )),
-          )
-        )
-      )
-    )
-      .allowDiskUse(true)
-      .toFuture()
-
-  /*
-  BELOW is the raw Mongo query that the getTimelineData() method performs.
-  Adding it as a comment for ease of testing changes to the query in the future.
-
-  db.getCollection('rawReports').aggregate([
-    {
-      $match : {"generatedDate": { $gte: ISODate("2022-12-15T00:00:00.000Z")}}
-    },
-    {
-      $unwind: "$rows"
-    },
-    { $project:
-      {
-        id: {
-          $let: {
-            vars: {cveArray: { $arrayElemAt: ["$rows.cves", 0] } },
-            in: { $ifNull: ["$$cveArray.cve", "$rows.issue_id"] }
-          }
-        },
-        service: {
-          $arrayElemAt: [ { $split: ["$rows.path", "/"] }, 2 ]
-        },
-        weekBeginning: {
-          $dateFromParts : {
-            isoWeekYear: { $isoWeekYear: "$generatedDate"},
-            isoWeek: { $isoWeek: "$generatedDate"}
-          }
-        }
-      }
-    },
-    {
-      $group: {
-        _id: {
-            id: "$id",
-            service: "$service",
-            weekBeginning: "$weekBeginning"
-        }
-      }
-    },
-    { $replaceRoot: { newRoot: "$_id" } },
-    { $lookup: {
-        from: "assessments",
-        localField: "id",
-        foreignField: "id",
-        as: "curationStatus"
-      }
-    },
-    { $set:
-      {
-        teams: [],
-        curationStatus: { $ifNull: [ { $arrayElemAt: ["$curationStatus.curationStatus", 0]}, "UNCURATED"] }
-      }
+  val Quoted = """^\"(.*)\"$""".r
+  private def toServiceNameFilter(serviceNames: Seq[ServiceName]) =
+    serviceNames match {
+      case Seq(ServiceName(Quoted(s))) => Filters.equal("serviceName", s.toLowerCase())
+      case Seq(ServiceName(s))         => Filters.regex("serviceName", s.toLowerCase())
+      case xs                          => Filters.in(   "serviceName", xs.map(_.asString): _*)
     }
-    ])
-    */
 
-  def getTimelineData(reportsAfter: Instant): Future[Seq[TimelineEvent]] = {
+  def find(
+    flag        : Option[SlugInfoFlag]
+  , serviceNames: Option[Seq[ServiceName]]
+  , version     : Option[Version]
+  ): Future[Seq[Report]] =
+    collection
+      .find(Filters.and(
+        serviceNames.fold(Filters.empty())(toServiceNameFilter)
+      , version.fold(Filters.empty())(v => Filters.equal("serviceVersion", v.original))
+      , flag.fold(Filters.empty())(f => Filters.equal(f.asString, true))
+      ))
+      .toFuture()
+      .map(_.map(report => report.copy(rows = report.rows.filter(row => exclusionRegex.r.matches(row.componentPhysicalPath)))))
+
+  def findDeployed(serviceName: ServiceName): Future[Seq[Report]] =
+    collection
+      .find(Filters.and(
+        Filters.equal("serviceName", serviceName.asString)
+      , Filters.or(deployedSlugsInfoFlags.map(f => Filters.equal(f.asString, true)): _*)
+      ))
+      .toFuture()
+      .map(_.map(report => report.copy(rows = report.rows.filter(row => exclusionRegex.r.matches(row.componentPhysicalPath)))))
+
+  def getMaxVersion(serviceName: ServiceName): Future[Option[Version]] =
+    collection
+      .find[Version](Filters.equal("serviceName", serviceName.asString))
+      .projection(Projections.include("version"))
+      .foldLeft(Option.empty[Version]){
+        case (optMax, version) if optMax.exists(_ > version) => optMax
+        case (_     , version)                               => Some(version)
+      }.toFuture()
+
+  def put(report: Report): Future[Unit] =
+    collection
+      .replaceOne(
+        filter      = Filters.and(
+                        Filters.equal("serviceName"   , report.serviceName.asString)
+                      , Filters.equal("serviceVersion", report.serviceVersion.original)
+                      )
+      , replacement = report
+      , options     = ReplaceOptions().upsert(true)
+      )
+      .toFuture()
+      .map(_ => ())
+
+  def delete(serviceName: ServiceName, version: Version): Future[Unit] =
+    collection
+      .deleteOne(Filters.and(
+        Filters.equal("serviceName"   , serviceName.asString),
+        Filters.equal("serviceVersion", version.original)
+      ))
+      .toFuture()
+      .map(_ => ())
+
+  def setFlag(flag: SlugInfoFlag, serviceName: ServiceName, version: Version): Future[Unit] =
+    withSessionAndTransaction { session =>
+      for {
+        _ <- clearFlag(flag, serviceName, session)
+        _ <- collection
+               .updateOne(
+                 clientSession = session,
+                 filter        = Filters.and(
+                                   Filters.equal("serviceName"   , serviceName.asString),
+                                   Filters.equal("serviceVersion", version.original),
+                                 ),
+                 update        = Updates.set(flag.asString, true),
+                 options       = UpdateOptions().upsert(true)
+               )
+               .toFuture()
+      } yield ()
+    }
+
+  def clearFlag(flag: SlugInfoFlag, serviceName: ServiceName): Future[Unit] =
+    withSessionAndTransaction { session =>
+      clearFlag(flag, serviceName, session)
+    }
+
+  private def clearFlag(flag: SlugInfoFlag, serviceName: ServiceName, session: ClientSession): Future[Unit] =
+    collection
+      .updateMany(
+          clientSession = session,
+          filter        = Filters.and(
+                            Filters.equal("serviceName", serviceName.asString),
+                            Filters.equal(flag.asString, true)
+                          ),
+          update        = Updates.set(flag.asString, false)
+        )
+      .toFuture()
+      .map(_ => ())
+
+  def findStale(reportsBefore: Instant): Future[Seq[Report]] =
+    collection
+      .find(Filters.and(
+        Filters.or((deployedSlugsInfoFlags :+ SlugInfoFlag.Latest).map(f => Filters.equal(f.asString, true)): _*)
+      , Filters.lt("generatedDate", reportsBefore)
+      ))
+      .toFuture()
+
+  def getTimelineData(weekBeginning: Instant): Future[Seq[TimelineEvent]] = {
     //Ensure that any changes made to this query are reflected in the comment above.
-    CollectionFactory.collection(mongoComponent.database, "rawReports", TimelineEvent.mongoFormat).aggregate(
-      Seq(
-        `match`(Filters.gte("generatedDate", reportsAfter)), //Only process recent reports
-        unwind("$rows"),
-        `match`(Filters.regex("rows.component_physical_path", appConfig.exclusionRegex)), //Exclude row elements if matching regex
-        project(
-          fields(
-            //Not all Vulnerabilities have a CVE-id, so if doesn't exist, get the issueID as fallback.
-            computed("id", BsonDocument(
-              "$let" -> BsonDocument(
-                "vars" -> BsonDocument("cveArray" -> BsonDocument( "$arrayElemAt" -> BsonArray("$rows.cves", 0))),
-                "in" -> BsonDocument("$ifNull" -> BsonArray("$$cveArray.cve", "$rows.issue_id"))
-                  )
-                )),
-            computed("service", BsonDocument(
-              "$arrayElemAt" -> BsonArray(
-                BsonDocument("$split" -> BsonArray("$rows.path", "/")), 2
-              )
-            )),
-            computed("weekBeginning", BsonDocument(  //truncate generatedDate to beginning of week
-              "$dateFromParts" -> BsonDocument(
-                "isoWeekYear" -> BsonDocument("$isoWeekYear" -> "$generatedDate"),
-                "isoWeek"     -> BsonDocument("$isoWeek" -> "$generatedDate")
+    CollectionFactory
+      .collection(mongoComponent.database, "rawReports", TimelineEvent.mongoFormat)
+      .aggregate(
+        Seq(
+          Aggregates.`match`(Filters.or(deployedSlugsInfoFlags.map(f => Filters.equal(f.asString, true)): _*)),
+          Aggregates.unwind("$rows"),
+          Aggregates.`match`(Filters.regex("rows.component_physical_path", exclusionRegex)),
+          Aggregates.project(
+            Projections.fields(
+              //Not all Vulnerabilities have a CVE-id, so if doesn't exist, get the issueID as fallback.
+              Projections.computed("id", BsonDocument(
+                "$let" -> BsonDocument(
+                  "vars" -> BsonDocument("cveArray" -> BsonDocument( "$arrayElemAt" -> BsonArray("$rows.cves", 0))),
+                  "in"   -> BsonDocument("$ifNull" -> BsonArray("$$cveArray.cve", "$rows.issue_id"))
                 )
+              )),
+              Projections.computed("service", BsonDocument("$arrayElemAt" -> BsonArray(BsonDocument("$split" -> BsonArray("$rows.path", "/")), 2)))
             )
-          )
-        )),
-        //The purpose of the group stage is to completely de-dupe the data, using the three keys as combined unique identifiers.
-        group(id = BsonDocument("id" -> "$id", "service" -> "$service", "weekBeginning" -> "$weekBeginning")),
-        replaceRoot("$_id"),
-        lookup(
-          from         = "assessments",
-          localField   = "id",
-          foreignField = "id",
-          as           = "curationStatus"
-        ),
-        set(
-          Field("teams", BsonArray()),
-          Field("curationStatus", BsonDocument(
-          "$ifNull" -> BsonArray(
-            BsonDocument("$arrayElemAt" -> BsonArray("$curationStatus.curationStatus", 0)),
-            "UNCURATED"
-          )
-        ))),
-      )).toFuture()
+          ),
+          //The purpose of the group stage is to completely de-dupe the data, using the three keys as combined unique identifiers.
+          Aggregates.group(id = BsonDocument("id" -> "$id", "service" -> "$service")),
+          Aggregates.replaceRoot("$_id"),
+          Aggregates.lookup(
+            from         = "assessments",
+            localField   = "id",
+            foreignField = "id",
+            as           = "curationStatus"
+          ),
+          Aggregates.set(
+            Field("weekBeginning" , BsonDateTime(weekBeginning.toEpochMilli())),
+            Field("teams"         , BsonArray()),
+            Field("curationStatus", BsonDocument("$ifNull" -> BsonArray(BsonDocument("$arrayElemAt" -> BsonArray("$curationStatus.curationStatus", 0)), "UNCURATED")))
+          ),
+        )
+      ).toFuture()
   }
 }
