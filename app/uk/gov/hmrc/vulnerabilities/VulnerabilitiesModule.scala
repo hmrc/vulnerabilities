@@ -18,7 +18,7 @@ package uk.gov.hmrc.vulnerabilities
 
 import play.api.inject.Binding
 import play.api.{Configuration, Environment, Logger}
-import uk.gov.hmrc.vulnerabilities.notification.{DeploymentDeadLetterHandler, DeploymentHandler}
+import uk.gov.hmrc.vulnerabilities.notification.{DeploymentHandler, SlugInfoHandler}
 import uk.gov.hmrc.vulnerabilities.scheduler.{ReloadScheduler, TimelineScheduler}
 
 import java.time.Clock
@@ -31,7 +31,7 @@ class VulnerabilitiesModule extends play.api.inject.Module {
     if (configuration.get[Boolean]("aws.sqs.enabled"))
       Seq(
         bind[DeploymentHandler          ].toSelf.eagerly()
-      , bind[DeploymentDeadLetterHandler].toSelf.eagerly()
+      , bind[SlugInfoHandler].toSelf.eagerly()
       )
     else {
       logger.warn("SQS handlers are disabled")

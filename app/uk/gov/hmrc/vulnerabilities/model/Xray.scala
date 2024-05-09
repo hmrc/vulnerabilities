@@ -53,31 +53,54 @@ object ReportStatus {
 }
 
 case class Report(
- serviceName   : String,
- serviceVersion: String,
- rows          : Seq[RawVulnerability],
- generatedDate : Instant
-){
-  val nameAndVersion: String = serviceName + "_" + serviceVersion
-}
+  serviceName   : ServiceName,
+  serviceVersion: Version,
+  rows          : Seq[RawVulnerability],
+  generatedDate : Instant,
+  latest        : Boolean,
+  production    : Boolean,
+  qa            : Boolean,
+  staging       : Boolean,
+  development   : Boolean,
+  externalTest  : Boolean,
+  integration   : Boolean
+)
 
 object Report {
-  def generateDateTime: Instant = Instant.now()
-
-  def apiFormat(serviceName: String = "", version: String = "") = {
+  private def generateDateTime: Instant = Instant.now()
+  def apiFormat(
+    serviceName  : ServiceName,
+    version      : Version,
+    latest       : Boolean,
+    production   : Boolean,
+    qa           : Boolean,
+    staging      : Boolean,
+    development  : Boolean,
+    externalTest : Boolean,
+    integration  : Boolean
+  ) = {
     implicit val rvf = RawVulnerability.apiFormat
     ( (__ \ "rows"          ).format[Seq[RawVulnerability]]
     ~ (__ \ "generatedDate" ).formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
-    )(apply(serviceName, version, _, _),  (r: Report) => (r.rows, r.generatedDate))
+    )(apply(serviceName, version, _, _, latest, production, qa, staging, development, externalTest, integration),  (r: Report) => (r.rows, r.generatedDate))
   }
 
   val mongoFormat = {
     implicit val instf = MongoJavatimeFormats.instantFormat
     implicit val rvf   = RawVulnerability.mongoFormat
-    ( (__ \ "serviceName"   ).format[String]
-    ~ (__ \ "serviceVersion").format[String]
-    ~ (__ \ "rows"         ).format[Seq[RawVulnerability]]
-    ~ (__ \ "generatedDate").formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
+    implicit val snf   = ServiceName.format
+    implicit val vf    = Version.format
+    ( (__ \ "serviceName"   ).format[ServiceName]
+    ~ (__ \ "serviceVersion").format[Version]
+    ~ (__ \ "rows"          ).format[Seq[RawVulnerability]]
+    ~ (__ \ "generatedDate" ).formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime), Some(_))
+    ~ (__ \ "latest"        ).formatWithDefault[Boolean](false)
+    ~ (__ \ "production"    ).formatWithDefault[Boolean](false)
+    ~ (__ \ "qa"            ).formatWithDefault[Boolean](false)
+    ~ (__ \ "staging"       ).formatWithDefault[Boolean](false)
+    ~ (__ \ "development"   ).formatWithDefault[Boolean](false)
+    ~ (__ \ "external test" ).formatWithDefault[Boolean](false)
+    ~ (__ \ "integration"   ).formatWithDefault[Boolean](false)
     )(apply, unlift(unapply))
   }
 }
@@ -105,11 +128,9 @@ case class RawVulnerability(
 )
 
 object RawVulnerability {
-
   val mongoFormat: OFormat[RawVulnerability] = {
     implicit val cvef          = CVE.apiFormat
     implicit val instantFormat = MongoJavatimeFormats.instantFormat
-
     ( (__ \ "cves"                   ).format[Seq[CVE]]
     ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
     ~ (__ \ "summary"                ).format[String]
@@ -134,7 +155,6 @@ object RawVulnerability {
 
   val apiFormat: OFormat[RawVulnerability] = {
     implicit val cvef = CVE.apiFormat
-
     ( (__ \ "cves"                   ).format[Seq[CVE]]
     ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
     ~ (__ \ "summary"                ).format[String]

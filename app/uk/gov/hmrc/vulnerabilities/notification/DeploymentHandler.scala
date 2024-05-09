@@ -16,63 +16,51 @@
 
 package uk.gov.hmrc.vulnerabilities.notification
 
-import org.apache.pekko.actor.ActorSystem
 import cats.data.EitherT
 import cats.implicits._
-import play.api.Configuration
-import play.api.libs.json.{Format, Json}
+
 import software.amazon.awssdk.services.sqs.model.Message
-import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.vulnerabilities.model.{Environment, ServiceName, Version}
-import uk.gov.hmrc.vulnerabilities.service.UpdateVulnerabilitiesService
+
+import org.apache.pekko.actor.ActorSystem
+import play.api.Configuration
+import play.api.libs.json.Json
+import uk.gov.hmrc.vulnerabilities.model.{ServiceName, SlugInfoFlag, Version}
+import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class DeploymentHandler @Inject()(
-  configuration               : Configuration,
-  updateVulnerabilitiesService: UpdateVulnerabilitiesService
+  configuration       : Configuration
+, rawReportsRepository: RawReportsRepository
 )(implicit
-  actorSystem                 : ActorSystem,
-  ec                          : ExecutionContext
+  actorSystem: ActorSystem,
+  ec         : ExecutionContext
 ) extends SqsConsumer(
-  name                        = "Deployment"
-, config                      = SqsConfig("aws.sqs.deployment", configuration)
+  name   = "Deployment"
+, config = SqsConfig("aws.sqs.deployment", configuration)
 )(actorSystem, ec) {
-  import DeploymentHandler._
 
-  private implicit val hc: HeaderCarrier = HeaderCarrier()
+  private def prefix(payload: DeploymentHandler.DeploymentEvent) =
+    s"Deployment (${payload.eventType}) ${payload.serviceName.asString} ${payload.version.original} ${payload.environment.asString}"
 
   override protected def processMessage(message: Message): Future[MessageAction] = {
     logger.info(s"Starting processing Deployment message with ID '${message.messageId()}'")
     (for {
-       payload <- EitherT.fromEither[Future](
-                    Json.parse(message.body)
-                      .validate(mdtpEventReads)
-                      .asEither.left.map(error => s"Could not parse message with ID '${message.messageId()}'.  Reason: " + error.toString)
-                  )
-       _       <- (payload.eventType, payload.optEnvironment) match {
-                    case ("deployment-complete", Some(environment)) =>
-                      EitherT.liftF[Future, String, Unit](updateVulnerabilitiesService.updateVulnerabilities(
-                          environment = environment.asString,
-                          serviceName = payload.serviceName.asString,
-                          version     = payload.version.toString
-                        ))
-                    case (_, None) =>
-                      logger.info(s"Not processing message '${message.messageId()}' with unrecognised environment")
-                      EitherT.pure[Future, String](())
-                    case (eventType, _) =>
-                      logger.info(s"Not processing message '${message.messageId()}' with event_type $eventType")
-                      EitherT.pure[Future, String](())
-                  }
-      } yield {
-        logger.info(s"Deployment message with ID '${message.messageId()}' successfully processed.")
-        MessageAction.Delete(message)
-      }
+      payload <- EitherT
+                   .fromEither[Future](Json.parse(message.body).validate(DeploymentHandler.mdtpEventReads).asEither)
+                   .leftMap(error => s"Could not parse Deployment message with ID '${message.messageId()}'. Reason: $error")
+       _      <- payload.eventType match {
+                   case "deployment-complete"   => EitherT.right[String](rawReportsRepository.setFlag  (payload.environment, payload.serviceName, payload.version))
+                   case "undeployment-complete" => EitherT.right[String](rawReportsRepository.clearFlag(payload.environment, payload.serviceName                 ))
+                   case _                       => EitherT.right[String](Future.unit)
+                 }
+      _       =  logger.info(s"${prefix(payload)} with ID '${message.messageId()}' successfully processed.")
+    } yield
+      MessageAction.Delete(message)
     ).value.map {
-      case Left(error)   => logger.error(error)
-                            MessageAction.Ignore(message)
+      case Left(error)   => logger.error(error); MessageAction.Ignore(message)
       case Right(action) => action
     }
   }
@@ -81,26 +69,19 @@ class DeploymentHandler @Inject()(
 object DeploymentHandler {
 
   private case class DeploymentEvent(
-    eventType     : String
-  , optEnvironment: Option[Environment]
-  , serviceName   : ServiceName
-  , version       : Version
+    eventType  : String
+  , environment: SlugInfoFlag
+  , serviceName: ServiceName
+  , version    : Version
   )
 
   import play.api.libs.functional.syntax._
   import play.api.libs.json.{Reads, __}
 
-
-  private lazy val mdtpEventReads: Reads[DeploymentEvent] = {
-    implicit val er: Reads[Option[Environment]] =
-      __.read[String].map(Environment.parse)
-    implicit val snf: Format[ServiceName] = ServiceName.format
-    implicit val vf: Format[Version] = Version.format
-
+  private lazy val mdtpEventReads: Reads[DeploymentEvent] =
     ( (__ \ "event_type"          ).read[String]
-    ~ (__ \ "environment"         ).read[Option[Environment]]
-    ~ (__ \ "microservice"        ).read[ServiceName]
-    ~ (__ \ "microservice_version").read[Version]
+    ~ (__ \ "environment"         ).read[SlugInfoFlag](SlugInfoFlag.format)
+    ~ (__ \ "microservice"        ).read[ServiceName](ServiceName.format)
+    ~ (__ \ "microservice_version").read[Version](Version.format)
     )(DeploymentEvent.apply _)
-  }
 }

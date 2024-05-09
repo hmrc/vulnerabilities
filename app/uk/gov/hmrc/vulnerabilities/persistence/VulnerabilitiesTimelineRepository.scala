@@ -23,7 +23,7 @@ import org.mongodb.scala.model.Indexes.{compoundIndex, descending}
 import org.mongodb.scala.model._
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, TimelineEvent, VulnerabilitiesTimelineCount}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, TimelineEvent, VulnerabilitiesTimelineCount}
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -66,12 +66,11 @@ class VulnerabilitiesTimelineRepository @Inject()(
 
   val Quoted = """^\"(.*)\"$""".r
 
-  def getTimelineCounts(service: Option[String], team: Option[String], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: Instant, to: Instant): Future[Seq[VulnerabilitiesTimelineCount]] = {
-
+  def getTimelineCounts(serviceName: Option[ServiceName], team: Option[String], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: Instant, to: Instant): Future[Seq[VulnerabilitiesTimelineCount]] = {
     val optFilters: Seq[Bson] = Seq(
-      service.map {
-        case Quoted(s) => Filters.equal("service", s.toLowerCase())
-        case s         => Filters.regex("service", s.toLowerCase())
+      serviceName.map {
+        case ServiceName(Quoted(s)) => Filters.equal("service", s.toLowerCase())
+        case ServiceName(s)         => Filters.regex("service", s.toLowerCase())
       },
       team.map         (t => Filters.eq("teams", t)),
       vulnerability.map(v => Filters.eq("id", v.toUpperCase)),
@@ -87,6 +86,4 @@ class VulnerabilitiesTimelineRepository @Inject()(
     CollectionFactory.collection(mongoComponent.database, "vulnerabilitiesTimeline", VulnerabilitiesTimelineCount.mongoFormat)
       .aggregate(pipeline).toFuture()
   }
-
-
 }

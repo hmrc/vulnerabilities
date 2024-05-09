@@ -98,7 +98,7 @@ abstract class SqsConsumer(
     )
     .mapAsync(parallelism = 1) { message =>
       processMessage(message)
-        .map[Unit] {
+        .flatMap[Unit] {
           case MessageAction.Delete(message) => deleteMessage(message)
           case MessageAction.Ignore(_)       => Future.unit
         }.recover {

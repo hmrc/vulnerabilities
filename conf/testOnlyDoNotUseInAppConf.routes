@@ -3,7 +3,7 @@
 # !!!WARNING!!! This file MUST NOT be referenced in the "application.conf" file to avoid risk of rolling test routes in the production environment.
 # If you need test routes when running tests in CI make sure that the profile for this micro-service (used by service-manager) defines this router as parameter.
 # To do so add the following line to the micro-service profile: "-Dapplication.router=testOnlyDoNotUseInAppConf.Routes"
-# To start the micro-service locally using the test routes run the following command: "sbt run -Dapplication.router=testOnlyDoNotUseInAppConf.Routes" 
+# To start the micro-service locally using the test routes run the following command: "sbt run -Dapplication.router=testOnlyDoNotUseInAppConf.Routes"
 
 # Any test-only end-point should be defined here.
 # !!!WARNING!!! Every route defined in this file MUST be prefixed with "/test-only/". This is because NGINX is blocking every uri containing the string "test-only" in production.
@@ -12,11 +12,11 @@
 # Add all the application routes to the prod.routes file
 
 #Integration Test
-GET        /test-only/testResult               uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.testResult()
-GET        /test-only/testDeploymentEvent      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.testDeployment(serviceName, version, environment)
+# GET        /test-only/testResult               uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.testResult()
+# GET        /test-only/testDeploymentEvent      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.testDeployment(serviceName, version, environment)
 
-POST       /test-only/vulnerabilitySummaries   uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.addVulnerabilitySummaries()
-DELETE     /test-only/vulnerabilitySummaries   uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteVulnerabilitySummaries
+# POST       /test-only/vulnerabilitySummaries   uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.addVulnerabilitySummaries()
+# DELETE     /test-only/vulnerabilitySummaries   uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteVulnerabilitySummaries
 
 POST       /test-only/timelineEvents           uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.addTimelineEvents()
 DELETE     /test-only/timelineEvents           uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteTimelineEvents
