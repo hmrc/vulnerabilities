@@ -33,19 +33,16 @@ case class TimelineEvent(
 object TimelineEvent {
   implicit val csf: Format[CurationStatus] = CurationStatus.format
 
-  val mongoFormat: OFormat[TimelineEvent] = {
-    implicit val instantFormat = MongoJavatimeFormats.instantFormat
-
+  val mongoFormat: OFormat[TimelineEvent] =
     ( (__ \ "id"            ).format[String]
     ~ (__ \ "service"       ).format[String]
-    ~ (__ \ "weekBeginning" ).format[Instant]
+    ~ (__ \ "weekBeginning" ).format[Instant](MongoJavatimeFormats.instantFormat)
     ~ (__ \ "teams"         ).format[Seq[String]]
     ~ (__ \ "curationStatus").format[CurationStatus]
     )(apply, unlift(unapply))
-  }
 
   val apiFormat: OFormat[TimelineEvent] =
-    ( (__ \ "id"              ).format[String]
+    ( (__ \ "id"            ).format[String]
     ~ (__ \ "service"       ).format[String]
     ~ (__ \ "weekBeginning" ).format[Instant]
     ~ (__ \ "teams"         ).format[Seq[String]]
@@ -60,12 +57,10 @@ case class VulnerabilitiesTimelineCount(
 
 object VulnerabilitiesTimelineCount {
 
-  val mongoFormat: OFormat[VulnerabilitiesTimelineCount] = {
-    implicit val instantFormat = MongoJavatimeFormats.instantFormat
-    ( (__ \ "_id"  ).format[Instant]
+  val mongoFormat: OFormat[VulnerabilitiesTimelineCount] =
+    ( (__ \ "_id"  ).format[Instant](MongoJavatimeFormats.instantFormat)
     ~ (__ \ "count").format[Int]
     )(apply, unlift(unapply))
-  }
 
   val apiFormat: OFormat[VulnerabilitiesTimelineCount] =
     ( (__ \ "weekBeginning").format[Instant]

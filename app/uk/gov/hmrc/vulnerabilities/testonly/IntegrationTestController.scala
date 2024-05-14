@@ -21,15 +21,14 @@ import play.api.libs.json.{JsError, JsString, OFormat, Reads}
 import play.api.mvc.{Action, AnyContent, BodyParser, ControllerComponents}
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.model.{TimelineEvent, VulnerabilitySummary}
-import uk.gov.hmrc.vulnerabilities.persistence.{VulnerabilitiesTimelineRepository, VulnerabilitySummariesRepository}
+import uk.gov.hmrc.vulnerabilities.model.TimelineEvent
+import uk.gov.hmrc.vulnerabilities.persistence.{VulnerabilitiesTimelineRepository}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
 
 @Singleton
 class IntegrationTestController @Inject()(
-  vulnerabilitySummariesRepository: VulnerabilitySummariesRepository,
   vulnerabilitiesTimelineRepository: VulnerabilitiesTimelineRepository,
   cc: ControllerComponents
 )(implicit
@@ -43,14 +42,6 @@ class IntegrationTestController @Inject()(
 
   def deleteTimelineEvents: Action[AnyContent] =
     deleteAll(vulnerabilitiesTimelineRepository)
-
-  def addVulnerabilitySummaries: Action[Seq[VulnerabilitySummary]] = {
-    implicit val vsf: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
-    addAll(vulnerabilitySummariesRepository)
-  }
-
-  def deleteVulnerabilitySummaries: Action[AnyContent] =
-    deleteAll(vulnerabilitySummariesRepository)
 
   private def validNelJson[A: Reads]: BodyParser[Seq[A]] =
     parse.json.validate(

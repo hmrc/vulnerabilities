@@ -20,7 +20,6 @@ import org.apache.pekko.actor.ActorSystem
 import play.api.Logger
 import play.api.inject.ApplicationLifecycle
 import uk.gov.hmrc.mongo.lock.ScheduledLockService
-import uk.gov.hmrc.vulnerabilities.config.SchedulerConfig
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
@@ -40,7 +39,7 @@ trait SchedulerUtils {
   ): Unit =
     if (schedulerConfig.enabled) {
       val initialDelay = schedulerConfig.initialDelay
-      val interval     = schedulerConfig.frequency
+      val interval     = schedulerConfig.interval
       logger.info(s"Enabling $label scheduler, running every $interval (after initial delay $initialDelay)")
       val cancellable =
         actorSystem.scheduler.scheduleWithFixedDelay(initialDelay, interval) { () =>

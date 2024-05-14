@@ -24,6 +24,4 @@ import javax.inject.{Inject, Singleton}
 class AppConfig @Inject()(config: Configuration) {
 
   val appName: String = config.get[String]("appName")
-
-  val exclusionRegex: String = config.get[String]("regex.exclusion")
 }

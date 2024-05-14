@@ -17,7 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.binders
 
 import play.api.mvc.QueryStringBindable
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, Version}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, Version}
 
 import java.time.Instant
 import scala.util.Try
@@ -46,6 +46,9 @@ object Binders {
         strBinder.unbind(key, value.asString)
     }
 
-  implicit def verisonBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[Version] =
+  implicit def serviceNameBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[ServiceName] =
+    strBinder.transform(ServiceName.apply, _.asString)
+
+  implicit def versionBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[Version] =
     strBinder.transform(Version.apply, _.original)
 }

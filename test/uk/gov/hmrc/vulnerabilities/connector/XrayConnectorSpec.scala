@@ -26,9 +26,8 @@ import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
 import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
-import uk.gov.hmrc.vulnerabilities.config.XrayConfig
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
-import uk.gov.hmrc.vulnerabilities.model.{ReportId, ReportResponse, ReportStatus, ServiceVersionDeployments}
+import uk.gov.hmrc.vulnerabilities.model.{ReportId, ReportResponse, ReportStatus, ServiceName, Version}
 
 import java.time.temporal.ChronoUnit
 import java.time.{Clock, LocalDate, ZoneOffset}
@@ -45,21 +44,17 @@ class XrayConnectorSpec
 
   implicit val hc: HeaderCarrier = HeaderCarrier()
 
-  private val config = new XrayConfig(
-    configuration = Configuration.from(Map(
-      "xray.url"               -> s"${wireMockUrl}",
-      "xray.token"             -> "testToken",
-      "xray.username"          -> "user1",
-      "xray.reports.retention" -> "1 day"
-    ))
-  )
+  private val config = Configuration.from(Map(
+    "xray.url"               -> s"${wireMockUrl}",
+    "xray.token"             -> "testToken",
+    "xray.username"          -> "user1",
+    "xray.reports.retention" -> "1 day"
+  ))
 
   implicit private val materializer: Materializer = mock[Materializer]
 
   val now               = LocalDate.now().atStartOfDay(ZoneOffset.UTC).toInstant
-  private val connector = new XrayConnector(httpClientV2, config, clock = Clock.fixed(now, ZoneOffset.UTC))
-
-  val svd = ServiceVersionDeployments(serviceName = "service1", version = "5.4.0", environments = Seq("production"))
+  private val connector = new XrayConnector(config, httpClientV2, clock = Clock.fixed(now, ZoneOffset.UTC))
 
   "generateReport" when {
     "given a serviceVersionDeployments" should {
@@ -73,7 +68,7 @@ class XrayConnectorSpec
             aResponse().withBody(s"""{"report_id":1,"status":"pending"}""")
         ))
 
-        connector.generateReport(svd).futureValue
+        connector.generateReport(ServiceName("service1"), Version("5.4.0")).futureValue
 
         wireMockServer.verify(postRequestedFor(urlEqualTo("/vulnerabilities"))
           .withRequestBody(equalToJson(expectedRequestBody)
@@ -93,7 +88,7 @@ class XrayConnectorSpec
             aResponse().withBody(s"""{"report_id":1,"status":"pending"}""")
         ))
 
-        val res = connector.generateReport(svd).futureValue
+        val res = connector.generateReport(ServiceName("service1"), Version("5.4.0")).futureValue
         res shouldBe ReportResponse(reportID = 1, status = "pending")
       }
     }
