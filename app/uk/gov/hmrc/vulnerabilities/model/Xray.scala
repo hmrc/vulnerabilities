@@ -99,7 +99,7 @@ object Report {
     ~ (__ \ "qa"            ).formatWithDefault[Boolean](false)
     ~ (__ \ "staging"       ).formatWithDefault[Boolean](false)
     ~ (__ \ "development"   ).formatWithDefault[Boolean](false)
-    ~ (__ \ "external test" ).formatWithDefault[Boolean](false)
+    ~ (__ \ "externaltest"  ).formatWithDefault[Boolean](false)
     ~ (__ \ "integration"   ).formatWithDefault[Boolean](false)
     )(apply, unlift(unapply))
   }
