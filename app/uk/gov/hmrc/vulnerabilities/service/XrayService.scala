@@ -50,8 +50,11 @@ class XrayService @Inject()(
     flags      : Seq[SlugInfoFlag]
   )
 
-  def scanSlug(serviceName: ServiceName, version: Version, flags: Seq[SlugInfoFlag])(implicit hc: HeaderCarrier): Future[Unit] =
-    processReports(Seq(SlugInfo(serviceName, version, flags)))
+  def firstScan(serviceName: ServiceName, version: Version, flag: Option[SlugInfoFlag] = None)(implicit hc: HeaderCarrier): Future[Unit] =
+    for {
+      isLatest <- rawReportsRepository.getMaxVersion(serviceName).map(_.fold(true)(_ == version))
+      _        <- processReports(Seq(SlugInfo(serviceName, version, Option.when(isLatest)(SlugInfoFlag.Latest).toSeq ++ flag)))
+    } yield ()
 
   def rescanStaleReports(reportsBefore: Instant)(implicit hc: HeaderCarrier): Future[Unit] =
     for {
