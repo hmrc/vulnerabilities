@@ -31,7 +31,6 @@ import java.time.Instant
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
-
 @Singleton
 class RawReportsRepository @Inject()(
   final val mongoComponent: MongoComponent
@@ -65,6 +64,19 @@ class RawReportsRepository @Inject()(
       case Seq(ServiceName(s))         => Filters.regex("serviceName", s.toLowerCase())
       case xs                          => Filters.in(   "serviceName", xs.map(_.asString): _*)
     }
+
+  // Like find but service name defaults to an exact match - otherwise we'd have to add quotes
+  def exists(
+    serviceName: ServiceName
+  , version    : Version
+  ): Future[Boolean] =
+    collection
+      .find(Filters.and(
+        Filters.equal("serviceName"   , serviceName.asString)
+      , Filters.equal("serviceVersion", version.original)
+      ))
+      .headOption()
+      .map(_.isDefined)
 
   def find(
     flag        : Option[SlugInfoFlag]

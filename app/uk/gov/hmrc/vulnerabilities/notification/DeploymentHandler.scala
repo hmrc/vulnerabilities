@@ -24,7 +24,9 @@ import software.amazon.awssdk.services.sqs.model.Message
 import org.apache.pekko.actor.ActorSystem
 import play.api.Configuration
 import play.api.libs.json.Json
+import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.model.{ServiceName, SlugInfoFlag, Version}
+import uk.gov.hmrc.vulnerabilities.service.XrayService
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 
 import javax.inject.{Inject, Singleton}
@@ -34,6 +36,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class DeploymentHandler @Inject()(
   configuration       : Configuration
 , rawReportsRepository: RawReportsRepository
+, xrayService         : XrayService
 )(implicit
   actorSystem: ActorSystem,
   ec         : ExecutionContext
@@ -41,6 +44,8 @@ class DeploymentHandler @Inject()(
   name   = "Deployment"
 , config = SqsConfig("aws.sqs.deployment", configuration)
 )(actorSystem, ec) {
+
+  private implicit val hc: HeaderCarrier = HeaderCarrier()
 
   private def prefix(payload: DeploymentHandler.DeploymentEvent) =
     s"Deployment (${payload.eventType}) ${payload.serviceName.asString} ${payload.version.original} ${payload.environment.asString}"
@@ -52,8 +57,12 @@ class DeploymentHandler @Inject()(
                    .fromEither[Future](Json.parse(message.body).validate(DeploymentHandler.mdtpEventReads).asEither)
                    .leftMap(error => s"Could not parse Deployment message with ID '${message.messageId()}'. Reason: $error")
        _      <- payload.eventType match {
-                   case "deployment-complete"   => EitherT.right[String](rawReportsRepository.setFlag  (payload.environment, payload.serviceName, payload.version))
-                   case "undeployment-complete" => EitherT.right[String](rawReportsRepository.clearFlag(payload.environment, payload.serviceName                 ))
+                   case "deployment-complete"   => for {
+                                                     exists <- EitherT.right[String](rawReportsRepository.exists(payload.serviceName, payload.version))
+                                                     _      <- if (exists) EitherT.right[String](rawReportsRepository.setFlag(payload.environment, payload.serviceName, payload.version))
+                                                               else        EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, Some(payload.environment)))
+                                                   } yield ()
+                   case "undeployment-complete" => EitherT.right[String](rawReportsRepository.clearFlag(payload.environment, payload.serviceName))
                    case _                       => EitherT.right[String](Future.unit)
                  }
       _       =  logger.info(s"${prefix(payload)} with ID '${message.messageId()}' successfully processed.")
