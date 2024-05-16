@@ -31,7 +31,6 @@ import java.time.Instant
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
-
 @Singleton
 class RawReportsRepository @Inject()(
   final val mongoComponent: MongoComponent
@@ -66,6 +65,19 @@ class RawReportsRepository @Inject()(
       case xs                          => Filters.in(   "serviceName", xs.map(_.asString): _*)
     }
 
+  // Like find but service name defaults to an exact match - otherwise we'd have to add quotes
+  def exists(
+    serviceName: ServiceName
+  , version    : Version
+  ): Future[Boolean] =
+    collection
+      .find(Filters.and(
+        Filters.equal("serviceName"   , serviceName.asString)
+      , Filters.equal("serviceVersion", version.original)
+      ))
+      .headOption()
+      .map(_.isDefined)
+
   def find(
     flag        : Option[SlugInfoFlag]
   , serviceNames: Option[Seq[ServiceName]]
@@ -89,54 +101,83 @@ class RawReportsRepository @Inject()(
       .toFuture()
       .map(_.map(report => report.copy(rows = report.rows.filter(row => exclusionRegex.r.matches(row.componentPhysicalPath)))))
 
-  def getMaxVersion(serviceName: ServiceName): Future[Option[Version]] =
-    collection
-      .find[Version](Filters.equal("serviceName", serviceName.asString))
-      .projection(Projections.include("version"))
-      .foldLeft(Option.empty[Version]){
-        case (optMax, version) if optMax.exists(_ > version) => optMax
-        case (_     , version)                               => Some(version)
-      }.toFuture()
-
   def put(report: Report): Future[Unit] =
-    collection
-      .replaceOne(
-        filter      = Filters.and(
-                        Filters.equal("serviceName"   , report.serviceName.asString)
-                      , Filters.equal("serviceVersion", report.serviceVersion.original)
-                      )
-      , replacement = report
-      , options     = ReplaceOptions().upsert(true)
-      )
-      .toFuture()
-      .map(_ => ())
+    withSessionAndTransaction { session =>
+      for {
+        latest <- getMaxVersion(report.serviceName, session).map(_.fold(true)(_ <= report.serviceVersion))
+        _      <- if (latest             ) clearFlag(SlugInfoFlag.Latest      , report.serviceName, session) else Future.unit
+        _      <- if (report.production  ) clearFlag(SlugInfoFlag.Production  , report.serviceName, session) else Future.unit
+        _      <- if (report.externalTest) clearFlag(SlugInfoFlag.ExternalTest, report.serviceName, session) else Future.unit
+        _      <- if (report.staging     ) clearFlag(SlugInfoFlag.Staging     , report.serviceName, session) else Future.unit
+        _      <- if (report.qa          ) clearFlag(SlugInfoFlag.QA          , report.serviceName, session) else Future.unit
+        _      <- if (report.development ) clearFlag(SlugInfoFlag.Development , report.serviceName, session) else Future.unit
+        _      <- if (report.integration ) clearFlag(SlugInfoFlag.Integration , report.serviceName, session) else Future.unit
+        _      <- collection
+                    .replaceOne(
+                      clientSession = session
+                    , filter        = Filters.and(
+                                        Filters.equal("serviceName"   , report.serviceName.asString)
+                                      , Filters.equal("serviceVersion", report.serviceVersion.original)
+                                      )
+                    , replacement   = report.copy(latest = latest)
+                    , options       = ReplaceOptions().upsert(true)
+                    )
+                    .toFuture()
+                    .map(_ => ())
+      } yield ()
+    }
 
   def delete(serviceName: ServiceName, version: Version): Future[Unit] =
+    withSessionAndTransaction { session =>
+      for {
+        _    <- collection
+                  .deleteOne(
+                    clientSession = session
+                  , filter        = Filters.and(
+                                      Filters.equal("serviceName"   , serviceName.asString)
+                                    , Filters.equal("serviceVersion", version.original)
+                                    )
+                  )
+                  .toFuture()
+                  .map(_ => ())
+        oMax <- getMaxVersion(serviceName, session)
+        _    <- oMax.fold(Future.unit)(v => setFlag(SlugInfoFlag.Latest, serviceName, v, session))
+      } yield ()
+    }
+
+  private def getMaxVersion(serviceName: ServiceName, session: ClientSession): Future[Option[Version]] =
     collection
-      .deleteOne(Filters.and(
-        Filters.equal("serviceName"   , serviceName.asString),
-        Filters.equal("serviceVersion", version.original)
-      ))
+      .aggregate[BsonDocument](
+        clientSession = session
+      , pipeline      = Seq(
+                          Aggregates.`match`(Filters.equal("serviceName", serviceName.asString))
+                        , Aggregates.project(Projections.fields(Projections.excludeId(), Projections.include("serviceVersion")))
+                        )
+      )
       .toFuture()
-      .map(_ => ())
+      .map(_.map(b => Version(b.getString("serviceVersion").getValue)))
+      .map(vs => if (vs.nonEmpty) Some(vs.max) else None)
 
   def setFlag(flag: SlugInfoFlag, serviceName: ServiceName, version: Version): Future[Unit] =
     withSessionAndTransaction { session =>
-      for {
-        _ <- clearFlag(flag, serviceName, session)
-        _ <- collection
-               .updateOne(
-                 clientSession = session,
-                 filter        = Filters.and(
-                                   Filters.equal("serviceName"   , serviceName.asString),
-                                   Filters.equal("serviceVersion", version.original),
-                                 ),
-                 update        = Updates.set(flag.asString, true),
-                 options       = UpdateOptions().upsert(true)
-               )
-               .toFuture()
-      } yield ()
+      setFlag(flag, serviceName, version, session)
     }
+
+  private def setFlag(flag: SlugInfoFlag, serviceName: ServiceName, version: Version, session: ClientSession): Future[Unit] =
+    for {
+      _ <- clearFlag(flag, serviceName, session)
+      _ <- collection
+              .updateOne(
+                clientSession = session,
+                filter        = Filters.and(
+                                  Filters.equal("serviceName"   , serviceName.asString),
+                                  Filters.equal("serviceVersion", version.original),
+                                ),
+                update        = Updates.set(flag.asString, true),
+                options       = UpdateOptions().upsert(true)
+              )
+              .toFuture()
+    } yield ()
 
   def clearFlag(flag: SlugInfoFlag, serviceName: ServiceName): Future[Unit] =
     withSessionAndTransaction { session =>

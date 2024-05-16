@@ -25,7 +25,7 @@ import play.api.Configuration
 import play.api.libs.json.Json
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
-import uk.gov.hmrc.vulnerabilities.model.{ServiceName, SlugInfoFlag, Version}
+import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
 import uk.gov.hmrc.vulnerabilities.service.XrayService
 
 import javax.inject.{Inject, Singleton}
@@ -55,24 +55,18 @@ class SlugInfoHandler @Inject()(
       payload <- EitherT
                    .fromEither[Future](Json.parse(message.body).validate(SlugInfoHandler.reads).asEither)
                    .leftMap(error => s"Could not parse SlugInfo message with ID '${message.messageId()}'. Reason: $error")
-       _      <- (payload.jobType, payload.jobType) match {
-                   case ("slug", "creation") => for {
-                                                  isLatest <- EitherT
-                                                                .right[String](rawReportsRepository.getMaxVersion(payload.serviceName))
-                                                                .map(_.fold(true)(_ == payload.version))
-                                                  _        <- EitherT
-                                                                .right[String](xrayService.scanSlug(payload.serviceName, payload.version, Seq(SlugInfoFlag.Latest)))
-                                                } yield ()
+       _      <- (payload.jobType, payload.eventType) match {
+                   case ("slug", "creation") => EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version))
                    case ("slug", "deletion") => EitherT.right[String](rawReportsRepository.delete(payload.serviceName, payload.version))
                    case _                    => EitherT.right[String](Future.unit)
                  }
       _       =  logger.info(s"${prefix(payload)} with ID '${message.messageId()}' successfully processed.")
     } yield
       MessageAction.Delete(message)
-    ).value.map {
-      case Left(error)   => logger.error(error); MessageAction.Ignore(message)
-      case Right(action) => action
-    }
+    ).fold(
+      error  => {logger.error(error); MessageAction.Ignore(message)}
+    , action => action
+    )
   }
 }
 
