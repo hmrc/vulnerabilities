@@ -8,6 +8,3 @@ GET        /api/reports/:flag/counts        uk.gov.hmrc.vulnerabilities.controll
 GET        /api/services/:service/deployed-report-count   uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.getDeployedReportCount(service: ServiceName)
 
 GET        /api/reports/timeline            uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesTimelineController.getTimelineCounts(service: Option[ServiceName], team: Option[String], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: java.time.Instant, to: java.time.Instant)
-
-# Admin
-GET        /api/admin/updateAssessments      uk.gov.hmrc.vulnerabilities.controllers.VulnerabilitiesController.updateAssessments()

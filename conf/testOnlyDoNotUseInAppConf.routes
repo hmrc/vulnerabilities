@@ -13,7 +13,15 @@
 
 #Integration Test
 
-POST       /test-only/timelineEvents           uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.addTimelineEvents()
-DELETE     /test-only/timelineEvents           uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteTimelineEvents
+POST       /test-only/assessments       uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.postAssessments()
+DELETE     /test-only/assessments       uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteAssessments()
+POST       /test-only/reports           uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.postReports()
+DELETE     /test-only/reports           uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteReports()
+POST       /test-only/timelineEvents    uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.postTimelineEvents()
+DELETE     /test-only/timelineEvents    uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteTimelineEvents()
+POST       /test-only/vulnerabilityAges uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.postVulnerabilityAges()
+DELETE     /test-only/vulnerabilityAges uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteVulnerabilityAges()
+POST       /test-only/timelineEvents    uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.postTimelineEvents()
+DELETE     /test-only/timelineEvents    uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteTimelineEvents()
 
 ->         /                                   prod.Routes

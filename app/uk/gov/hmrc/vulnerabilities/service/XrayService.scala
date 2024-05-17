@@ -104,7 +104,7 @@ class XrayService @Inject()(
     } yield report
 
   private [service] def getReport(reportId: Int, slug: SlugInfo)(implicit hc: HeaderCarrier): Future[Option[Report]] = {
-    implicit val rfmt = Report.apiFormat(
+    implicit val rfmt = Report.xrayFormat(
       slug.serviceName
     , slug.version
     , latest       = slug.flags.contains(SlugInfoFlag.Latest)

@@ -161,21 +161,4 @@ class VulnerabilitiesController @Inject()(
                        )
       } yield if (reports.isEmpty) NotFound else Ok(Json.toJson(result))
     }
-
-  def updateAssessments: Action[AnyContent] = Action.async {
-    for {
-      assessments <- Future.successful(AssessmentParser.getAssessments())
-      insertCount <- assessmentsRepository.insertAssessments(assessments.values.toSeq)
-    } yield Ok(s"Inserted ${insertCount} documents into the assessments collection")
-  }
-}
-
-object AssessmentParser {
-
-  def getAssessments(): Map[String, Assessment] = {
-    implicit val fmt = Assessment.reads
-    val stream = new java.io.FileInputStream("app/uk/gov/hmrc/vulnerabilities/assets/investigations-idx.json")
-    try     { Json.parse(stream).as[Map[String, Assessment]] }
-    finally { stream.close() }
-  }
 }

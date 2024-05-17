@@ -41,12 +41,7 @@ class AssessmentsRepository @Inject()(
   // No ttl required for this collection - contains assessments created by ourselves which will evolve over time
   override lazy val requiresTtlIndex = false
 
-  def insertAssessments(assessments: Seq[Assessment]): Future[Int] =
-    collection
-      .insertMany(assessments)
-      .toFuture()
-      .map(res => res.getInsertedIds.size())
-
+  // Note assessments are inserted into Mongo directly
   def getAssessments(): Future[Seq[Assessment]] =
     collection.find().toFuture()
 }
