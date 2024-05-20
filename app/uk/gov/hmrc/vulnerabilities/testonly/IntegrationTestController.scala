@@ -21,26 +21,54 @@ import play.api.libs.json.{JsError, JsString, OFormat, Reads}
 import play.api.mvc.{Action, AnyContent, BodyParser, ControllerComponents}
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.model.TimelineEvent
-import uk.gov.hmrc.vulnerabilities.persistence.{VulnerabilitiesTimelineRepository}
+import uk.gov.hmrc.vulnerabilities.model.{Assessment, RawVulnerability, TimelineEvent, VulnerabilityAge}
+import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilityAgeRepository, VulnerabilitiesTimelineRepository}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
+import uk.gov.hmrc.vulnerabilities.model.Report
 
 @Singleton
 class IntegrationTestController @Inject()(
-  vulnerabilitiesTimelineRepository: VulnerabilitiesTimelineRepository,
-  cc: ControllerComponents
+  assessmentsRepository            : AssessmentsRepository
+, rawReportsRepository             : RawReportsRepository
+, vulnerabilityAgeRepository       : VulnerabilityAgeRepository
+, vulnerabilitiesTimelineRepository: VulnerabilitiesTimelineRepository
+, cc: ControllerComponents
 )(implicit
   ec: ExecutionContext
 ) extends BackendController(cc) {
 
-  def addTimelineEvents: Action[Seq[TimelineEvent]] = {
+  def postAssessments(): Action[Seq[Assessment]] = {
+    implicit val te: OFormat[Assessment] = Assessment.apiFormat
+    addAll(assessmentsRepository)
+  }
+
+  def deleteAssessments(): Action[AnyContent] =
+    deleteAll(assessmentsRepository)
+
+  def postReports(): Action[Seq[Report]] = {
+    implicit val te: OFormat[Report] = Report.apiFormat
+    addAll(rawReportsRepository)
+  }
+
+  def deleteReports(): Action[AnyContent] =
+    deleteAll(rawReportsRepository)
+
+  def postVulnerabilityAges(): Action[Seq[VulnerabilityAge]] = {
+    implicit val te: OFormat[VulnerabilityAge] = VulnerabilityAge.apiFormat
+    addAll(vulnerabilityAgeRepository)
+  }
+
+  def deleteVulnerabilityAges(): Action[AnyContent] =
+    deleteAll(vulnerabilityAgeRepository)
+
+  def postTimelineEvents(): Action[Seq[TimelineEvent]] = {
     implicit val te: OFormat[TimelineEvent] = TimelineEvent.apiFormat
     addAll(vulnerabilitiesTimelineRepository)
   }
 
-  def deleteTimelineEvents: Action[AnyContent] =
+  def deleteTimelineEvents(): Action[AnyContent] =
     deleteAll(vulnerabilitiesTimelineRepository)
 
   private def validNelJson[A: Reads]: BodyParser[Seq[A]] =

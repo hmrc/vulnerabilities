@@ -68,7 +68,26 @@ case class Report(
 
 object Report {
   private def generateDateTime(): Instant = Instant.now()
-  def apiFormat(
+
+  val apiFormat = {
+    implicit val rvf   = RawVulnerability.apiFormat
+    implicit val snf   = ServiceName.format
+    implicit val vf    = Version.format
+    ( (__ \ "serviceName"   ).format[ServiceName]
+    ~ (__ \ "serviceVersion").format[Version]
+    ~ (__ \ "rows"          ).format[Seq[RawVulnerability]]
+    ~ (__ \ "generatedDate" ).formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime()), Some(_))
+    ~ (__ \ "latest"        ).formatWithDefault[Boolean](false)
+    ~ (__ \ "production"    ).formatWithDefault[Boolean](false)
+    ~ (__ \ "qa"            ).formatWithDefault[Boolean](false)
+    ~ (__ \ "staging"       ).formatWithDefault[Boolean](false)
+    ~ (__ \ "development"   ).formatWithDefault[Boolean](false)
+    ~ (__ \ "externaltest"  ).formatWithDefault[Boolean](false)
+    ~ (__ \ "integration"   ).formatWithDefault[Boolean](false)
+    )(apply, unlift(unapply))
+  }
+
+  def xrayFormat(
     serviceName  : ServiceName,
     version      : Version,
     latest       : Boolean,
@@ -128,9 +147,9 @@ case class RawVulnerability(
 )
 
 object RawVulnerability {
-  val mongoFormat: OFormat[RawVulnerability] = {
-    implicit val cvef          = CVE.apiFormat
-    implicit val instantFormat = MongoJavatimeFormats.instantFormat
+
+  val apiFormat: OFormat[RawVulnerability] = {
+    implicit val cvef = CVE.apiFormat
     ( (__ \ "cves"                   ).format[Seq[CVE]]
     ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
     ~ (__ \ "summary"                ).format[String]
@@ -153,8 +172,9 @@ object RawVulnerability {
     )(apply, unlift(unapply))
   }
 
-  val apiFormat: OFormat[RawVulnerability] = {
-    implicit val cvef = CVE.apiFormat
+  val mongoFormat: OFormat[RawVulnerability] = {
+    implicit val cvef          = CVE.apiFormat
+    implicit val instantFormat = MongoJavatimeFormats.instantFormat
     ( (__ \ "cves"                   ).format[Seq[CVE]]
     ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
     ~ (__ \ "summary"                ).format[String]

@@ -32,25 +32,19 @@ case class Assessment(
 )
 
 object Assessment {
-  val reads = {
-    implicit val cf = CurationStatus.format
+  val apiFormat =
     ( (__ \ "id"            ).format[String]
     ~ (__ \ "assessment"    ).format[String]
-    ~ (__ \ "curationStatus").format[CurationStatus]
+    ~ (__ \ "curationStatus").format[CurationStatus](CurationStatus.format)
     ~ (__ \ "lastReviewed"  ).format[Instant]
     ~ (__ \ "ticket"        ).format[String]
     )(apply, unlift(unapply))
-  }
 
-  val mongoFormat = {
-    implicit val cf = CurationStatus.format
-    implicit val instantFormat = MongoJavatimeFormats.instantFormat
-
+  val mongoFormat =
     ( (__ \ "id"            ).format[String]
     ~ (__ \ "assessment"    ).format[String]
-    ~ (__ \ "curationStatus").format[CurationStatus]
-    ~ (__ \ "lastReviewed"  ).format[Instant]
+    ~ (__ \ "curationStatus").format[CurationStatus](CurationStatus.format)
+    ~ (__ \ "lastReviewed"  ).format[Instant](MongoJavatimeFormats.instantFormat)
     ~ (__ \ "ticket"        ).format[String]
     )(apply, unlift(unapply))
-  }
 }

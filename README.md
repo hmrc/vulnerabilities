@@ -11,7 +11,7 @@ It only provides information for services deployed in the following environments
 
 There are 3 collections:
 
-* **`assessments`:** contains AppSec's assessment of each unqiue vulnerability, and whether it requires further action/investigation. It is currently updated manually (See the Surfacing Vulnerabilities Process Document), but will be automated following the addition of an admin frontend for the service.
+* **`assessments`:** contains AppSec's assessment of each unqiue vulnerability, and whether it requires further action/investigation. Updated manually via `connect-mongo` Nix command in `platops-infrastructure`.
 * **`rawReports`:** Xray report of a slug. Each report has flags that are updated when a slug is deployed into a new environment or the latest version
 * **`vulnerabilityAge`:** Stores when a vulnerability was first detected per service
 * **`vulnerabilityTimeline`:** Point in time summaries, updated by a timeline scheduler. The data is used in Catalogue to graph trend on a weekly basis.
