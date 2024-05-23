@@ -29,7 +29,7 @@ import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, Vulnerabil
 import java.time.{DayOfWeek, LocalDate, ZoneOffset}
 import java.time.temporal.TemporalAdjusters
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class TimelineScheduler @Inject()(
@@ -59,12 +59,27 @@ class TimelineScheduler @Inject()(
   implicit val hc: HeaderCarrier = HeaderCarrier()
 
   scheduleWithLock("Vulnerabilities timeline updater", schedulerConfigs, lock) {
-   for {
-      repositoryTeams   <- teamsAndReposConnector.repositoryTeams()
-      weekBeginning     =  LocalDate.now().`with`(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay().toInstant(ZoneOffset.UTC)
-      timeline          <- rawReportsRepository.getTimelineData(weekBeginning)
-      timelineWithTeams =  timeline.map(sv => sv.copy(teams = repositoryTeams.getOrElse(sv.service, Seq())))
-      _                 <- timelineRepository.replaceOrInsert(timelineWithTeams)
-    } yield ()
+    val weekBeginning =
+      LocalDate
+        .now()
+        .`with`(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        .atStartOfDay()
+        .toInstant(ZoneOffset.UTC)
+
+    timelineRepository
+      .getTimelineCounts(from = weekBeginning, to = weekBeginning)
+      .flatMap {
+        case xs if (xs.nonEmpty)  =>
+          logger.info(s"Timeline scheduler week beginning: $weekBeginning detected weekly data has already been added - aborting run")
+          Future.unit
+        case _ =>
+          for {
+            timeline          <- rawReportsRepository.getTimelineData(weekBeginning)
+            repositoryTeams   <- teamsAndReposConnector.repositoryTeams()
+            timelineWithTeams =  timeline.map(sv => sv.copy(teams = repositoryTeams.getOrElse(sv.service, Seq())))
+            _                 <- timelineRepository.replaceOrInsert(timelineWithTeams)
+            _                 =  logger.info(s"Timeline scheduler week beginning: $weekBeginning has added the weekly data: ${timelineWithTeams.size} rows")
+          } yield ()
+      }
   }
 }
