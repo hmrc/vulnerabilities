@@ -66,7 +66,14 @@ class VulnerabilitiesTimelineRepository @Inject()(
 
   val Quoted = """^\"(.*)\"$""".r
 
-  def getTimelineCounts(serviceName: Option[ServiceName], team: Option[String], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: Instant, to: Instant): Future[Seq[VulnerabilitiesTimelineCount]] = {
+  def getTimelineCounts(
+    serviceName   : Option[ServiceName]    = None
+  , team          : Option[String]         = None
+  , vulnerability : Option[String]         = None
+  , curationStatus: Option[CurationStatus] = None
+  , from          : Instant
+  , to            : Instant
+  ): Future[Seq[VulnerabilitiesTimelineCount]] = {
     val optFilters: Seq[Bson] = Seq(
       serviceName.map {
         case ServiceName(Quoted(s)) => Filters.equal("service", s.toLowerCase())
