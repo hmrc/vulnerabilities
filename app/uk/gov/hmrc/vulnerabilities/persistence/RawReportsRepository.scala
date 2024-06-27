@@ -197,11 +197,11 @@ class RawReportsRepository @Inject()(
       .toFuture()
       .map(_ => ())
 
-  def findStale(reportsBefore: Instant): Future[Seq[Report]] =
+  def findGeneratedBefore(before: Instant): Future[Seq[Report]] =
     collection
       .find(Filters.and(
         Filters.or((deployedSlugsInfoFlags :+ SlugInfoFlag.Latest).map(f => Filters.equal(f.asString, true)): _*)
-      , Filters.lt("generatedDate", reportsBefore)
+      , Filters.lt("generatedDate", before)
       ))
       .toFuture()
 
