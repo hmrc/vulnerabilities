@@ -51,25 +51,28 @@ class XrayService @Inject()(
   )
 
   def firstScan(serviceName: ServiceName, version: Version, flag: Option[SlugInfoFlag] = None)(implicit hc: HeaderCarrier): Future[Unit] =
-    processReports(Seq(SlugInfo(serviceName, version, flag.toSeq)))
+    for {
+      _ <- deleteStaleReports()
+      _ <- processReports(Seq(SlugInfo(serviceName, version, flag.toSeq)))
+    } yield ()
 
   def rescanStaleReports(reportsBefore: Instant)(implicit hc: HeaderCarrier): Future[Unit] =
     for {
-      staleReports <- rawReportsRepository.findStale(reportsBefore)
-      _            <- deleteStaleReports()
-      slugs        =  staleReports.map(report => SlugInfo(
-                        serviceName = report.serviceName
-                      , version     = report.serviceVersion
-                      , flags       = ( Option.when(report.latest      )(SlugInfoFlag.Latest      ) ++
-                                        Option.when(report.development )(SlugInfoFlag.Development ) ++
-                                        Option.when(report.integration )(SlugInfoFlag.Integration ) ++
-                                        Option.when(report.qa          )(SlugInfoFlag.QA          ) ++
-                                        Option.when(report.staging     )(SlugInfoFlag.Staging     ) ++
-                                        Option.when(report.externalTest)(SlugInfoFlag.ExternalTest) ++
-                                        Option.when(report.production  )(SlugInfoFlag.Production  )
-                                      ).toSeq
-                      ))
-      _            <- processReports(slugs)
+      _          <- deleteStaleReports()
+      oldReports <- rawReportsRepository.findGeneratedBefore(reportsBefore)
+      slugs      =  oldReports.map(report => SlugInfo(
+                      serviceName = report.serviceName
+                    , version     = report.serviceVersion
+                    , flags       = ( Option.when(report.latest      )(SlugInfoFlag.Latest      ) ++
+                                      Option.when(report.development )(SlugInfoFlag.Development ) ++
+                                      Option.when(report.integration )(SlugInfoFlag.Integration ) ++
+                                      Option.when(report.qa          )(SlugInfoFlag.QA          ) ++
+                                      Option.when(report.staging     )(SlugInfoFlag.Staging     ) ++
+                                      Option.when(report.externalTest)(SlugInfoFlag.ExternalTest) ++
+                                      Option.when(report.production  )(SlugInfoFlag.Production  )
+                                    ).toSeq
+                    ))
+      _          <- processReports(slugs)
     } yield ()
 
   private val maxRetries = 3
@@ -87,21 +90,35 @@ class XrayService @Inject()(
     }.map(x => logger.info(s"Finished processing $x / ${slugs.size} reports. Note this number may differ to the number of raw reports in the collection, as we don't download reports with no rows in."))
 
   private def generateReport(slug: SlugInfo)(implicit hc: HeaderCarrier): EitherT[Future, Status, Report] =
-    for {
-      resp    <- EitherT.liftF(xrayConnector.generateReport(slug.serviceName, slug.version))
-      _       =  logger.info(s"Began generating report for ${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")}. Report will have id ${resp.reportID}")
-      status  <- EitherT.liftF(checkIfReportReady(resp))
-      report  <- status match {
-                   case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, slug), XrayNoData: Status)
-                   case XrayNoData   => for {
-                                          _   <- EitherT.liftF(xrayConnector.deleteReportFromXray(resp.reportID))
-                                          _   =  logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - ${status.statusMessage} Report ${resp.reportID} has been deleted from the Xray UI")
-                                          res <- EitherT.leftT[Future, Report](XrayNoData: Status)
-                                        } yield res
-                   case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)
-                 }
-      _       <- EitherT.liftF(vulnerabilityAgeRepository.insertNonExisting(report))
-    } yield report
+    EitherT
+      .liftF(xrayConnector.generateReport(slug.serviceName, slug.version))
+      .flatMap { resp =>
+        logger.info(s"Began generating report for ${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")}. Report will have id ${resp.reportID}")
+        val et =
+          for {
+            status <- EitherT.liftF(checkIfReportReady(resp))
+            _      =  logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report status ${status.statusMessage}")
+            report <- status match {
+                        case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, slug), XrayNoData: Status)
+                        case XrayNoData   => EitherT.leftT[Future, Report](XrayNoData: Status)
+                        case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)
+                      }
+            _      <- EitherT.liftF[Future, Status, Unit](vulnerabilityAgeRepository.insertNonExisting(report))
+          } yield report
+
+        et.value.onComplete {
+          case _ => xrayConnector
+                      .deleteReportFromXray(resp.reportID)
+                      .map( _ =>
+                        logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report ${resp.reportID} has been deleted from the Xray UI")
+                      )
+                      .recover {
+                        case ex => logger.error(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report ${resp.reportID} could not be deleted from the Xray UI", ex)
+                      }
+        }
+
+        et
+      }
 
   private [service] def getReport(reportId: Int, slug: SlugInfo)(implicit hc: HeaderCarrier): Future[Option[Report]] = {
     implicit val rfmt = Report.xrayFormat(
@@ -117,7 +134,6 @@ class XrayService @Inject()(
     )
     for {
       zip    <- xrayConnector.downloadReport(reportId, slug.serviceName, slug.version)
-      _      <- xrayConnector.deleteReportFromXray(reportId)
       text   =  unzipReport(zip)
       report =  text.map(t => Json.parse(t).as[Report])
       _      =  zip.close()
