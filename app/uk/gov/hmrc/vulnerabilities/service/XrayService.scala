@@ -33,6 +33,9 @@ import java.util.zip.ZipInputStream
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
+import org.apache.pekko.stream.scaladsl.Source
+import org.apache.pekko.stream.scaladsl.Sink
+import org.apache.pekko.stream.Materializer
 
 @Singleton
 class XrayService @Inject()(
@@ -40,7 +43,7 @@ class XrayService @Inject()(
   system                    : ActorSystem,
   rawReportsRepository      : RawReportsRepository,
   vulnerabilityAgeRepository: VulnerabilityAgeRepository
-)(implicit ec: ExecutionContext) {
+)(implicit ec: ExecutionContext, mat: Materializer) {
 
   private val logger = Logger(this.getClass)
 
@@ -90,35 +93,24 @@ class XrayService @Inject()(
     }.map(x => logger.info(s"Finished processing $x / ${slugs.size} reports. Note this number may differ to the number of raw reports in the collection, as we don't download reports with no rows in."))
 
   private def generateReport(slug: SlugInfo)(implicit hc: HeaderCarrier): EitherT[Future, Status, Report] =
-    EitherT
-      .liftF(xrayConnector.generateReport(slug.serviceName, slug.version))
-      .flatMap { resp =>
-        logger.info(s"Began generating report for ${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")}. Report will have id ${resp.reportID}")
-        val et =
-          for {
-            status <- EitherT.liftF(checkIfReportReady(resp))
-            _      =  logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report status ${status.statusMessage}")
-            report <- status match {
-                        case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, slug), XrayNoData: Status)
-                        case XrayNoData   => EitherT.leftT[Future, Report](XrayNoData: Status)
-                        case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)
-                      }
-            _      <- EitherT.liftF[Future, Status, Unit](vulnerabilityAgeRepository.insertNonExisting(report))
-          } yield report
-
-        et.value.onComplete {
-          case _ => xrayConnector
-                      .deleteReportFromXray(resp.reportID)
-                      .map( _ =>
-                        logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report ${resp.reportID} has been deleted from the Xray UI")
-                      )
-                      .recover {
-                        case ex => logger.error(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report ${resp.reportID} could not be deleted from the Xray UI", ex)
-                      }
-        }
-
-        et
-      }
+    for {
+      resp   <- EitherT.liftF(xrayConnector.generateReport(slug.serviceName, slug.version))
+      _      =  logger.info(s"Began generating report for ${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")}. Report will have id ${resp.reportID}")
+      status <- EitherT.liftF(checkIfReportReady(resp))
+      report <- status match {
+                  case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, slug), XrayNoData: Status)
+                  case XrayNoData   => for {
+                                         _ <- EitherT.liftF(xrayConnector.deleteReportFromXray(resp.reportID))
+                                         _ =  logger.warn(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report ${resp.reportID} has no data ${status.statusMessage}. It has not been stored in mongo but has been deleted from the Xray UI")
+                                         r <- EitherT.leftT[Future, Report](XrayNoData: Status)
+                                       } yield r
+                  case XrayNotReady => logger.warn(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report ${resp.reportID} was not created in time. It can not be stored in mongo or deleted.")
+                                       EitherT.leftT[Future, Report](XrayNotReady: Status) // Error 500 if we add a delete here.
+                }
+      _      <- EitherT.liftF(vulnerabilityAgeRepository.insertNonExisting(report))
+      _      <- EitherT.liftF(xrayConnector.deleteReportFromXray(resp.reportID))
+      _      =  logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report ${resp.reportID} has been stored in mongo and deleted from the Xray UI")
+    } yield report
 
   private [service] def getReport(reportId: Int, slug: SlugInfo)(implicit hc: HeaderCarrier): Future[Option[Report]] = {
     implicit val rfmt = Report.xrayFormat(

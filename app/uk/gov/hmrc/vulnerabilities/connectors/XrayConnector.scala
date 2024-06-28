@@ -26,7 +26,7 @@ import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.vulnerabilities.model.{ReportId, ReportResponse, ReportStatus, ServiceName, Version}
 
 import java.io.InputStream
-import java.time.{Clock, Instant}
+import java.time.{Clock, Instant, ZoneOffset}
 import java.time.temporal.ChronoUnit
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.FiniteDuration
@@ -106,14 +106,15 @@ class XrayConnector @Inject() (
       implicit val rir = ReportId.reads
       Reads.at[Seq[ReportId]](__ \ "reports")
     }
-    val cutOff = Instant.now(clock).minus(xrayReportsRetention.toMillis, ChronoUnit.MILLIS)
+    val start = Instant.now(clock).atOffset(ZoneOffset.UTC).minus(1   , ChronoUnit.YEARS)
+    val end   = Instant.now(clock).minus(xrayReportsRetention.toMillis, ChronoUnit.MILLIS)
     httpClientV2
       .post(url"${xrayBaseUrl}?page_num=1&num_of_rows=100")
       .setHeader(
         "Authorization" -> s"Bearer $xrayToken",
         "Content-Type"  -> "application/json"
       ).withBody(Json.parse(
-        s"""{"filters":{"author":"${xrayUsername}","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"$cutOff"}}}"""
+        s"""{"filters":{"author":"${xrayUsername}","start_time_range":{"start":"$start","end":"$end"}}}"""
       ))
       .execute[Seq[ReportId]]
   }

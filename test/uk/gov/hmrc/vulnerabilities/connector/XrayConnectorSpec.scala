@@ -148,7 +148,7 @@ class XrayConnectorSpec
       connector.getStaleReportIds().futureValue
 
       val expectedRequestBody =
-        s"""{"filters":{"author":"user1","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"${now.minus(1, ChronoUnit.DAYS)}"}}}"""
+        s"""{"filters":{"author":"user1","start_time_range":{"start":"${now.atOffset(ZoneOffset.UTC).minus(1, ChronoUnit.YEARS)}","end":"${now.minus(1, ChronoUnit.DAYS)}"}}}"""
 
       wireMockServer.verify(postRequestedFor(urlMatching("/\\?page_num=1&num_of_rows=100"))
         .withRequestBody(equalToJson(expectedRequestBody)
