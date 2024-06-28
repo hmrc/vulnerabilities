@@ -18,7 +18,7 @@ package uk.gov.hmrc.vulnerabilities.service
 
 import org.apache.pekko.actor.ActorSystem
 import cats.data.EitherT
-import play.api.Logger
+import play.api.{Configuration, Logger}
 import play.api.libs.json.Json
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.model._
@@ -33,17 +33,15 @@ import java.util.zip.ZipInputStream
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import org.apache.pekko.stream.scaladsl.Source
-import org.apache.pekko.stream.scaladsl.Sink
-import org.apache.pekko.stream.Materializer
 
 @Singleton
 class XrayService @Inject()(
+  configuration             : Configuration,
   xrayConnector             : XrayConnector,
   system                    : ActorSystem,
   rawReportsRepository      : RawReportsRepository,
   vulnerabilityAgeRepository: VulnerabilityAgeRepository
-)(implicit ec: ExecutionContext, mat: Materializer) {
+)(implicit ec: ExecutionContext) {
 
   private val logger = Logger(this.getClass)
 
@@ -144,8 +142,11 @@ class XrayService @Inject()(
     }
   }
 
+  private val waitTimeSeconds: Long =
+    configuration.get[FiniteDuration]("xray.reports.waitTime").toSeconds
+
   private [service] def checkIfReportReady(reportRequestResponse: ReportResponse, counter: Int = 0)(implicit hc: HeaderCarrier): Future[Status] =
-    if (counter < 15) { //Timeout after 15 secs
+    if (counter < waitTimeSeconds) {
       logger.info(s"checking report status for reportID: ${reportRequestResponse.reportID}")
       xrayConnector.checkStatus(reportRequestResponse.reportID).flatMap { rs => (rs.status, rs.rowCount) match {
         case ("completed", Some(rows)) if rows > 0 => Future.successful(XraySuccess)
