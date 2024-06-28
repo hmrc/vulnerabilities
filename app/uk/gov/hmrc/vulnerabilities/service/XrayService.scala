@@ -170,7 +170,11 @@ class XrayService @Inject()(
       _     =  logger.info(s"Identified ${ids.size} stale reports to delete")
       count <- ids.foldLeftM[Future, Int](0){(acc, repId) =>
                  for {
-                   _ <- xrayConnector.deleteReportFromXray(repId.id)
+                   _ <- xrayConnector
+                          .deleteReportFromXray(repId.id)
+                          .recover {
+                            case ex => logger.error(s"Report ${repId.id} could not be deleted from the Xray UI - this report should be deleted manually", ex)
+                          }
                    _ =  logger.info(s"Deleted stale report with id: ${repId.id}")
                  } yield acc + 1
                }
