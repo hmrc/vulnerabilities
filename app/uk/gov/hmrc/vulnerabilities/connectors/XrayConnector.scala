@@ -23,7 +23,7 @@ import play.api.{Configuration, Logging}
 import play.api.libs.json.{Json, Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.HttpClientV2
-import uk.gov.hmrc.vulnerabilities.model.{ReportId, ReportResponse, ReportStatus, ServiceName, Version}
+import uk.gov.hmrc.vulnerabilities.model.{ReportId, RawVulnerability, ReportResponse, ReportStatus, ServiceName, Version}
 
 import java.io.InputStream
 import java.time.{Clock, Instant}
@@ -73,7 +73,33 @@ class XrayConnector @Inject() (
       .execute[ReportStatus]
   }
 
-  def downloadReport(reportId: Int, serviceName: ServiceName, version: Version)(implicit hc: HeaderCarrier): Future[InputStream] = {
+  def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(implicit hc: HeaderCarrier): Future[Option[(Instant, Seq[RawVulnerability])]] = {
+    implicit val readsRawVulnerability: Reads[RawVulnerability] = RawVulnerability.apiFormat
+    for {
+      zip    <- downloadReport(reportId, serviceName, version)
+      result =  unzipReport(zip)
+                  .map(Json.parse)
+                  .map { json =>
+                    val date = (json \ "generatedDate").asOpt[Instant].getOrElse(Instant.now())
+                    val rows = (json \ "rows"         ).as[Seq[RawVulnerability]]
+                    (date, rows)
+                  }
+    } yield result
+  }
+
+  private def unzipReport(inputStream: InputStream): Option[String] = {
+    val zip = new java.util.zip.ZipInputStream(inputStream)
+    try {
+      Iterator
+        .continually(zip.getNextEntry)
+        .takeWhile(_ != null)
+        .foldLeft(Option.empty[String])((found, entry) => Some(scala.io.Source.fromInputStream(zip).mkString))
+    } finally {
+      zip.close()
+    }
+  }
+
+  private def downloadReport(reportId: Int, serviceName: ServiceName, version: Version)(implicit hc: HeaderCarrier): Future[InputStream] = {
     val fileName = s"AppSec-report-${serviceName.asString}_${version.original}"
     val url = url"${xrayBaseUrl}/export/$reportId?file_name=${fileName}&format=json"
     httpClientV2

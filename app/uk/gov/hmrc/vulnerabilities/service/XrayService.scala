@@ -19,7 +19,6 @@ package uk.gov.hmrc.vulnerabilities.service
 import org.apache.pekko.actor.ActorSystem
 import cats.data.EitherT
 import play.api.{Configuration, Logging}
-import play.api.libs.json.Json
 import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.model._
 import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilityAgeRepository}
@@ -27,9 +26,7 @@ import uk.gov.hmrc.http.HeaderCarrier
 
 import cats.implicits._
 
-import java.io.InputStream
 import java.time.Instant
-import java.util.zip.ZipInputStream
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -74,35 +71,56 @@ class XrayService @Inject()(
       _          <- processReports(slugs)
     } yield ()
 
+  sealed trait XrayStatus
+  case object XraySuccess extends XrayStatus
+  case object XrayFailure extends XrayStatus
+  case object XrayRetry   extends XrayStatus
+
   private val maxRetries = 3
   private def processReports(slugs: Seq[SlugInfo])(implicit hc: HeaderCarrier): Future[Unit] =
     slugs.foldLeftM(0) { case (acc, slug) =>
       def go(count: Int): Future[Int] =
         generateReport(slug).value.flatMap {
-          case Left(XrayNotReady) if count > 0 => go(count - 1)
-          case Left(XrayNotReady)              => Future.failed[Int](new RuntimeException(s"Tried to generate and download report for ${slug.serviceName.asString}:${slug.version.original} $maxRetries times."))
-          case Left(_)                         => Future.successful(acc)
-          case Right(report)                   => rawReportsRepository.put(report).map(_ => acc + 1)
+          case Left(XrayRetry) if count > 0 => go(count - 1)
+          case Left(XrayRetry)              => Future.failed[Int](new RuntimeException(s"Tried to generate and download report for ${slug.serviceName.asString}:${slug.version.original} $maxRetries times."))
+          case Left(_)                      => Future.successful(acc)
+          case Right(report)                => rawReportsRepository.put(report).map(_ => acc + 1)
         }
 
       go(maxRetries)
-    }.map(x => logger.info(s"Finished processing $x / ${slugs.size} reports. Note this number may differ to the number of raw reports in the collection, as we don't download reports with no rows in."))
+    }.map(x => logger.info(s"Finished processing $x / ${slugs.size} reports."))
 
-  private def generateReport(slug: SlugInfo)(implicit hc: HeaderCarrier): EitherT[Future, Status, Report] =
+  private def generateReport(slug: SlugInfo)(implicit hc: HeaderCarrier): EitherT[Future, XrayStatus, Report] =
     EitherT
       .liftF(xrayConnector.generateReport(slug.serviceName, slug.version))
       .flatMap { resp =>
         logger.info(s"Began generating report for ${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")}. Report will have id ${resp.reportID}")
         val et =
           for {
-            status <- EitherT.liftF(checkIfReportReady(resp))
-            _      =  logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report status ${status.statusMessage}")
-            report <- status match {
-                        case XraySuccess  => EitherT.fromOptionF(getReport(resp.reportID, slug), XrayNoData: Status)
-                        case XrayNoData   => EitherT.leftT[Future, Report](XrayNoData: Status)
-                        case XrayNotReady => EitherT.leftT[Future, Report](XrayNotReady: Status)
-                      }
-            _      <- EitherT.liftF[Future, Status, Unit](vulnerabilityAgeRepository.insertNonExisting(report))
+            oStatus <- EitherT.liftF(checkIfReportReady(resp))
+            count   =  oStatus.fold(0)(_.rowCount.getOrElse(0))
+            _       =  logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report status ${oStatus.fold("report was not generated in time")(_ => s"report has $count rows")}")
+            tuple   <-  oStatus match {
+                         case Some(_) if count > 0 => EitherT.fromOptionF(xrayConnector.downloadAndUnzipReport(resp.reportID, slug.serviceName, slug.version), XrayFailure: XrayStatus)
+                         case Some(_)              => EitherT.rightT[Future, XrayStatus]((Instant.now(),  Seq.empty[RawVulnerability]))
+                         case None                 => EitherT.leftT[Future, (Instant, Seq[RawVulnerability])](XrayRetry: XrayStatus)
+                       }
+            (date, rows)
+                    = tuple
+            report  =  Report(
+                         slug.serviceName
+                       , slug.version
+                       , latest        = slug.flags.contains(SlugInfoFlag.Latest)
+                       , production    = slug.flags.contains(SlugInfoFlag.Production)
+                       , qa            = slug.flags.contains(SlugInfoFlag.QA)
+                       , staging       = slug.flags.contains(SlugInfoFlag.Staging)
+                       , development   = slug.flags.contains(SlugInfoFlag.Development)
+                       , externalTest  = slug.flags.contains(SlugInfoFlag.ExternalTest)
+                       , integration   = slug.flags.contains(SlugInfoFlag.Integration)
+                       , generatedDate = date
+                       , rows          = rows
+                       )
+            _       <- EitherT.liftF[Future, XrayStatus, Unit](vulnerabilityAgeRepository.insertNonExisting(report))
           } yield report
 
         et.value.onComplete {
@@ -119,52 +137,21 @@ class XrayService @Inject()(
         et
       }
 
-  private [service] def getReport(reportId: Int, slug: SlugInfo)(implicit hc: HeaderCarrier): Future[Option[Report]] = {
-    implicit val rfmt = Report.xrayFormat(
-      slug.serviceName
-    , slug.version
-    , latest       = slug.flags.contains(SlugInfoFlag.Latest)
-    , production   = slug.flags.contains(SlugInfoFlag.Production)
-    , qa           = slug.flags.contains(SlugInfoFlag.QA)
-    , staging      = slug.flags.contains(SlugInfoFlag.Staging)
-    , development  = slug.flags.contains(SlugInfoFlag.Development)
-    , externalTest = slug.flags.contains(SlugInfoFlag.ExternalTest)
-    , integration  = slug.flags.contains(SlugInfoFlag.Integration)
-    )
-    for {
-      zip    <- xrayConnector.downloadReport(reportId, slug.serviceName, slug.version)
-      text   =  unzipReport(zip)
-      report =  text.map(t => Json.parse(t).as[Report])
-      _      =  zip.close()
-    } yield report
-  }
-
-  private def unzipReport(inputStream: InputStream): Option[String] = {
-    val zip = new ZipInputStream(inputStream)
-    try {
-      Iterator
-        .continually(zip.getNextEntry)
-        .takeWhile(_ != null)
-        .foldLeft(Option.empty[String])((found, entry) => Some(scala.io.Source.fromInputStream(zip).mkString))
-    } finally {
-      zip.close()
-    }
-  }
-
   private val waitTimeSeconds: Long =
     configuration.get[FiniteDuration]("xray.reports.waitTime").toSeconds
 
-  private [service] def checkIfReportReady(reportRequestResponse: ReportResponse, counter: Int = 0)(implicit hc: HeaderCarrier): Future[Status] =
+  private [service] def checkIfReportReady(reportRequestResponse: ReportResponse, counter: Int = 0)(implicit hc: HeaderCarrier): Future[Option[ReportStatus]] =
     if (counter < waitTimeSeconds) {
       logger.info(s"checking report status for reportID: ${reportRequestResponse.reportID}")
-      xrayConnector.checkStatus(reportRequestResponse.reportID).flatMap { rs => (rs.status, rs.rowCount) match {
-        case ("completed", Some(rows)) if rows > 0 => Future.successful(XraySuccess)
-        case ("completed", _)                      => Future.successful(XrayNoData)
-        case _                                     => org.apache.pekko.pattern.after(1000.millis, system.scheduler) {
-                                                        checkIfReportReady(reportRequestResponse, counter + 1)
-                                                      }
-      }}
-    } else Future.successful(XrayNotReady)
+      xrayConnector
+        .checkStatus(reportRequestResponse.reportID)
+        .flatMap {
+          case rs if rs.status == "completed" => Future.successful(Some(rs))
+          case _                              => org.apache.pekko.pattern.after(1000.millis, system.scheduler) {
+                                                   checkIfReportReady(reportRequestResponse, counter + 1)
+                                                 }
+        }
+    } else Future.successful(None)
 
   private [service] def deleteStaleReports()(implicit hc: HeaderCarrier): Future[Unit] =
     for {
