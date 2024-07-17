@@ -87,23 +87,6 @@ object Report {
     )(apply, unlift(unapply))
   }
 
-  def xrayFormat(
-    serviceName  : ServiceName,
-    version      : Version,
-    latest       : Boolean,
-    production   : Boolean,
-    qa           : Boolean,
-    staging      : Boolean,
-    development  : Boolean,
-    externalTest : Boolean,
-    integration  : Boolean
-  ) = {
-    implicit val rvf = RawVulnerability.apiFormat
-    ( (__ \ "rows"          ).format[Seq[RawVulnerability]]
-    ~ (__ \ "generatedDate" ).formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime()), Some(_))
-    )(apply(serviceName, version, _, _, latest, production, qa, staging, development, externalTest, integration),  (r: Report) => (r.rows, r.generatedDate))
-  }
-
   val mongoFormat = {
     implicit val instf = MongoJavatimeFormats.instantFormat
     implicit val rvf   = RawVulnerability.mongoFormat
