@@ -66,8 +66,8 @@ class VulnerabilitiesControllerSpec
       //stubbing
       WireMock.stubFor(
         WireMock
-          .get(WireMock.urlPathMatching("/api/repository_teams"))
-          .willReturn(WireMock.aResponse().withStatus(200).withBody(s"""{"service1": ["Team1", "Team2"]}"""))
+          .get(WireMock.urlPathMatching("/api/v2/repositories"))
+          .willReturn(WireMock.aResponse().withStatus(200).withBody("""[{"name": "service1", "teamNames": ["Team1", "Team2"]}]"""))
       )
 
       val startOfYear = java.time.Instant.parse("2022-01-01T00:00:00.000Z")
