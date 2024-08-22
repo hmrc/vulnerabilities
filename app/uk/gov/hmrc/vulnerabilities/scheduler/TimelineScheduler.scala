@@ -75,7 +75,7 @@ class TimelineScheduler @Inject()(
         case _ =>
           for {
             timeline          <- rawReportsRepository.getTimelineData(weekBeginning)
-            repositoryTeams   <- teamsAndReposConnector.repositoryTeams()
+            repositoryTeams   <- teamsAndReposConnector.cachedTeamToReposMap()
             timelineWithTeams =  timeline.map(sv => sv.copy(teams = repositoryTeams.getOrElse(sv.service, Seq())))
             _                 <- timelineRepository.replaceOrInsert(timelineWithTeams)
             _                 =  logger.info(s"Timeline scheduler week beginning: $weekBeginning has added the weekly data: ${timelineWithTeams.size} rows")

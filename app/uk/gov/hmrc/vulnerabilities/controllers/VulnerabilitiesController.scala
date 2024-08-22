@@ -55,7 +55,7 @@ class VulnerabilitiesController @Inject()(
                            case (_      , Some(_)) => teamsAndRepositoriesConnector.repositories(team).map(xs => Some(xs.map(x => ServiceName(x.name))))
                          }
         reports       <- rawReportsRepository.find(flag, serviceNames, version)
-        repoWithTeams <- teamsAndRepositoriesConnector.repositoryTeams()
+        repoWithTeams <- teamsAndRepositoriesConnector.cachedTeamToReposMap()
         firstDetected <- vulnerabilityAgeRepository.firstDetected()
         assessments   <- assessmentsRepository.getAssessments().map(_.map(a => a.id -> a).toMap)
         allSummaries  =  for {

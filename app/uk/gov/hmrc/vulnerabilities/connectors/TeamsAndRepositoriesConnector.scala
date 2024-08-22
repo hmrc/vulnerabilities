@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.connectors
 
+import play.api.cache.AsyncCacheApi
 import play.api.libs.json.Reads
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
@@ -41,7 +42,8 @@ object TeamsAndRepositoriesConnector {
 @Singleton
 class TeamsAndRepositoriesConnector @Inject()(
   servicesConfig: ServicesConfig,
-  httpClientV2  : HttpClientV2
+  httpClientV2  : HttpClientV2,
+  cache         : AsyncCacheApi
 )(implicit
   ec            : ExecutionContext)
 {
@@ -57,7 +59,15 @@ class TeamsAndRepositoriesConnector @Inject()(
       .get(url"$url/api/v2/repositories?team=$teamName")
       .execute[Seq[TeamsAndRepositoriesConnector.Repo]]
 
-  def repositoryTeams()(implicit hc: HeaderCarrier): Future[Map[String, Seq[String]]] =
-    repositories(teamName = None).map(_.map(t => (t.name -> t.teamNames)).toMap)
+  private def getAllRepositories()(implicit hc: HeaderCarrier): Future[Seq[TeamsAndRepositoriesConnector.Repo]] =
+    repositories(teamName = None)
 
+  private val cacheDuration =
+    servicesConfig.getDuration("microservice.services.teams-and-repositories.cache.expiration")
+
+  def cachedTeamToReposMap()(implicit hc: HeaderCarrier): Future[Map[String, Seq[String]]] =
+    cache.getOrElseUpdate("teams-for-services", cacheDuration) {
+      getAllRepositories()
+        .map(_.map(x => (x.name, x.teamNames)).toMap)
+    }
 }
