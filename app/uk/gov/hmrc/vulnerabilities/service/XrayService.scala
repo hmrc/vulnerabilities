@@ -97,9 +97,8 @@ class XrayService @Inject()(
         logger.info(s"Began generating report for ${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")}. Report will have id ${resp.reportID}")
         val et =
           for {
-            oStatus <- EitherT.liftF(checkIfReportReady(resp))
+            oStatus <- EitherT.liftF(checkIfReportReady(slug, resp))
             count   =  oStatus.fold(0)(_.rowCount.getOrElse(0))
-            _       =  logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report status ${oStatus.fold("report was not generated in time")(_ => s"report has $count rows")}")
             tuple   <-  oStatus match {
                          case Some(_) if count > 0 => EitherT.fromOptionF(xrayConnector.downloadAndUnzipReport(resp.reportID, slug.serviceName, slug.version), XrayFailure: XrayStatus)
                          case Some(_)              => EitherT.rightT[Future, XrayStatus]((Instant.now(),  Seq.empty[RawVulnerability]))
@@ -140,18 +139,23 @@ class XrayService @Inject()(
   private val waitTimeSeconds: Long =
     configuration.get[FiniteDuration]("xray.reports.waitTime").toSeconds
 
-  private [service] def checkIfReportReady(reportRequestResponse: ReportResponse, counter: Int = 0)(implicit hc: HeaderCarrier): Future[Option[ReportStatus]] =
+  private [service] def checkIfReportReady(slug: SlugInfo, reportRequestResponse: ReportResponse, counter: Int = 0, previous: Option[ReportStatus] = None)(implicit hc: HeaderCarrier): Future[Option[ReportStatus]] =
     if (counter < waitTimeSeconds) {
-      logger.info(s"checking report status for reportID: ${reportRequestResponse.reportID}")
+      logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - checking report status for reportID: ${reportRequestResponse.reportID}")
       xrayConnector
         .checkStatus(reportRequestResponse.reportID)
         .flatMap {
-          case rs if rs.status == "completed" => Future.successful(Some(rs))
-          case _                              => org.apache.pekko.pattern.after(1000.millis, system.scheduler) {
-                                                   checkIfReportReady(reportRequestResponse, counter + 1)
+          case rs if rs.status == "completed" => logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status ${rs.status} number of rows ${rs.rowCount.getOrElse(0)} for reportID: ${reportRequestResponse.reportID}")
+                                                 Future.successful(Some(rs))
+          case rs                             => org.apache.pekko.pattern.after(1000.millis, system.scheduler) {
+                                                   checkIfReportReady(slug, reportRequestResponse, counter + 1, previous = Some(rs))
                                                  }
         }
-    } else Future.successful(None)
+    } else {
+      val reason = previous.fold("never generated")(x => s"last status ${x.status}")
+      logger.error(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report was not ready in time: $reason for reportID: ${reportRequestResponse.reportID}")
+      Future.successful(None)
+    }
 
   private [service] def deleteStaleReports()(implicit hc: HeaderCarrier): Future[Unit] =
     for {
