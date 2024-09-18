@@ -49,6 +49,9 @@ class XrayConnector @Inject() (
   private val xrayUsername        : String         = configuration.get[String]("xray.username")
   private val xrayReportsRetention: FiniteDuration = configuration.get[FiniteDuration]("xray.reports.retention")
 
+  private def toReportName(serviceName: ServiceName, version: Version): String =
+    s"AppSec-report-${serviceName.asString}_${version.original.replaceAll("\\.", "_")}"
+
   def generateReport(serviceName: ServiceName, version: Version)(implicit hc: HeaderCarrier): Future[ReportResponse] = {
     implicit val rfmt = ReportResponse.apiFormat
     httpClientV2
@@ -57,7 +60,7 @@ class XrayConnector @Inject() (
         "Authorization" -> s"Bearer $xrayToken",
         "Content-Type"  -> "application/json"
       ).withBody(Json.parse(
-        s"""{"name":"AppSec-report-${serviceName.asString}_${version.original}","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/${serviceName.asString}_${version.original}*"}}"""
+        s"""{"name":"${toReportName(serviceName, version)}","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/${serviceName.asString}_${version.original}*"}}"""
       ))
       .execute[ReportResponse]
   }
@@ -100,7 +103,7 @@ class XrayConnector @Inject() (
   }
 
   private def downloadReport(reportId: Int, serviceName: ServiceName, version: Version)(implicit hc: HeaderCarrier): Future[InputStream] = {
-    val fileName = s"AppSec-report-${serviceName.asString}_${version.original}"
+    val fileName = toReportName(serviceName, version)
     val url = url"${xrayBaseUrl}/export/$reportId?file_name=${fileName}&format=json"
     httpClientV2
       .get(url)

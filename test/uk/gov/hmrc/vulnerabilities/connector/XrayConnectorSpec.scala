@@ -60,7 +60,7 @@ class XrayConnectorSpec
     "given a serviceVersionDeployments" should {
       "generate the expected request body" in {
         val expectedRequestBody =
-          """{"name":"AppSec-report-service1_5.4.0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*"}}"""
+          """{"name":"AppSec-report-service1_5_4_0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*"}}"""
 
         stubFor(WireMock.post(urlMatching("/vulnerabilities"))
           .withRequestBody(containing(expectedRequestBody))
@@ -80,7 +80,7 @@ class XrayConnectorSpec
     "it receives a valid response" should {
       "return a ReportRequestResponse" in {
         val expectedRequestBody =
-          """{"name":"AppSec-report-service1_5.4.0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*"}}"""
+          """{"name":"AppSec-report-service1_5_4_0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*"}}"""
 
         stubFor(WireMock.post(urlMatching("/vulnerabilities"))
           .withRequestBody(containing(expectedRequestBody))
