@@ -147,6 +147,7 @@ class RawReportsRepositorySpec
                              projectKeys           = Seq()
                          )),
         generatedDate  = now,
+        scanned        = true,
         latest         = true,
         production     = true,
         externalTest   = true,
@@ -205,6 +206,7 @@ class RawReportsRepositorySpec
                            )
                          ),
         generatedDate  = now,
+        scanned        = true,
         latest         = true,
         production     = true,
         externalTest   = true,

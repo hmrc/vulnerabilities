@@ -52,6 +52,7 @@ class XrayConnector @Inject() (
   private def toReportName(serviceName: ServiceName, version: Version): String =
     s"AppSec-report-${serviceName.asString}_${version.original.replaceAll("\\.", "_")}"
 
+  // https://jfrog.com/help/r/xray-rest-apis/generate-vulnerabilities-report
   def generateReport(serviceName: ServiceName, version: Version)(implicit hc: HeaderCarrier): Future[ReportResponse] = {
     implicit val rfmt = ReportResponse.apiFormat
     httpClientV2
@@ -65,6 +66,7 @@ class XrayConnector @Inject() (
       .execute[ReportResponse]
   }
 
+  // https://jfrog.com/help/r/xray-rest-apis/get-report-details-by-id
   def checkStatus(id: Int)(implicit hc: HeaderCarrier): Future[ReportStatus] = {
     implicit val fmt = ReportStatus.apiFormat
     httpClientV2
@@ -102,6 +104,7 @@ class XrayConnector @Inject() (
     }
   }
 
+  // https://jfrog.com/help/r/xray-rest-apis/export
   private def downloadReport(reportId: Int, serviceName: ServiceName, version: Version)(implicit hc: HeaderCarrier): Future[InputStream] = {
     val fileName = toReportName(serviceName, version)
     val url = url"${xrayBaseUrl}/export/$reportId?file_name=${fileName}&format=json"
@@ -122,6 +125,7 @@ class XrayConnector @Inject() (
       }
   }
 
+  // https://jfrog.com/help/r/xray-rest-apis/delete
   def deleteReportFromXray(reportId: Int)(implicit hc: HeaderCarrier): Future[Unit] =
     httpClientV2
       .delete(url"${xrayBaseUrl}/$reportId")
@@ -130,6 +134,7 @@ class XrayConnector @Inject() (
         "Content-Type"  -> "application/json"
       ).execute[Unit](throwOnFailure(implicitly[HttpReads[Either[UpstreamErrorResponse, Unit]]]), implicitly[ExecutionContext])
 
+  // https://jfrog.com/help/r/xray-rest-apis/get-reports-list
   def getStaleReportIds()(implicit hc: HeaderCarrier): Future[Seq[ReportId]] = {
     implicit val rir = {
       implicit val rir = ReportId.reads

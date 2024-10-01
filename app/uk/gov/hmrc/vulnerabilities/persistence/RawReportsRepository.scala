@@ -42,6 +42,7 @@ class RawReportsRepository @Inject()(
 , mongoComponent = mongoComponent
 , domainFormat   = Report.mongoFormat
 , indexes        = IndexModel(Indexes.ascending("serviceName", "serviceVersion"), IndexOptions().unique(true)) ::
+                   IndexModel(Indexes.hashed("scanned"))                                                       ::
                    SlugInfoFlag.values.map(f => IndexModel(Indexes.hashed(f.asString)))
 , replaceIndexes = true
 ) with Transactions {
@@ -203,6 +204,11 @@ class RawReportsRepository @Inject()(
         Filters.or((deployedSlugsInfoFlags :+ SlugInfoFlag.Latest).map(f => Filters.equal(f.asString, true)): _*)
       , Filters.lt("generatedDate", before)
       ))
+      .toFuture()
+
+  def findNotScanned(): Future[Seq[Report]] =
+    collection
+      .find(Filters.equal("scanned", false))
       .toFuture()
 
   def getTimelineData(weekBeginning: Instant): Future[Seq[TimelineEvent]] = {

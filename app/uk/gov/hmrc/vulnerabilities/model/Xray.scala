@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.model
 
-import play.api.libs.functional.syntax.{toFunctionalBuilderOps, toInvariantFunctorOps, unlift}
+import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
 import play.api.libs.json.{OFormat, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
@@ -41,14 +41,16 @@ object ReportId {
 }
 
 case class ReportStatus(
- status  : String,
- rowCount: Option[Int]
+ status        : String,
+ numberOfRows  : Int,
+ totalArtifacts: Int
 )
 
 object ReportStatus {
   val apiFormat =
-    ( (__ \ "status" ).format[String]
-    ~ (__ \ "number_of_rows").formatNullable[Int]
+    ( (__ \ "status"         ).format[String]
+    ~ (__ \ "number_of_rows" ).format[Int]
+    ~ (__ \ "total_artifacts").format[Int]
     )(apply, unlift(unapply))
 }
 
@@ -57,6 +59,7 @@ case class Report(
   serviceVersion: Version,
   rows          : Seq[RawVulnerability],
   generatedDate : Instant,
+  scanned       : Boolean,
   latest        : Boolean,
   production    : Boolean,
   qa            : Boolean,
@@ -67,8 +70,6 @@ case class Report(
 )
 
 object Report {
-  private def generateDateTime(): Instant = Instant.now()
-
   val apiFormat = {
     implicit val rvf   = RawVulnerability.apiFormat
     implicit val snf   = ServiceName.format
@@ -76,7 +77,8 @@ object Report {
     ( (__ \ "serviceName"   ).format[ServiceName]
     ~ (__ \ "serviceVersion").format[Version]
     ~ (__ \ "rows"          ).format[Seq[RawVulnerability]]
-    ~ (__ \ "generatedDate" ).formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime()), Some(_))
+    ~ (__ \ "generatedDate" ).format[Instant]
+    ~ (__ \ "scanned"       ).format[Boolean]
     ~ (__ \ "latest"        ).formatWithDefault[Boolean](false)
     ~ (__ \ "production"    ).formatWithDefault[Boolean](false)
     ~ (__ \ "qa"            ).formatWithDefault[Boolean](false)
@@ -95,7 +97,8 @@ object Report {
     ( (__ \ "serviceName"   ).format[ServiceName]
     ~ (__ \ "serviceVersion").format[Version]
     ~ (__ \ "rows"          ).format[Seq[RawVulnerability]]
-    ~ (__ \ "generatedDate" ).formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime()), Some(_))
+    ~ (__ \ "generatedDate" ).format[Instant]
+    ~ (__ \ "scanned"       ).format[Boolean]
     ~ (__ \ "latest"        ).formatWithDefault[Boolean](false)
     ~ (__ \ "production"    ).formatWithDefault[Boolean](false)
     ~ (__ \ "qa"            ).formatWithDefault[Boolean](false)

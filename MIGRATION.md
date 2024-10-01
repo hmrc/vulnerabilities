@@ -1,6 +1,12 @@
 # Migration Guide
 
-Add deployment flags
+## Add scanned status
+
+```javascript
+db.rawReports.updateMany({}, [{$set: {"scanned": {$gt: [{$size: "$rows"}, 0]}}}])
+```
+
+## Add deployment flags
 
 ```javascript
 // stop the vulnerabilities task

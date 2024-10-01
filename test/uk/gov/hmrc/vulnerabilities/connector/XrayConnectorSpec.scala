@@ -100,13 +100,13 @@ class XrayConnectorSpec
 
         stubFor(WireMock.get(urlMatching("/1")).willReturn(
           aResponse().withBody(s"""{"id":1,"name":"AppSec-service1","report_type":"vulnerability",
-               |"status":"completed","total_artifacts":0,"num_of_processed_artifacts":0,"progress":100,
+               |"status":"completed","total_artifacts":2,"num_of_processed_artifacts":2,"progress":100,
                |"number_of_rows":1,"start_time":"2022-09-20T11:06:21Z","end_time":"2022-09-20T11:06:21Z",
                |"author":"joe.bloggs"}""".stripMargin)
         ))
 
         val res = connector.checkStatus(id = 1).futureValue
-        res shouldBe ReportStatus(status = "completed", rowCount = Some(1))
+        res shouldBe ReportStatus(status = "completed", numberOfRows = 1, totalArtifacts = 2)
       }
     }
   }
