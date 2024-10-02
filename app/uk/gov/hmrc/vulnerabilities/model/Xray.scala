@@ -43,7 +43,7 @@ object ReportId {
 case class ReportStatus(
  status        : String,
  numberOfRows  : Int,
- totalArtifacts: Int
+ totalArtefacts: Int
 )
 
 object ReportStatus {
@@ -121,12 +121,12 @@ case class RawVulnerability(
   severitySource       : String,
   vulnerableComponent  : String,
   componentPhysicalPath: String,
-  impactedArtifact     : String,
+  impactedArtefact     : String,
   impactPath           : Seq[String],
   path                 : String,
   fixedVersions        : Seq[String],
   published            : Instant,
-  artifactScanTime     : Instant,
+  artefactScanTime     : Instant,
   issueId              : String,
   packageType          : String,
   provider             : String,

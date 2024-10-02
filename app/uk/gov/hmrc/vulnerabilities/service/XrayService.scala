@@ -172,11 +172,11 @@ class XrayService @Inject()(
         case rs if counter >= waitTimeSeconds =>
           logger.error(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report was not ready in time: last status ${rs.status} for reportID: ${reportResponse.reportID}")
           Future.successful(Left(XrayRetry))
-        case rs if rs.status == "completed" && rs.totalArtifacts == 0 =>
+        case rs if rs.status == "completed" && rs.totalArtefacts == 0 =>
           logger.error(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - no artefact scanned for reportID: ${reportResponse.reportID}")
           Future.successful(Left(XrayFailure))
         case rs if rs.status == "completed" =>
-          logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status ${rs.status} number of rows ${rs.numberOfRows} total Artifacts scanned ${rs.totalArtifacts} for reportID: ${reportResponse.reportID}")
+          logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status ${rs.status} number of rows ${rs.numberOfRows} total artefacts scanned ${rs.totalArtefacts} for reportID: ${reportResponse.reportID}")
           Future.successful(Right(rs))
         case rs =>
           org.apache.pekko.pattern.after(1000.millis, system.scheduler) {

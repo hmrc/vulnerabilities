@@ -106,7 +106,7 @@ class XrayConnectorSpec
         ))
 
         val res = connector.checkStatus(id = 1).futureValue
-        res shouldBe ReportStatus(status = "completed", numberOfRows = 1, totalArtifacts = 2)
+        res shouldBe ReportStatus(status = "completed", numberOfRows = 1, totalArtefacts = 2)
       }
     }
   }
