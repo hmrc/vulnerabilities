@@ -19,7 +19,7 @@ package uk.gov.hmrc.vulnerabilities.service
 import org.apache.pekko.actor.ActorSystem
 import cats.data.EitherT
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
+import uk.gov.hmrc.vulnerabilities.connectors.{BuildDeployApiConnector, XrayConnector}
 import uk.gov.hmrc.vulnerabilities.model._
 import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilityAgeRepository}
 import uk.gov.hmrc.http.HeaderCarrier
@@ -34,6 +34,7 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class XrayService @Inject()(
   configuration             : Configuration,
+  buildAndDeployConnector   : BuildDeployApiConnector,
   xrayConnector             : XrayConnector,
   system                    : ActorSystem,
   rawReportsRepository      : RawReportsRepository,
@@ -43,13 +44,18 @@ class XrayService @Inject()(
   case class SlugInfo(
     serviceName: ServiceName,
     version    : Version,
+    uri        : String,
     flags      : Seq[SlugInfoFlag]
-  )
+  ) {
+    val path = uri.replaceAll(".*/webstore/", "webstore-local/")
+  }
+
   object SlugInfo {
     def fromReport(report: Report) =
       SlugInfo(
         serviceName = report.serviceName
       , version     = report.serviceVersion
+      , uri         = report.slugUri
       , flags       = ( Option.when(report.latest      )(SlugInfoFlag.Latest      ) ++
                         Option.when(report.development )(SlugInfoFlag.Development ) ++
                         Option.when(report.integration )(SlugInfoFlag.Integration ) ++
@@ -61,10 +67,10 @@ class XrayService @Inject()(
       )
   }
 
-  def firstScan(serviceName: ServiceName, version: Version, flag: Option[SlugInfoFlag] = None)(implicit hc: HeaderCarrier): Future[Unit] =
+  def firstScan(serviceName: ServiceName, version: Version, slugUri: String, flag: Option[SlugInfoFlag] = None)(implicit hc: HeaderCarrier): Future[Unit] =
     for {
       _ <- deleteStaleReports()
-      _ <- processReports(Seq(SlugInfo(serviceName, version, flag.toSeq)))
+      _ <- processReports(Seq(SlugInfo(serviceName, version, slugUri, flag.toSeq)))
     } yield ()
 
   def rescanStaleReports(reportsBefore: Instant)(implicit hc: HeaderCarrier): Future[Unit] =
@@ -91,6 +97,11 @@ class XrayService @Inject()(
       def go(count: Int): Future[Int] =
         scan(slug).value.flatMap {
           case Left(XrayRetry)
+            if count == 1          => for {
+                                        _ <- buildAndDeployConnector.triggerXrayScanNow(slug.path)
+                                        x <- org.apache.pekko.pattern.after(1000.millis, system.scheduler) { go(count + 1) }
+                                      } yield x
+          case Left(XrayRetry)
             if count <= maxRetries => go(count + 1)
           case Left(XrayRetry)
              | Left(XrayFailure)   => logger.error(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
@@ -112,6 +123,7 @@ class XrayService @Inject()(
     Report(
       slug.serviceName
     , slug.version
+    , slugUri       = slug.uri
     , latest        = slug.flags.contains(SlugInfoFlag.Latest)
     , production    = slug.flags.contains(SlugInfoFlag.Production)
     , qa            = slug.flags.contains(SlugInfoFlag.QA)
@@ -139,7 +151,7 @@ class XrayService @Inject()(
         et.value.onComplete {
           case _ => xrayConnector
                       .deleteReportFromXray(resp.reportID)
-                      .map( _ =>
+                      .map(_ =>
                         logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report ${resp.reportID} has been deleted from the Xray UI")
                       )
                       .recover {

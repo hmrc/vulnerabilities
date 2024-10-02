@@ -56,7 +56,7 @@ class SlugInfoHandler @Inject()(
                    .fromEither[Future](Json.parse(message.body).validate(SlugInfoHandler.reads).asEither)
                    .leftMap(error => s"Could not parse SlugInfo message with ID '${message.messageId()}'. Reason: $error")
        _      <- (payload.jobType, payload.eventType) match {
-                   case ("slug", "creation") => EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version))
+                   case ("slug", "creation") => EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, payload.slugUri))
                    case ("slug", "deletion") => EitherT.right[String](rawReportsRepository.delete(payload.serviceName, payload.version))
                    case _                    => EitherT.right[String](Future.unit)
                  }
@@ -79,7 +79,7 @@ object SlugInfoHandler {
     eventType  : String,
     serviceName: ServiceName,
     version    : Version,
-    url        : String
+    slugUri    : String
   )
 
   val reads: Reads[SlugEvent] =

@@ -3,7 +3,10 @@
 ## Add scanned status
 
 ```javascript
-db.rawReports.updateMany({}, [{$set: {"scanned": {$gt: [{$size: "$rows"}, 0]}}}])
+db.rawReports.updateMany({}, [
+    {$set: {"scanned": {$gt: [{$size: "$rows"}, 0]}}},
+    {$set: {"slugUri": {$concat:["https://artefacts.tax.service.gov.uk/artifactory/webstore/slugs/", "$serviceName", "/", "$serviceName", "_",  "$serviceVersion", "_0.5.2.tgz"]}}}
+])
 ```
 
 ## Add deployment flags

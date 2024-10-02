@@ -124,6 +124,7 @@ class RawReportsRepositorySpec
       Report(
         serviceName    = ServiceName("service1"),
         serviceVersion = Version("1.0.4"),
+        slugUri        = "http://artifactory/webstore/service1_1.0.4.tgz",
         rows           = Seq(
                            RawVulnerability(
                              cves                  = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
@@ -161,6 +162,7 @@ class RawReportsRepositorySpec
       Report(
         serviceName    = ServiceName("service2"),
         serviceVersion = Version("3.0.4"),
+        slugUri        = "http://artifactory/webstore/service2_3.0.4.tgz",
         rows           = Seq(
                            RawVulnerability(
                              cves                  = Seq(CVE(cveId = Some("CVE-2021-99999"), cveV3Score = Some(7.0), cveV3Vector = Some("test2"))),

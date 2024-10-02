@@ -41,10 +41,10 @@ class VulnerabilitiesModule extends play.api.inject.Module {
 
   override def bindings(environment: Environment, configuration: Configuration): Seq[Binding[_]] =
     Seq(
-      bind[ReloadScheduler  ].toSelf.eagerly()
-    , bind[TimelineScheduler].toSelf.eagerly()
+      bind[ReloadScheduler       ].toSelf.eagerly()
+    , bind[TimelineScheduler     ].toSelf.eagerly()
     , bind[FixNotScannedScheduler].toSelf.eagerly()
-    , bind[Clock            ].toInstance(Clock.systemUTC())
+    , bind[Clock                 ].toInstance(Clock.systemUTC())
     ) ++
     ecsDeploymentsBindings(configuration)
 }

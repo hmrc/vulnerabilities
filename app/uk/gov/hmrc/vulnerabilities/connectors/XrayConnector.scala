@@ -61,7 +61,7 @@ class XrayConnector @Inject() (
         "Authorization" -> s"Bearer $xrayToken",
         "Content-Type"  -> "application/json"
       ).withBody(Json.parse(
-        s"""{"name":"${toReportName(serviceName, version)}","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/${serviceName.asString}_${version.original}*"}}"""
+        s"""{"name":"${toReportName(serviceName, version)}","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/${serviceName.asString}_${version.original}*.tgz"}}"""
       ))
       .execute[ReportResponse]
   }

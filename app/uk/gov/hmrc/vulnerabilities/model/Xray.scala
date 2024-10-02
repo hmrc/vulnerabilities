@@ -57,6 +57,7 @@ object ReportStatus {
 case class Report(
   serviceName   : ServiceName,
   serviceVersion: Version,
+  slugUri       : String,
   rows          : Seq[RawVulnerability],
   generatedDate : Instant,
   scanned       : Boolean,
@@ -76,6 +77,7 @@ object Report {
     implicit val vf    = Version.format
     ( (__ \ "serviceName"   ).format[ServiceName]
     ~ (__ \ "serviceVersion").format[Version]
+    ~ (__ \ "slugUri"       ).format[String]
     ~ (__ \ "rows"          ).format[Seq[RawVulnerability]]
     ~ (__ \ "generatedDate" ).format[Instant]
     ~ (__ \ "scanned"       ).format[Boolean]
@@ -96,6 +98,7 @@ object Report {
     implicit val vf    = Version.format
     ( (__ \ "serviceName"   ).format[ServiceName]
     ~ (__ \ "serviceVersion").format[Version]
+    ~ (__ \ "slugUri"       ).format[String]
     ~ (__ \ "rows"          ).format[Seq[RawVulnerability]]
     ~ (__ \ "generatedDate" ).format[Instant]
     ~ (__ \ "scanned"       ).format[Boolean]
