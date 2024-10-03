@@ -80,6 +80,7 @@ class VulnerabilitiesControllerSpec
         Report(
           serviceName    = ServiceName("service1"),
           serviceVersion = Version("0.835.0"),
+          slugUri        = "https://artifactory/webstore/service1_0.8.35.0.tgz",
           rows           = Seq(
                              RawVulnerability(
                                cves                  = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
@@ -89,12 +90,12 @@ class VulnerabilitiesControllerSpec
                                severitySource        = "Source",
                                vulnerableComponent   = "gav://com.testxml.test.core:test-bind:1.5.9",
                                componentPhysicalPath = "service1-0.835.0/some/physical/path",
-                               impactedArtifact      = "fooBar",
+                               impactedArtefact      = "fooBar",
                                impactPath            = Seq("hello", "world"),
                                path                  = "test/slugs/service1/service1_0.835.0_0.0.1.tgz",
                                fixedVersions         = Seq("1.6.0"),
                                published             = startOfYear,
-                               artifactScanTime      = startOfYear,
+                               artefactScanTime      = startOfYear,
                                issueId               = "XRAY-000005",
                                packageType           = "maven",
                                provider              = "test",
@@ -110,7 +111,8 @@ class VulnerabilitiesControllerSpec
           externalTest   = false,
           qa             = false,
           development    = false,
-          integration    = false
+          integration    = false,
+          scanned        = true
         )
       )
 

@@ -21,7 +21,7 @@ import play.api.libs.json.{JsError, JsString, OFormat, Reads}
 import play.api.mvc.{Action, AnyContent, BodyParser, ControllerComponents}
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.model.{Assessment, RawVulnerability, TimelineEvent, VulnerabilityAge}
+import uk.gov.hmrc.vulnerabilities.model.{Assessment, TimelineEvent, VulnerabilityAge}
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilityAgeRepository, VulnerabilitiesTimelineRepository}
 
 import javax.inject.{Inject, Singleton}

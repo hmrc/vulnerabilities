@@ -60,7 +60,7 @@ class DeploymentHandler @Inject()(
                    case "deployment-complete"   => for {
                                                      exists <- EitherT.right[String](rawReportsRepository.exists(payload.serviceName, payload.version))
                                                      _      <- if (exists) EitherT.right[String](rawReportsRepository.setFlag(payload.environment, payload.serviceName, payload.version))
-                                                               else        EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, Some(payload.environment)))
+                                                               else        EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, payload.slugUri, Some(payload.environment)))
                                                    } yield ()
                    case "undeployment-complete" => EitherT.right[String](rawReportsRepository.clearFlag(payload.environment, payload.serviceName))
                    case _                       => EitherT.right[String](Future.unit)
@@ -82,6 +82,7 @@ object DeploymentHandler {
   , environment: SlugInfoFlag
   , serviceName: ServiceName
   , version    : Version
+  , slugUri    : String
   )
 
   import play.api.libs.functional.syntax._
@@ -92,5 +93,6 @@ object DeploymentHandler {
     ~ (__ \ "environment"         ).read[SlugInfoFlag](SlugInfoFlag.format)
     ~ (__ \ "microservice"        ).read[ServiceName](ServiceName.format)
     ~ (__ \ "microservice_version").read[Version](Version.format)
+    ~ (__ \ "slug_uri"            ).read[String]
     )(DeploymentEvent.apply _)
 }

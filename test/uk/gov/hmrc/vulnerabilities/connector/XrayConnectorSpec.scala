@@ -60,7 +60,7 @@ class XrayConnectorSpec
     "given a serviceVersionDeployments" should {
       "generate the expected request body" in {
         val expectedRequestBody =
-          """{"name":"AppSec-report-service1_5_4_0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*"}}"""
+          """{"name":"AppSec-report-service1_5_4_0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*.tgz"}}"""
 
         stubFor(WireMock.post(urlMatching("/vulnerabilities"))
           .withRequestBody(containing(expectedRequestBody))
@@ -80,7 +80,7 @@ class XrayConnectorSpec
     "it receives a valid response" should {
       "return a ReportRequestResponse" in {
         val expectedRequestBody =
-          """{"name":"AppSec-report-service1_5_4_0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*"}}"""
+          """{"name":"AppSec-report-service1_5_4_0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*.tgz"}}"""
 
         stubFor(WireMock.post(urlMatching("/vulnerabilities"))
           .withRequestBody(containing(expectedRequestBody))
@@ -100,13 +100,13 @@ class XrayConnectorSpec
 
         stubFor(WireMock.get(urlMatching("/1")).willReturn(
           aResponse().withBody(s"""{"id":1,"name":"AppSec-service1","report_type":"vulnerability",
-               |"status":"completed","total_artifacts":0,"num_of_processed_artifacts":0,"progress":100,
+               |"status":"completed","total_artifacts":2,"num_of_processed_artifacts":2,"progress":100,
                |"number_of_rows":1,"start_time":"2022-09-20T11:06:21Z","end_time":"2022-09-20T11:06:21Z",
                |"author":"joe.bloggs"}""".stripMargin)
         ))
 
         val res = connector.checkStatus(id = 1).futureValue
-        res shouldBe ReportStatus(status = "completed", rowCount = Some(1))
+        res shouldBe ReportStatus(status = "completed", numberOfRows = 1, totalArtefacts = 2)
       }
     }
   }

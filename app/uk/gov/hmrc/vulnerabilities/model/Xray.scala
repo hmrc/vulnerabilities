@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.model
 
-import play.api.libs.functional.syntax.{toFunctionalBuilderOps, toInvariantFunctorOps, unlift}
+import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
 import play.api.libs.json.{OFormat, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
@@ -41,22 +41,26 @@ object ReportId {
 }
 
 case class ReportStatus(
- status  : String,
- rowCount: Option[Int]
+ status        : String,
+ numberOfRows  : Int,
+ totalArtefacts: Int
 )
 
 object ReportStatus {
   val apiFormat =
-    ( (__ \ "status" ).format[String]
-    ~ (__ \ "number_of_rows").formatNullable[Int]
+    ( (__ \ "status"         ).format[String]
+    ~ (__ \ "number_of_rows" ).format[Int]
+    ~ (__ \ "total_artifacts").format[Int]
     )(apply, unlift(unapply))
 }
 
 case class Report(
   serviceName   : ServiceName,
   serviceVersion: Version,
+  slugUri       : String,
   rows          : Seq[RawVulnerability],
   generatedDate : Instant,
+  scanned       : Boolean,
   latest        : Boolean,
   production    : Boolean,
   qa            : Boolean,
@@ -67,16 +71,16 @@ case class Report(
 )
 
 object Report {
-  private def generateDateTime(): Instant = Instant.now()
-
   val apiFormat = {
     implicit val rvf   = RawVulnerability.apiFormat
     implicit val snf   = ServiceName.format
     implicit val vf    = Version.format
     ( (__ \ "serviceName"   ).format[ServiceName]
     ~ (__ \ "serviceVersion").format[Version]
+    ~ (__ \ "slugUri"       ).format[String]
     ~ (__ \ "rows"          ).format[Seq[RawVulnerability]]
-    ~ (__ \ "generatedDate" ).formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime()), Some(_))
+    ~ (__ \ "generatedDate" ).format[Instant]
+    ~ (__ \ "scanned"       ).format[Boolean]
     ~ (__ \ "latest"        ).formatWithDefault[Boolean](false)
     ~ (__ \ "production"    ).formatWithDefault[Boolean](false)
     ~ (__ \ "qa"            ).formatWithDefault[Boolean](false)
@@ -94,8 +98,10 @@ object Report {
     implicit val vf    = Version.format
     ( (__ \ "serviceName"   ).format[ServiceName]
     ~ (__ \ "serviceVersion").format[Version]
+    ~ (__ \ "slugUri"       ).format[String]
     ~ (__ \ "rows"          ).format[Seq[RawVulnerability]]
-    ~ (__ \ "generatedDate" ).formatNullable[Instant].inmap[Instant](_.getOrElse(generateDateTime()), Some(_))
+    ~ (__ \ "generatedDate" ).format[Instant]
+    ~ (__ \ "scanned"       ).format[Boolean]
     ~ (__ \ "latest"        ).formatWithDefault[Boolean](false)
     ~ (__ \ "production"    ).formatWithDefault[Boolean](false)
     ~ (__ \ "qa"            ).formatWithDefault[Boolean](false)
@@ -115,12 +121,12 @@ case class RawVulnerability(
   severitySource       : String,
   vulnerableComponent  : String,
   componentPhysicalPath: String,
-  impactedArtifact     : String,
+  impactedArtefact     : String,
   impactPath           : Seq[String],
   path                 : String,
   fixedVersions        : Seq[String],
   published            : Instant,
-  artifactScanTime     : Instant,
+  artefactScanTime     : Instant,
   issueId              : String,
   packageType          : String,
   provider             : String,

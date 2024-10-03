@@ -124,6 +124,7 @@ class RawReportsRepositorySpec
       Report(
         serviceName    = ServiceName("service1"),
         serviceVersion = Version("1.0.4"),
+        slugUri        = "http://artifactory/webstore/service1_1.0.4.tgz",
         rows           = Seq(
                            RawVulnerability(
                              cves                  = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
@@ -133,12 +134,12 @@ class RawReportsRepositorySpec
                              severitySource        = "Source",
                              vulnerableComponent   = "gav://com.testxml.test.core:test-bind:1.5.9",
                              componentPhysicalPath = "service1-1.0.4/some/physical/path",
-                             impactedArtifact      = "fooBar",
+                             impactedArtefact      = "fooBar",
                              impactPath            = Seq("hello", "world"),
                              path                  = "test/slugs/service1/service1_1.0.4_0.0.1.tgz",
                              fixedVersions         = Seq("1.6.0"),
                              published             = now,
-                             artifactScanTime      = now,
+                             artefactScanTime      = now,
                              issueId               = "XRAY-000003",
                              packageType           = "maven",
                              provider              = "test",
@@ -147,6 +148,7 @@ class RawReportsRepositorySpec
                              projectKeys           = Seq()
                          )),
         generatedDate  = now,
+        scanned        = true,
         latest         = true,
         production     = true,
         externalTest   = true,
@@ -160,6 +162,7 @@ class RawReportsRepositorySpec
       Report(
         serviceName    = ServiceName("service2"),
         serviceVersion = Version("3.0.4"),
+        slugUri        = "http://artifactory/webstore/service2_3.0.4.tgz",
         rows           = Seq(
                            RawVulnerability(
                              cves                  = Seq(CVE(cveId = Some("CVE-2021-99999"), cveV3Score = Some(7.0), cveV3Vector = Some("test2"))),
@@ -169,12 +172,12 @@ class RawReportsRepositorySpec
                              severitySource        = "Source",
                              vulnerableComponent   = "gav://com.testxml.test.core:test-bind:1.6.8",
                              componentPhysicalPath = "service2-3.0.4/some/physical/path",
-                             impactedArtifact      = "fooBar",
+                             impactedArtefact      = "fooBar",
                              impactPath            = Seq("hello", "world"),
                              path                  = "test/slugs/service2/service2_3.0.4_0.0.1.tgz",
                              fixedVersions         = Seq("1.6.9"),
                              published             = now,
-                             artifactScanTime      = now,
+                             artefactScanTime      = now,
                              issueId               = "XRAY-000002",
                              packageType           = "maven",
                              provider              = "test",
@@ -190,12 +193,12 @@ class RawReportsRepositorySpec
                              severitySource        = "Source",
                              vulnerableComponent   = "gav://com.testxml.test.core:test-bind:1.5.9",
                              componentPhysicalPath = "service2-3.0.4/some/physical/path",
-                             impactedArtifact      = "fooBar",
+                             impactedArtefact      = "fooBar",
                              impactPath            = Seq("hello", "world"),
                              path                  = "test/slugs/service2/service2_3.0.4_0.0.1.tgz",
                              fixedVersions         = Seq("1.6.0"),
                              published             = now,
-                             artifactScanTime      = now,
+                             artefactScanTime      = now,
                              issueId               = "XRAY-000003",
                              packageType           = "maven",
                              provider              = "test",
@@ -205,6 +208,7 @@ class RawReportsRepositorySpec
                            )
                          ),
         generatedDate  = now,
+        scanned        = true,
         latest         = true,
         production     = true,
         externalTest   = true,

@@ -24,6 +24,7 @@ import org.apache.pekko.actor.ActorSystem
 import play.api.Configuration
 import play.api.libs.json.Json
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.vulnerabilities.connector.ArtefactProcessorConnector
 import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
 import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
 import uk.gov.hmrc.vulnerabilities.service.XrayService
@@ -33,9 +34,10 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class SlugInfoHandler @Inject()(
-  configuration       : Configuration,
-  rawReportsRepository: RawReportsRepository,
-  xrayService         : XrayService
+  configuration             : Configuration,
+  artefactProcessorConnector: ArtefactProcessorConnector,
+  rawReportsRepository      : RawReportsRepository,
+  xrayService               : XrayService
 )(implicit
   actorSystem         : ActorSystem,
   ec                  : ExecutionContext
@@ -56,7 +58,13 @@ class SlugInfoHandler @Inject()(
                    .fromEither[Future](Json.parse(message.body).validate(SlugInfoHandler.reads).asEither)
                    .leftMap(error => s"Could not parse SlugInfo message with ID '${message.messageId()}'. Reason: $error")
        _      <- (payload.jobType, payload.eventType) match {
-                   case ("slug", "creation") => EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version))
+                   case ("slug", "creation") => for {
+                                                  slug <- EitherT.fromOptionF(
+                                                            artefactProcessorConnector.getSlugInfo(payload.serviceName, payload.version),
+                                                            s"SlugInfo for name: ${payload.serviceName.asString}, version: ${payload.version.original} was not found"
+                                                          )
+                                                  _    <- EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, slug.uri))
+                                                } yield ()
                    case ("slug", "deletion") => EitherT.right[String](rawReportsRepository.delete(payload.serviceName, payload.version))
                    case _                    => EitherT.right[String](Future.unit)
                  }
@@ -79,7 +87,6 @@ object SlugInfoHandler {
     eventType  : String,
     serviceName: ServiceName,
     version    : Version,
-    url        : String
   )
 
   val reads: Reads[SlugEvent] =
@@ -87,6 +94,5 @@ object SlugInfoHandler {
     ~ (__ \ "type"   ).read[String]
     ~ (__ \ "name"   ).read[ServiceName](ServiceName.format)
     ~ (__ \ "version").read[Version](Version.format)
-    ~ (__ \ "url"    ).read[String]
     )(SlugEvent.apply _)
 }
