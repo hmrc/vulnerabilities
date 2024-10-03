@@ -28,8 +28,8 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class BuildDeployApiConnector @Inject()(
-  servicesConfig: ServicesConfig,
-  httpClientV2 : HttpClientV2
+  servicesConfig: ServicesConfig
+, httpClientV2 : HttpClientV2
 )(implicit
   ec          : ExecutionContext
 ) extends Logging {

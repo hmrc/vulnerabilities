@@ -47,7 +47,7 @@ class XrayService @Inject()(
     uri        : String,
     flags      : Seq[SlugInfoFlag]
   ) {
-    val path = uri.replaceAll(".*/webstore/", "webstore-local/")
+    val path = uri.replaceAll(".*/(webstore|webstore-local)/", "webstore-local/")
   }
 
   object SlugInfo {
@@ -88,23 +88,26 @@ class XrayService @Inject()(
     } yield ()
 
   sealed trait XrayStatus
-  case object XrayFailure extends XrayStatus
-  case object XrayRetry   extends XrayStatus
+  case object XrayArtefactNotFound extends XrayStatus
+  case object XrayRetry            extends XrayStatus
 
   private val maxRetries = 3
   private def processReports(slugs: Seq[SlugInfo])(implicit hc: HeaderCarrier): Future[Unit] =
     slugs.foldLeftM(0) { case (acc, slug) =>
       def go(count: Int): Future[Int] =
         scan(slug).value.flatMap {
-          case Left(XrayRetry)
-            if count == 1          => for {
-                                        _ <- buildAndDeployConnector.triggerXrayScanNow(slug.path)
+          case Left(XrayArtefactNotFound)
+            if count <= maxRetries => for {
+                                        _ <- buildAndDeployConnector
+                                              .triggerXrayScanNow(slug.path)
+                                              .recover {
+                                                case ex => logger.error(s"Error calling B&D API ${ex.getMessage}", ex)
+                                              }
                                         x <- org.apache.pekko.pattern.after(1000.millis, system.scheduler) { go(count + 1) }
                                       } yield x
           case Left(XrayRetry)
             if count <= maxRetries => go(count + 1)
-          case Left(XrayRetry)
-             | Left(XrayFailure)   => logger.error(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
+          case Left(_)             => logger.error(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
                                        val report = toReport(slug, generatedDate = Instant.now(), rows = Nil, scanned = false)
                                        for {
                                         _ <- rawReportsRepository.put(report)
@@ -144,7 +147,7 @@ class XrayService @Inject()(
         val et =
           for {
             status  <- EitherT(checkIfReportReady(slug, resp))
-            tuple   <- if (status.numberOfRows > 0) EitherT.fromOptionF(xrayConnector.downloadAndUnzipReport(resp.reportID, slug.serviceName, slug.version), XrayFailure: XrayStatus)
+            tuple   <- if (status.numberOfRows > 0) EitherT.fromOptionF(xrayConnector.downloadAndUnzipReport(resp.reportID, slug.serviceName, slug.version), XrayRetry: XrayStatus)
                        else                         EitherT.rightT[Future, XrayStatus]((Instant.now(), Seq.empty[RawVulnerability]))
           } yield tuple
 
@@ -174,7 +177,7 @@ class XrayService @Inject()(
           Future.successful(Left(XrayRetry))
         case rs if rs.status == "completed" && rs.totalArtefacts == 0 =>
           logger.warn(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - no artefact scanned for reportID: ${reportResponse.reportID}")
-          Future.successful(Left(XrayRetry))
+          Future.successful(Left(XrayArtefactNotFound))
         case rs if rs.status == "completed" =>
           logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status ${rs.status} number of rows ${rs.numberOfRows} total artefacts scanned ${rs.totalArtefacts} for reportID: ${reportResponse.reportID}")
           Future.successful(Right(rs))
