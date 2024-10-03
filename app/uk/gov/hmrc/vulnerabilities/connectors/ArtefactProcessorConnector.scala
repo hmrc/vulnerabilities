@@ -40,9 +40,9 @@ class ArtefactProcessorConnector @Inject()(
   implicit private val rs: Reads[ArtefactProcessorConnector.SlugInfo] =
     ArtefactProcessorConnector.SlugInfo.reads
 
-  def getSlugInfo(path: String)(implicit hc: HeaderCarrier): Future[Option[ArtefactProcessorConnector.SlugInfo]] =
+  def getSlugInfo(slugName: ServiceName, version: Version)(implicit hc: HeaderCarrier): Future[Option[ArtefactProcessorConnector.SlugInfo]] =
     httpClientV2
-      .get(url"$baseUrl/$path")
+      .get(url"$baseUrl/result/slug/${slugName.asString}/${version.original}")
       .execute[Option[ArtefactProcessorConnector.SlugInfo]]
 }
 

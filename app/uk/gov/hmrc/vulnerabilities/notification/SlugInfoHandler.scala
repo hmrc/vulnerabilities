@@ -60,8 +60,8 @@ class SlugInfoHandler @Inject()(
        _      <- (payload.jobType, payload.eventType) match {
                    case ("slug", "creation") => for {
                                                   slug <- EitherT.fromOptionF(
-                                                            artefactProcessorConnector.getSlugInfo(payload.path),
-                                                             s"SlugInfo for path: ${payload.path} not found"
+                                                            artefactProcessorConnector.getSlugInfo(payload.serviceName, payload.version),
+                                                            s"SlugInfo for name: ${payload.serviceName.asString}, version: ${payload.version.original} was not found"
                                                           )
                                                   _    <- EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, slug.uri))
                                                 } yield ()
@@ -87,7 +87,6 @@ object SlugInfoHandler {
     eventType  : String,
     serviceName: ServiceName,
     version    : Version,
-    path       : String
   )
 
   val reads: Reads[SlugEvent] =
@@ -95,6 +94,5 @@ object SlugInfoHandler {
     ~ (__ \ "type"   ).read[String]
     ~ (__ \ "name"   ).read[ServiceName](ServiceName.format)
     ~ (__ \ "version").read[Version](Version.format)
-    ~ (__ \ "url"    ).read[String]
     )(SlugEvent.apply _)
 }
