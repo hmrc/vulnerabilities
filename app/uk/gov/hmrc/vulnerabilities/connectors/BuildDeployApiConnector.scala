@@ -47,7 +47,7 @@ class BuildDeployApiConnector @Inject()(
               .post(url"$baseUrl/trigger-xray-scan-now")
               .withBody(Json.obj("repo_path" -> path))
               .execute[BuildDeployApiConnector.Result]
-      _   <- if (res.success) Future.unit else Future.failed(new Throwable(s"Failed to trigger Xray scan now for $path: ${res.message}"))
+      _   <- if (res.success) Future.unit else Future.failed(new Throwable(s"Failed to trigger Xray scan now for $path: ${res.message}: ${res.details}"))
     } yield ()
 }
 
@@ -56,12 +56,14 @@ object BuildDeployApiConnector {
   case class Result(
     success: Boolean
   , message: String
+  , details: JsValue
   )
 
   object Result {
     val reads: Reads[Result] =
       ( (__ \ "success").read[Boolean]
       ~ (__ \ "message").read[String]
+      ~ (__ \ "details").read[JsValue]
       ) (Result.apply _)
   }
 }

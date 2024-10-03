@@ -97,7 +97,7 @@ class XrayService @Inject()(
       def go(count: Int): Future[Int] =
         scan(slug).value.flatMap {
           case Left(XrayArtefactNotFound)
-            if count <= maxRetries => for {
+            if count < maxRetries => for {
                                         _ <- buildAndDeployConnector
                                               .triggerXrayScanNow(slug.path)
                                               .recover {
@@ -106,7 +106,7 @@ class XrayService @Inject()(
                                         x <- org.apache.pekko.pattern.after(1000.millis, system.scheduler) { go(count + 1) }
                                       } yield x
           case Left(XrayRetry)
-            if count <= maxRetries => go(count + 1)
+            if count < maxRetries  => go(count + 1)
           case Left(_)             => logger.error(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
                                        val report = toReport(slug, generatedDate = Instant.now(), rows = Nil, scanned = false)
                                        for {
