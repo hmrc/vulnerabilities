@@ -29,9 +29,11 @@ import scala.concurrent.ExecutionContext
 
 @Singleton()
 class VulnerabilitiesTimelineController @Inject()(
- cc: ControllerComponents,
+ cc                               : ControllerComponents,
  vulnerabilitiesTimelineRepository: VulnerabilitiesTimelineRepository
-)(using ec: ExecutionContext)
+)(using
+  ExecutionContext
+)
   extends BackendController(cc)
      with Logging:
 

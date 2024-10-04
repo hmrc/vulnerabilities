@@ -40,7 +40,7 @@ class XrayService @Inject()(
   rawReportsRepository      : RawReportsRepository,
   vulnerabilityAgeRepository: VulnerabilityAgeRepository
 )(using
-  ec                        : ExecutionContext
+  ExecutionContext
 ) extends Logging:
 
   case class SlugInfo(
@@ -67,20 +67,20 @@ class XrayService @Inject()(
                       ).toSeq
       )
 
-  def firstScan(serviceName: ServiceName, version: Version, slugUri: String, flag: Option[SlugInfoFlag] = None)(using hc: HeaderCarrier): Future[Unit] =
+  def firstScan(serviceName: ServiceName, version: Version, slugUri: String, flag: Option[SlugInfoFlag] = None)(using HeaderCarrier): Future[Unit] =
     for
       _ <- deleteStaleReports()
       _ <- processReports(Seq(SlugInfo(serviceName, version, slugUri, flag.toSeq)))
     yield ()
 
-  def rescanStaleReports(reportsBefore: Instant)(using hc: HeaderCarrier): Future[Unit] =
+  def rescanStaleReports(reportsBefore: Instant)(using HeaderCarrier): Future[Unit] =
     for
       _       <- deleteStaleReports()
       reports <- rawReportsRepository.findGeneratedBefore(reportsBefore)
       _       <- processReports(reports.map(SlugInfo.fromReport))
     yield ()
 
-  def fixNotScanned()(using hc: HeaderCarrier): Future[Unit] =
+  def fixNotScanned()(using HeaderCarrier): Future[Unit] =
     for
       _       <- deleteStaleReports()
       reports <- rawReportsRepository.findNotScanned()
@@ -92,7 +92,7 @@ class XrayService @Inject()(
     case Retry            extends XrayStatus
 
   private val maxRetries = 3
-  private def processReports(slugs: Seq[SlugInfo])(using hc: HeaderCarrier): Future[Unit] =
+  private def processReports(slugs: Seq[SlugInfo])(using HeaderCarrier): Future[Unit] =
     slugs
       .foldLeftM(0): (acc, slug) =>
         def go(count: Int): Future[Int] =
@@ -140,7 +140,7 @@ class XrayService @Inject()(
     , scanned       = scanned
     )
 
-  private def scan(slug: SlugInfo)(using hc: HeaderCarrier): EitherT[Future, XrayStatus, (Instant, Seq[RawVulnerability])] =
+  private def scan(slug: SlugInfo)(using HeaderCarrier): EitherT[Future, XrayStatus, (Instant, Seq[RawVulnerability])] =
     EitherT
       .liftF(xrayConnector.generateReport(slug.serviceName, slug.version))
       .flatMap: resp =>
@@ -166,7 +166,7 @@ class XrayService @Inject()(
   private val waitTimeSeconds: Long =
     configuration.get[FiniteDuration]("xray.reports.waitTime").toSeconds
 
-  private [service] def checkIfReportReady(slug: SlugInfo, reportResponse: ReportResponse, counter: Int = 0)(using hc: HeaderCarrier): Future[Either[XrayStatus, ReportStatus]] =
+  private [service] def checkIfReportReady(slug: SlugInfo, reportResponse: ReportResponse, counter: Int = 0)(using HeaderCarrier): Future[Either[XrayStatus, ReportStatus]] =
     xrayConnector
       .checkStatus(reportResponse.reportID)
       .flatMap:
@@ -184,7 +184,7 @@ class XrayService @Inject()(
             logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status is ${rs.status} - rerunning for reportID: ${reportResponse.reportID}")
             checkIfReportReady(slug, reportResponse, counter + 1)
 
-  private [service] def deleteStaleReports()(using hc: HeaderCarrier): Future[Unit] =
+  private [service] def deleteStaleReports()(using HeaderCarrier): Future[Unit] =
     for
       ids   <- xrayConnector.getStaleReportIds()
       _     =  logger.info(s"Identified ${ids.size} stale reports to delete")

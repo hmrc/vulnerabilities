@@ -34,7 +34,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class VulnerabilitiesTimelineRepository @Inject()(
   mongoComponent: MongoComponent,
 )(using
-  ec            : ExecutionContext
+  ExecutionContext
 ) extends PlayMongoRepository(
   collectionName = "vulnerabilitiesTimeline",
   mongoComponent = mongoComponent,

@@ -36,7 +36,7 @@ class RawReportsRepository @Inject()(
   final val mongoComponent: MongoComponent
 , config                  : Configuration
 )(using
-  ec            : ExecutionContext
+  ExecutionContext
 ) extends PlayMongoRepository(
   collectionName = "rawReports"
 , mongoComponent = mongoComponent

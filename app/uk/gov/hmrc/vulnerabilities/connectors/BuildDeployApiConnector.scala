@@ -32,13 +32,13 @@ class BuildDeployApiConnector @Inject()(
   servicesConfig: ServicesConfig
 , httpClientV2  : HttpClientV2
 )(using
-  ec            : ExecutionContext
+  ExecutionContext
 ) extends Logging:
   import HttpReads.Implicits._
 
   private val baseUrl = servicesConfig.baseUrl("platops-bnd-api")
 
-  def triggerXrayScanNow(path: String)(using hc: HeaderCarrier): Future[Unit] =
+  def triggerXrayScanNow(path: String)(using HeaderCarrier): Future[Unit] =
     given Reads[BuildDeployApiConnector.Result] = BuildDeployApiConnector.Result.reads
     for
       res <- httpClientV2

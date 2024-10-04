@@ -36,9 +36,9 @@ class ReloadScheduler @Inject()(
   mongoLockRepository: MongoLockRepository,
   timestampSupport   : TimestampSupport
 )(using
-  actorSystem         : ActorSystem,
-  applicationLifecycle: ApplicationLifecycle,
-  ec                  : ExecutionContext
+  ActorSystem,
+  ApplicationLifecycle,
+  ExecutionContext
 ) extends SchedulerUtils
     with Logging:
 

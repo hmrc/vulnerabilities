@@ -23,7 +23,7 @@ import scala.util.Try
 
 object Binders:
 
-  implicit val instantQueryStringBindable: QueryStringBindable[Instant] =
+  given QueryStringBindable[Instant] =
     queryStringBindableFromString[Instant](
       s => Some(Try(Instant.parse(s)).toEither.left.map(_.getMessage)),
       _.toString

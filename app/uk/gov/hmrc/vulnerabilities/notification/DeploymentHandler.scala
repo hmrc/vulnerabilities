@@ -38,8 +38,8 @@ class DeploymentHandler @Inject()(
 , rawReportsRepository: RawReportsRepository
 , xrayService         : XrayService
 )(using
-  actorSystem         : ActorSystem,
-  ec                  : ExecutionContext
+  ActorSystem,
+  ExecutionContext
 ) extends SqsConsumer(
   name   = "Deployment"
 , config = SqsConfig("aws.sqs.deployment", configuration)

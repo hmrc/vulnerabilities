@@ -29,7 +29,7 @@ trait SchedulerUtils extends Logging:
     label          : String,
     schedulerConfig: SchedulerConfig
   )(f: => Future[Unit]
-  )(implicit
+  )(using
     actorSystem         : ActorSystem,
     applicationLifecycle: ApplicationLifecycle,
     ec                  : ExecutionContext
@@ -57,10 +57,10 @@ trait SchedulerUtils extends Logging:
     schedulerConfig: SchedulerConfig,
     lock           : ScheduledLockService
   )(f: => Future[Unit]
-  )(implicit
-    actorSystem         : ActorSystem,
-    applicationLifecycle: ApplicationLifecycle,
-    ec                  : ExecutionContext
+  )(using
+    ActorSystem,
+    ApplicationLifecycle,
+    ExecutionContext
   ): Unit =
     schedule(label, schedulerConfig):
       lock

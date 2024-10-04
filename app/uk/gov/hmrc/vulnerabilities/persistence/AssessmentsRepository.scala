@@ -29,7 +29,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class AssessmentsRepository @Inject()(
   mongoComponent: MongoComponent
 )(using
-  ec            : ExecutionContext
+  ExecutionContext
 ) extends PlayMongoRepository(
   collectionName = "assessments",
   mongoComponent = mongoComponent,

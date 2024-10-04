@@ -38,14 +38,14 @@ class SlugInfoHandler @Inject()(
   artefactProcessorConnector: ArtefactProcessorConnector,
   rawReportsRepository      : RawReportsRepository,
   xrayService               : XrayService
-)(implicit
-  actorSystem               : ActorSystem,
-  ec                        : ExecutionContext
+)(using
+  ActorSystem,
+  ExecutionContext
 ) extends SqsConsumer(
   name                = "SlugInfo"
 , config              = SqsConfig("aws.sqs.slug", configuration)
-)(actorSystem, ec):
-  private implicit val hc: HeaderCarrier = HeaderCarrier()
+):
+  private given HeaderCarrier = HeaderCarrier()
 
   private def prefix(payload: SlugInfoHandler.SlugEvent) =
     s"SlugInfo (${payload.jobType}) ${payload.eventType} ${payload.serviceName.asString} ${payload.version.original}"

@@ -34,7 +34,9 @@ class VulnerabilitiesController @Inject()(
   rawReportsRepository         : RawReportsRepository,
   teamsAndRepositoriesConnector: TeamsAndRepositoriesConnector,
   vulnerabilityAgeRepository   : VulnerabilityAgeRepository
-)(using ec: ExecutionContext)
+)(using
+  ExecutionContext
+)
   extends BackendController(cc)
      with Logging:
 

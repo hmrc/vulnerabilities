@@ -37,7 +37,7 @@ class IntegrationTestController @Inject()(
 , vulnerabilitiesTimelineRepository: VulnerabilitiesTimelineRepository
 , cc: ControllerComponents
 )(using
-  ec: ExecutionContext
+  ExecutionContext
 ) extends BackendController(cc):
 
   def postAssessments(): Action[Seq[Assessment]] =

@@ -31,13 +31,13 @@ class ArtefactProcessorConnector @Inject()(
   servicesConfig: ServicesConfig
 , httpClientV2  : HttpClientV2
 )(using
-  ec            : ExecutionContext
+  ExecutionContext
 ):
   import HttpReads.Implicits._
 
   private val baseUrl = servicesConfig.baseUrl("artefact-processor")
 
-  def getSlugInfo(slugName: ServiceName, version: Version)(using hc: HeaderCarrier): Future[Option[ArtefactProcessorConnector.SlugInfo]] =
+  def getSlugInfo(slugName: ServiceName, version: Version)(using HeaderCarrier): Future[Option[ArtefactProcessorConnector.SlugInfo]] =
     given Reads[ArtefactProcessorConnector.SlugInfo] =
       ArtefactProcessorConnector.SlugInfo.reads
     httpClientV2

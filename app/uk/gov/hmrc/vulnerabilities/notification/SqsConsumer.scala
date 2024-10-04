@@ -39,7 +39,7 @@ abstract class SqsConsumer(
   name       : String
 , config     : SqsConfig
 )
-(implicit
+(using
   actorSystem: ActorSystem,
   ec         : ExecutionContext
 ) extends Logging:

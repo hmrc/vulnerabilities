@@ -41,25 +41,25 @@ class TeamsAndRepositoriesConnector @Inject()(
   httpClientV2  : HttpClientV2,
   cache         : AsyncCacheApi
 )(using
-  ec            : ExecutionContext
+  ExecutionContext
 ):
   import HttpReads.Implicits._
 
   private val url = servicesConfig.baseUrl("teams-and-repositories")
 
-  def repositories(teamName: Option[String])(using hc: HeaderCarrier): Future[Seq[TeamsAndRepositoriesConnector.Repo]] =
+  def repositories(teamName: Option[String])(using HeaderCarrier): Future[Seq[TeamsAndRepositoriesConnector.Repo]] =
     given Reads[TeamsAndRepositoriesConnector.Repo] = TeamsAndRepositoriesConnector.readsRepo
     httpClientV2
       .get(url"$url/api/v2/repositories?team=$teamName")
       .execute[Seq[TeamsAndRepositoriesConnector.Repo]]
 
-  private def getAllRepositories()(using hc: HeaderCarrier): Future[Seq[TeamsAndRepositoriesConnector.Repo]] =
+  private def getAllRepositories()(using HeaderCarrier): Future[Seq[TeamsAndRepositoriesConnector.Repo]] =
     repositories(teamName = None)
 
   private val cacheDuration =
     servicesConfig.getDuration("microservice.services.teams-and-repositories.cache.expiration")
 
-  def cachedTeamToReposMap()(using hc: HeaderCarrier): Future[Map[String, Seq[String]]] =
+  def cachedTeamToReposMap()(using HeaderCarrier): Future[Map[String, Seq[String]]] =
     cache.getOrElseUpdate("teams-for-services", cacheDuration):
       getAllRepositories()
         .map:
