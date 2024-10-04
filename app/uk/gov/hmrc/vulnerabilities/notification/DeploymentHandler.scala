@@ -87,8 +87,8 @@ object DeploymentHandler:
 
   private lazy val mdtpEventReads: Reads[DeploymentEvent] =
     ( (__ \ "event_type"          ).read[String]
-    ~ (__ \ "environment"         ).read[SlugInfoFlag](SlugInfoFlag.format)
-    ~ (__ \ "microservice"        ).read[ServiceName](ServiceName.format)
-    ~ (__ \ "microservice_version").read[Version](Version.format)
+    ~ (__ \ "environment"         ).read[SlugInfoFlag]
+    ~ (__ \ "microservice"        ).read[ServiceName]
+    ~ (__ \ "microservice_version").read[Version]
     ~ (__ \ "slug_uri"            ).read[String]
     )(DeploymentEvent.apply _)

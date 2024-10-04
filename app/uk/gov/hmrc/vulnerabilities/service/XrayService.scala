@@ -87,9 +87,9 @@ class XrayService @Inject()(
       _       <- processReports(reports.map(SlugInfo.fromReport))
     yield ()
 
-  sealed trait XrayStatus
-  case object XrayArtefactNotFound extends XrayStatus
-  case object XrayRetry            extends XrayStatus
+  enum XrayStatus:
+    case ArtefactNotFound extends XrayStatus
+    case Retry            extends XrayStatus
 
   private val maxRetries = 3
   private def processReports(slugs: Seq[SlugInfo])(using hc: HeaderCarrier): Future[Unit] =
@@ -97,7 +97,7 @@ class XrayService @Inject()(
       .foldLeftM(0): (acc, slug) =>
         def go(count: Int): Future[Int] =
           scan(slug).value.flatMap {
-            case Left(XrayArtefactNotFound)
+            case Left(XrayStatus.ArtefactNotFound)
               if count < maxRetries => for {
                                           _ <- buildAndDeployConnector
                                                 .triggerXrayScanNow(slug.path)
@@ -106,7 +106,7 @@ class XrayService @Inject()(
                                                 }
                                           x <- org.apache.pekko.pattern.after(1000.millis, system.scheduler) { go(count + 1) }
                                         } yield x
-            case Left(XrayRetry)
+            case Left(XrayStatus.Retry)
               if count < maxRetries  => go(count + 1)
             case Left(_)             => logger.error(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
                                         val report = toReport(slug, generatedDate = Instant.now(), rows = Nil, scanned = false)
@@ -149,7 +149,7 @@ class XrayService @Inject()(
           for
             status  <- EitherT(checkIfReportReady(slug, resp))
             tuple   <- if   status.numberOfRows > 0
-                       then EitherT.fromOptionF(xrayConnector.downloadAndUnzipReport(resp.reportID, slug.serviceName, slug.version), XrayRetry: XrayStatus)
+                       then EitherT.fromOptionF(xrayConnector.downloadAndUnzipReport(resp.reportID, slug.serviceName, slug.version), XrayStatus.Retry)
                        else EitherT.rightT[Future, XrayStatus]((Instant.now(), Seq.empty[RawVulnerability]))
           yield tuple
 
@@ -172,10 +172,10 @@ class XrayService @Inject()(
       .flatMap:
         case rs if counter >= waitTimeSeconds =>
           logger.error(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report was not ready in time: last status ${rs.status} for reportID: ${reportResponse.reportID}")
-          Future.successful(Left(XrayRetry))
+          Future.successful(Left(XrayStatus.Retry))
         case rs if rs.status == "completed" && rs.totalArtefacts == 0 =>
           logger.warn(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - no artefact scanned for reportID: ${reportResponse.reportID}")
-          Future.successful(Left(XrayArtefactNotFound))
+          Future.successful(Left(XrayStatus.ArtefactNotFound))
         case rs if rs.status == "completed" =>
           logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status ${rs.status} number of rows ${rs.numberOfRows} total artefacts scanned ${rs.totalArtefacts} for reportID: ${reportResponse.reportID}")
           Future.successful(Right(rs))

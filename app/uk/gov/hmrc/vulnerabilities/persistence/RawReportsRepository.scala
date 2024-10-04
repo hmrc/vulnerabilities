@@ -43,7 +43,7 @@ class RawReportsRepository @Inject()(
 , domainFormat   = Report.mongoFormat
 , indexes        = IndexModel(Indexes.ascending("serviceName", "serviceVersion"), IndexOptions().unique(true)) ::
                    IndexModel(Indexes.hashed("scanned"))                                                       ::
-                   SlugInfoFlag.values.map(f => IndexModel(Indexes.hashed(f.asString)))
+                   SlugInfoFlag.values.toList.map(f => IndexModel(Indexes.hashed(f.asString)))
 , replaceIndexes = true
 ) with Transactions:
 
@@ -56,7 +56,7 @@ class RawReportsRepository @Inject()(
   private val exclusionRegex: String = config.get[String]("regex.exclusion")
 
   private val deployedSlugsInfoFlags: List[SlugInfoFlag] =
-    SlugInfoFlag.values.filterNot(f => f == SlugInfoFlag.Latest || f == SlugInfoFlag.Integration || f == SlugInfoFlag.Development)
+    SlugInfoFlag.values.toList.filterNot(f => f == SlugInfoFlag.Latest || f == SlugInfoFlag.Integration || f == SlugInfoFlag.Development)
 
   val Quoted = """^\"(.*)\"$""".r
   private def toServiceNameFilter(serviceNames: Seq[ServiceName]) =

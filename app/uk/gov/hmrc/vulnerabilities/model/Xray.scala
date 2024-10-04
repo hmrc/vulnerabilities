@@ -68,10 +68,9 @@ case class Report(
 )
 
 object Report:
-  val apiFormat =
-    given Format[RawVulnerability] = RawVulnerability.apiFormat
-    ( (__ \ "serviceName"   ).format[ServiceName](ServiceName.format)
-    ~ (__ \ "serviceVersion").format[Version](Version.format)
+  private def format(using Format[RawVulnerability], Format[Instant]): Format[Report] =
+    ( (__ \ "serviceName"   ).format[ServiceName]
+    ~ (__ \ "serviceVersion").format[Version]
     ~ (__ \ "slugUri"       ).format[String]
     ~ (__ \ "rows"          ).format[Seq[RawVulnerability]]
     ~ (__ \ "generatedDate" ).format[Instant]
@@ -85,23 +84,8 @@ object Report:
     ~ (__ \ "integration"   ).formatWithDefault[Boolean](false)
     )(apply, pt => Tuple.fromProductTyped(pt))
 
-  val mongoFormat =
-    given Format[Instant]          = MongoJavatimeFormats.instantFormat
-    given Format[RawVulnerability] = RawVulnerability.apiFormat
-    ( (__ \ "serviceName"   ).format[ServiceName](ServiceName.format)
-    ~ (__ \ "serviceVersion").format[Version](Version.format)
-    ~ (__ \ "slugUri"       ).format[String]
-    ~ (__ \ "rows"          ).format[Seq[RawVulnerability]]
-    ~ (__ \ "generatedDate" ).format[Instant]
-    ~ (__ \ "scanned"       ).format[Boolean]
-    ~ (__ \ "latest"        ).formatWithDefault[Boolean](false)
-    ~ (__ \ "production"    ).formatWithDefault[Boolean](false)
-    ~ (__ \ "qa"            ).formatWithDefault[Boolean](false)
-    ~ (__ \ "staging"       ).formatWithDefault[Boolean](false)
-    ~ (__ \ "development"   ).formatWithDefault[Boolean](false)
-    ~ (__ \ "externaltest"  ).formatWithDefault[Boolean](false)
-    ~ (__ \ "integration"   ).formatWithDefault[Boolean](false)
-    )(apply, pt => Tuple.fromProductTyped(pt))
+  val apiFormat   = format(using RawVulnerability.apiFormat  , summon[Format[Instant]])
+  val mongoFormat = format(using RawVulnerability.mongoFormat, MongoJavatimeFormats.instantFormat)
 
 case class RawVulnerability(
   cves                 : Seq[CVE],
@@ -126,8 +110,8 @@ case class RawVulnerability(
 )
 
 object RawVulnerability:
-  val apiFormat: Format[RawVulnerability] =
-    given Format[CVE] = CVE.apiFormat
+  private def format(using Format[Instant]): Format[RawVulnerability] =
+    given Format[CVE] = CVE.format
     ( (__ \ "cves"                   ).format[Seq[CVE]]
     ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
     ~ (__ \ "summary"                ).format[String]
@@ -149,29 +133,8 @@ object RawVulnerability:
     ~ (__ \ "project_keys"           ).format[Seq[String]]
     )(apply, pt => Tuple.fromProductTyped(pt))
 
-  val mongoFormat: Format[RawVulnerability] =
-    given Format[Instant] = MongoJavatimeFormats.instantFormat
-    given Format[CVE]     = CVE.apiFormat
-    ( (__ \ "cves"                   ).format[Seq[CVE]]
-    ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
-    ~ (__ \ "summary"                ).format[String]
-    ~ (__ \ "severity"               ).format[String]
-    ~ (__ \ "severity_source"        ).format[String]
-    ~ (__ \ "vulnerable_component"   ).format[String]
-    ~ (__ \ "component_physical_path").format[String]
-    ~ (__ \ "impacted_artifact"      ).format[String]
-    ~ (__ \ "impact_path"            ).format[Seq[String]]
-    ~ (__ \ "path"                   ).format[String]
-    ~ (__ \ "fixed_versions"         ).format[Seq[String]]
-    ~ (__ \ "published"              ).format[Instant]
-    ~ (__ \ "artifact_scan_time"     ).format[Instant]
-    ~ (__ \ "issue_id"               ).format[String]
-    ~ (__ \ "package_type"           ).format[String]
-    ~ (__ \ "provider"               ).format[String]
-    ~ (__ \ "description"            ).format[String]
-    ~ (__ \ "references"             ).format[Seq[String]]
-    ~ (__ \ "project_keys"           ).format[Seq[String]]
-    )(apply, pt => Tuple.fromProductTyped(pt))
+  val apiFormat   = format(using summon[Format[Instant]])
+  val mongoFormat = format(using MongoJavatimeFormats.instantFormat)
 
 case class CVE(
   cveId: Option[String],
@@ -180,7 +143,7 @@ case class CVE(
 )
 
 object CVE:
-  val apiFormat =
+  val format =
     ( (__ \ "cve"           ).formatNullable[String]
     ~ (__ \ "cvss_v3_score" ).formatNullable[Double]
     ~ (__ \ "cvss_v3_vector").formatNullable[String]

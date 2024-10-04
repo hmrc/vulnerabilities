@@ -89,6 +89,6 @@ object SlugInfoHandler:
   val reads: Reads[SlugEvent] =
     ( (__ \ "jobType").read[String]
     ~ (__ \ "type"   ).read[String]
-    ~ (__ \ "name"   ).read[ServiceName](ServiceName.format)
-    ~ (__ \ "version").read[Version](Version.format)
+    ~ (__ \ "name"   ).read[ServiceName]
+    ~ (__ \ "version").read[Version]
     )(SlugEvent.apply _)

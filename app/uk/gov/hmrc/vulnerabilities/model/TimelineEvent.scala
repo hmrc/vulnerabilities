@@ -31,21 +31,16 @@ case class TimelineEvent(
 )
 
 object TimelineEvent:
-  val mongoFormat: Format[TimelineEvent] =
-    ( (__ \ "id"            ).format[String]
-    ~ (__ \ "service"       ).format[String]
-    ~ (__ \ "weekBeginning" ).format[Instant](MongoJavatimeFormats.instantFormat)
-    ~ (__ \ "teams"         ).format[Seq[String]]
-    ~ (__ \ "curationStatus").format[CurationStatus](CurationStatus.format)
-    )(apply, pt => Tuple.fromProductTyped(pt))
-
-  val apiFormat: Format[TimelineEvent] =
+  private def format(using Format[Instant]): Format[TimelineEvent] =
     ( (__ \ "id"            ).format[String]
     ~ (__ \ "service"       ).format[String]
     ~ (__ \ "weekBeginning" ).format[Instant]
     ~ (__ \ "teams"         ).format[Seq[String]]
-    ~ (__ \ "curationStatus").format[CurationStatus](CurationStatus.format)
+    ~ (__ \ "curationStatus").format[CurationStatus]
     )(apply, pt => Tuple.fromProductTyped(pt))
+
+  val apiFormat   = format(using summon[Format[Instant]])
+  val mongoFormat = format(using MongoJavatimeFormats.instantFormat)
 
 case class VulnerabilitiesTimelineCount(
   weekBeginning       : Instant,
@@ -53,7 +48,6 @@ case class VulnerabilitiesTimelineCount(
 )
 
 object VulnerabilitiesTimelineCount:
-
   val mongoFormat: Format[VulnerabilitiesTimelineCount] =
     ( (__ \ "_id"  ).format[Instant](MongoJavatimeFormats.instantFormat)
     ~ (__ \ "count").format[Int]
