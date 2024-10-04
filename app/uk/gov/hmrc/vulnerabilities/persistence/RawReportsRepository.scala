@@ -17,10 +17,10 @@
 package uk.gov.hmrc.vulnerabilities.persistence
 
 import play.api.Configuration
-import com.mongodb.client.model.Indexes
+import org.mongodb.scala.ObservableFuture
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonDateTime}
 import org.mongodb.scala.ClientSession
-import org.mongodb.scala.model.{Aggregates, Field, Filters, IndexModel, IndexOptions, ReplaceOptions, Projections, Updates, UpdateOptions}
+import org.mongodb.scala.model.{Aggregates, Field, Filters, IndexModel, IndexOptions, Indexes, ReplaceOptions, Projections, Updates, UpdateOptions}
 import uk.gov.hmrc.mongo.transaction.{TransactionConfiguration, Transactions}
 
 import uk.gov.hmrc.mongo.MongoComponent

@@ -20,8 +20,7 @@ import play.api.Logging
 import play.api.libs.json.{Json, OFormat, Writes}
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.model.{SlugInfoFlag, TotalVulnerabilityCount, Version, VulnerabilitySummary}
-import uk.gov.hmrc.vulnerabilities.model._
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, ServiceName, SlugInfoFlag, TotalVulnerabilityCount, Version, VulnerableComponent, VulnerabilityOccurrence, VulnerabilitySummary}
 import uk.gov.hmrc.vulnerabilities.connectors.TeamsAndRepositoriesConnector
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilityAgeRepository}
 
@@ -109,7 +108,8 @@ class VulnerabilitiesController @Inject()(
                                                    distinctVulnerability = x.distinctVulnerability.copy(vulnerableComponents = (x.distinctVulnerability.vulnerableComponents ++ xs.flatMap(_.distinctVulnerability.vulnerableComponents)).distinct.sortBy(o => (o.component, o.version)))
                                                  , occurrences           = x.occurrences ++ xs.flatMap(_.occurrences.headOption)
                                                  )
-                            case (_, List(x)) => x
+                            case (_, List(x: VulnerabilitySummary))
+                                              => x
                           }
       } yield Ok(Json.toJson(summaries))
     }

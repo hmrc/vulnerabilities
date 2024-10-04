@@ -1,7 +1,7 @@
 import play.sbt.routes.RoutesKeys
 
 ThisBuild / majorVersion := 0
-ThisBuild / scalaVersion := "2.13.12"
+ThisBuild / scalaVersion := "3.3.4"
 
 lazy val microservice = Project("vulnerabilities", file("."))
   .enablePlugins(play.sbt.PlayScala, SbtDistributablesPlugin)
@@ -9,11 +9,14 @@ lazy val microservice = Project("vulnerabilities", file("."))
   .settings(
     libraryDependencies     ++= AppDependencies.compile ++ AppDependencies.test,
     RoutesKeys.routesImport ++= Seq(
-      "uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, SlugInfoFlag, Version}",
-      "uk.gov.hmrc.vulnerabilities.binders.Binders._"
+      "uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, SlugInfoFlag, Version}"
+    , "uk.gov.hmrc.vulnerabilities.binders.Binders._"
     )
   )
-  .settings(scalacOptions += "-Wconf:src=routes/.*:s")
+  .settings(scalacOptions ++= Seq(
+    "-Wconf:src=routes/.*:s"
+  , "-Wconf:msg=Flag.*repeatedly:s"
+  ))
   .settings(PlayKeys.playDefaultPort := 8857)
   .settings(resolvers += Resolver.jcenterRepo)
   .settings(CodeCoverageSettings.settings: _*)

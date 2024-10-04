@@ -23,5 +23,5 @@ case class ServiceName(asString: String) extends AnyVal
 
 object ServiceName {
   val format: Format[ServiceName] =
-    implicitly[Format[String]].inmap(ServiceName.apply, unlift(ServiceName.unapply))
+    implicitly[Format[String]].inmap(ServiceName.apply, _.asString)
 }

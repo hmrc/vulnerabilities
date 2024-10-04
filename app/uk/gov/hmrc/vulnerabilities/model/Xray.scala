@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.model
 
-import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
+import play.api.libs.functional.syntax.toFunctionalBuilderOps
 import play.api.libs.json.{OFormat, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
@@ -31,7 +31,7 @@ object ReportResponse {
   val apiFormat =
   ( (__ \ "report_id").format[Int]
   ~ (__ \ "status"   ).format[String]
-  )(apply, unlift(unapply))
+  )(apply, pt => Tuple.fromProductTyped(pt))
 }
 
 case class ReportId(id: Int) extends AnyVal
@@ -51,7 +51,7 @@ object ReportStatus {
     ( (__ \ "status"         ).format[String]
     ~ (__ \ "number_of_rows" ).format[Int]
     ~ (__ \ "total_artifacts").format[Int]
-    )(apply, unlift(unapply))
+    )(apply, pt => Tuple.fromProductTyped(pt))
 }
 
 case class Report(
@@ -88,7 +88,7 @@ object Report {
     ~ (__ \ "development"   ).formatWithDefault[Boolean](false)
     ~ (__ \ "externaltest"  ).formatWithDefault[Boolean](false)
     ~ (__ \ "integration"   ).formatWithDefault[Boolean](false)
-    )(apply, unlift(unapply))
+    )(apply, pt => Tuple.fromProductTyped(pt))
   }
 
   val mongoFormat = {
@@ -109,7 +109,7 @@ object Report {
     ~ (__ \ "development"   ).formatWithDefault[Boolean](false)
     ~ (__ \ "externaltest"  ).formatWithDefault[Boolean](false)
     ~ (__ \ "integration"   ).formatWithDefault[Boolean](false)
-    )(apply, unlift(unapply))
+    )(apply, pt => Tuple.fromProductTyped(pt))
   }
 }
 
@@ -158,7 +158,7 @@ object RawVulnerability {
     ~ (__ \ "description"            ).format[String]
     ~ (__ \ "references"             ).format[Seq[String]]
     ~ (__ \ "project_keys"           ).format[Seq[String]]
-    )(apply, unlift(unapply))
+    )(apply, pt => Tuple.fromProductTyped(pt))
   }
 
   val mongoFormat: OFormat[RawVulnerability] = {
@@ -183,7 +183,7 @@ object RawVulnerability {
     ~ (__ \ "description"            ).format[String]
     ~ (__ \ "references"             ).format[Seq[String]]
     ~ (__ \ "project_keys"           ).format[Seq[String]]
-    )(apply, unlift(unapply))
+    )(apply, pt => Tuple.fromProductTyped(pt))
   }
 }
 
@@ -198,5 +198,5 @@ object CVE {
     ( (__ \ "cve"           ).formatNullable[String]
     ~ (__ \ "cvss_v3_score" ).formatNullable[Double]
     ~ (__ \ "cvss_v3_vector").formatNullable[String]
-    )(apply, unlift(unapply))
+    )(apply, pt => Tuple.fromProductTyped(pt))
 }

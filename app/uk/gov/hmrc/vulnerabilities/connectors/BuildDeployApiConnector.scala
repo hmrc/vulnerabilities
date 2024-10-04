@@ -19,6 +19,7 @@ package uk.gov.hmrc.vulnerabilities.connectors
 import play.api.Logging
 import play.api.libs.json._
 import play.api.libs.functional.syntax.{toFunctionalBuilderOps}
+import play.api.libs.ws.writeableOf_JsValue
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig

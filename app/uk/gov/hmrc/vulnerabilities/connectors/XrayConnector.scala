@@ -21,8 +21,9 @@ import org.apache.pekko.stream.scaladsl.{Source, StreamConverters}
 import org.apache.pekko.util.ByteString
 import play.api.{Configuration, Logging}
 import play.api.libs.json.{Json, Reads, __}
+import play.api.libs.ws.writeableOf_JsValue
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
-import uk.gov.hmrc.http.client.HttpClientV2
+import uk.gov.hmrc.http.client.{HttpClientV2, readEitherSource}
 import uk.gov.hmrc.vulnerabilities.model.{ReportId, RawVulnerability, ReportResponse, ReportStatus, ServiceName, Version}
 
 import java.io.InputStream
@@ -41,7 +42,6 @@ class XrayConnector @Inject() (
   ec           : ExecutionContext,
   mat          : Materializer
 ) extends Logging{
-
   import HttpReads.Implicits._
 
   private val xrayBaseUrl         : String         = configuration.get[String]("xray.url")
@@ -136,10 +136,10 @@ class XrayConnector @Inject() (
 
   // https://jfrog.com/help/r/xray-rest-apis/get-reports-list
   def getStaleReportIds()(implicit hc: HeaderCarrier): Future[Seq[ReportId]] = {
-    implicit val rir = {
-      implicit val rir = ReportId.reads
-      Reads.at[Seq[ReportId]](__ \ "reports")
-    }
+    given Reads[Seq[ReportId]] =
+      (__ \ "reports")
+        .read(Reads.seq[ReportId](ReportId.reads))
+
     val cutOff = Instant.now(clock).minus(xrayReportsRetention.toMillis, ChronoUnit.MILLIS)
     httpClientV2
       .post(url"${xrayBaseUrl}?page_num=1&num_of_rows=100")

@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-import org.mongodb.scala.MongoCollection
+import org.mongodb.scala.{MongoCollection, ObservableFuture}
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
@@ -43,7 +43,7 @@ class RawReportsRepositorySpec
     "regex.exclusion" -> "^(?!.*ehcache.*/rest-management-private-classpath/META-INF/maven/.*).*"
   )
 
-  override lazy val repository = new RawReportsRepository(mongoComponent, configuration)
+  override val repository: RawReportsRepository = RawReportsRepository(mongoComponent, configuration)
   private val now = Instant.now.truncatedTo(java.time.temporal.ChronoUnit.MILLIS)
 
   "find" should {

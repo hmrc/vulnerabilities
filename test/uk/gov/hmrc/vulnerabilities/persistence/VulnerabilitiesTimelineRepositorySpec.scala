@@ -16,8 +16,8 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
+import org.mongodb.scala.ObservableFuture
 import org.scalatest.concurrent.IntegrationPatience
-
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
@@ -34,7 +34,7 @@ class VulnerabilitiesTimelineRepositorySpec
      with DefaultPlayMongoRepositorySupport[TimelineEvent]
      with IntegrationPatience  {
 
-  override lazy val repository = new VulnerabilitiesTimelineRepository(mongoComponent)
+  override val repository: VulnerabilitiesTimelineRepository = VulnerabilitiesTimelineRepository(mongoComponent)
 
   "replaceOrInsert" should {
     val te1 = TimelineEvent(id = "CVE-1", service = "service1", weekBeginning = Instant.parse("2022-12-12T00:00:00.000Z"), teams = Seq("team1", "team2"), curationStatus = ActionRequired)

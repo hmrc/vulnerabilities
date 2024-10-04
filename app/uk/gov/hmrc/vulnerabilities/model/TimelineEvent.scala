@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.model
 
-import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
+import play.api.libs.functional.syntax.toFunctionalBuilderOps
 import play.api.libs.json.{Format, OFormat, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
@@ -39,7 +39,7 @@ object TimelineEvent {
     ~ (__ \ "weekBeginning" ).format[Instant](MongoJavatimeFormats.instantFormat)
     ~ (__ \ "teams"         ).format[Seq[String]]
     ~ (__ \ "curationStatus").format[CurationStatus]
-    )(apply, unlift(unapply))
+    )(apply, pt => Tuple.fromProductTyped(pt))
 
   val apiFormat: OFormat[TimelineEvent] =
     ( (__ \ "id"            ).format[String]
@@ -47,7 +47,7 @@ object TimelineEvent {
     ~ (__ \ "weekBeginning" ).format[Instant]
     ~ (__ \ "teams"         ).format[Seq[String]]
     ~ (__ \ "curationStatus").format[CurationStatus]
-    )(apply, unlift(unapply))
+    )(apply, pt => Tuple.fromProductTyped(pt))
 }
 
 case class VulnerabilitiesTimelineCount(
@@ -60,10 +60,10 @@ object VulnerabilitiesTimelineCount {
   val mongoFormat: OFormat[VulnerabilitiesTimelineCount] =
     ( (__ \ "_id"  ).format[Instant](MongoJavatimeFormats.instantFormat)
     ~ (__ \ "count").format[Int]
-    )(apply, unlift(unapply))
+    )(apply, pt => Tuple.fromProductTyped(pt))
 
   val apiFormat: OFormat[VulnerabilitiesTimelineCount] =
     ( (__ \ "weekBeginning").format[Instant]
     ~ (__ \ "count"        ).format[Int]
-    )(apply, unlift(unapply))
+    )(apply, pt => Tuple.fromProductTyped(pt))
 }

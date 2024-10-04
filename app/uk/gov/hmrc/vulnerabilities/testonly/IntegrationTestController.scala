@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.testonly
 
+import org.mongodb.scala.ObservableFuture
 import org.mongodb.scala.bson.BsonDocument
 import play.api.libs.json.{JsError, JsString, OFormat, Reads}
 import play.api.mvc.{Action, AnyContent, BodyParser, ControllerComponents}

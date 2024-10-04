@@ -16,8 +16,8 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-import com.mongodb.client.model.Indexes
-import org.mongodb.scala.model.{IndexModel, IndexOptions}
+import org.mongodb.scala.ObservableFuture
+import org.mongodb.scala.model.{IndexModel, IndexOptions, Indexes}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.vulnerabilities.model.Assessment

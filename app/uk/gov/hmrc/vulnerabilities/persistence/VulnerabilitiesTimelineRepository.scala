@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-
+import org.mongodb.scala.ObservableFuture
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.Aggregates.{`match`, group}
 import org.mongodb.scala.model.Indexes.{compoundIndex, descending}
