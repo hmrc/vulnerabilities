@@ -25,16 +25,15 @@ import software.amazon.awssdk.services.sqs.model.{DeleteMessageRequest, Message,
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.DurationLong
-import scala.jdk.CollectionConverters._
-import scala.jdk.FutureConverters._
+import scala.jdk.CollectionConverters.*
+import scala.jdk.FutureConverters.*
 import scala.util.control.NonFatal
 import java.net.URL
 
-case class SqsConfig(keyPrefix: String, configuration: Configuration) {
-  lazy val queueUrl           : URL = new URL(configuration.get[String](s"$keyPrefix.queueUrl"))
+case class SqsConfig(keyPrefix: String, configuration: Configuration):
+  lazy val queueUrl           : URL = URL(configuration.get[String](s"$keyPrefix.queueUrl"))
   lazy val maxNumberOfMessages: Int = configuration.get[Int](s"$keyPrefix.maxNumberOfMessages")
   lazy val waitTimeSeconds    : Int = configuration.get[Int](s"$keyPrefix.waitTimeSeconds")
-}
 
 abstract class SqsConsumer(
   name       : String
@@ -43,23 +42,20 @@ abstract class SqsConsumer(
 (implicit
   actorSystem: ActorSystem,
   ec         : ExecutionContext
-) extends Logging {
+) extends Logging:
 
-  private val awsSqsClient: SqsAsyncClient = {
+  private val awsSqsClient: SqsAsyncClient =
     val client = SqsAsyncClient.builder().build()
     actorSystem.registerOnTermination(client.close())
     client
-  }
 
-  private def getMessages(req: ReceiveMessageRequest): Future[Seq[Message]] = {
+  private def getMessages(req: ReceiveMessageRequest): Future[Seq[Message]] =
     logger.info(s"receiving $name messages")
     awsSqsClient.receiveMessage(req).asScala
      .map(_.messages.asScala.toSeq)
-     .map { res =>
+     .map: res =>
       logger.info(s"received $name ${res.size} messages")
       res
-     }
-  }
 
   private def deleteMessage(message: Message): Future[Unit] =
     awsSqsClient.deleteMessage(
@@ -68,22 +64,20 @@ abstract class SqsConsumer(
         .receiptHandle(message.receiptHandle)
         .build()
     ).asScala
-    .map(_ => ())
-
+     .map(_ => ())
 
   private def dedupe(source: Source[Message, NotUsed]): Source[Message, NotUsed] =
     Source
       .single(Message.builder.messageId("----------").build) // dummy value since the dedupe will ignore the first entry
       .concat(source)
       .sliding(2, 1)
-      .mapConcat {
+      .mapConcat:
         case prev +: current +: _
-          if (prev.messageId == current.messageId) =>
+          if prev.messageId == current.messageId =>
             logger.warn(s"Read the same $name message ID twice ${prev.messageId} - ignoring duplicate")
             List.empty
         case prev +: current +: _ =>
           List(current)
-      }
 
   def runQueue(): Future[Done] =
     dedupe(
@@ -96,28 +90,22 @@ abstract class SqsConsumer(
       ).mapAsync(parallelism = 1)(getMessages)
        .mapConcat(xs => xs)
     )
-    .mapAsync(parallelism = 1) { message =>
+    .mapAsync(parallelism = 1): message =>
       processMessage(message)
-        .flatMap[Unit] {
+        .flatMap:
           case MessageAction.Delete(message) => deleteMessage(message)
           case MessageAction.Ignore(_)       => Future.unit
-        }.recover {
+        .recover:
           case NonFatal(e) => logger.error(s"Failed to process $name messages", e)
-        }
-    }
     .run()
-    .andThen { res =>
+    .andThen: res =>
       logger.info(s"Queue $name terminated: $res - restarting")
       actorSystem.scheduler.scheduleOnce(10.seconds)(runQueue())
-    }
 
   runQueue()
 
   protected def processMessage(message: Message): Future[MessageAction]
-}
 
-sealed trait MessageAction
-object MessageAction {
-  case class Delete(message: Message) extends MessageAction
-  case class Ignore(message: Message) extends MessageAction
-}
+enum MessageAction:
+  case Delete(message: Message) extends MessageAction
+  case Ignore(message: Message) extends MessageAction

@@ -35,12 +35,12 @@ class ReloadScheduler @Inject()(
   xrayService        : XrayService,
   mongoLockRepository: MongoLockRepository,
   timestampSupport   : TimestampSupport
-)(implicit
+)(using
   actorSystem         : ActorSystem,
   applicationLifecycle: ApplicationLifecycle,
   ec                  : ExecutionContext
 ) extends SchedulerUtils
-  with Logging {
+    with Logging:
 
   private val schedulerConfigs =
     SchedulerConfig(configuration, "scheduler.rescan")
@@ -56,9 +56,7 @@ class ReloadScheduler @Inject()(
       schedulerInterval = schedulerConfigs.interval
     )
 
-  implicit val hc: HeaderCarrier = HeaderCarrier()
+  private given HeaderCarrier = HeaderCarrier()
 
-  scheduleWithLock("Vulnerabilities data Reloader", schedulerConfigs, lock) {
+  scheduleWithLock("Vulnerabilities data Reloader", schedulerConfigs, lock):
     xrayService.rescanStaleReports(reportsBefore())
-  }
-}

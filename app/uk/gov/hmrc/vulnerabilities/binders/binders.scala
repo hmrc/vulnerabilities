@@ -22,33 +22,29 @@ import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, Version}
 import java.time.Instant
 import scala.util.Try
 
-object Binders {
-  implicit def instantBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[Instant] =
-    new QueryStringBindable[Instant] {
-      override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, Instant]] = {
-        strBinder.bind(key, params).map(
+object Binders:
+  given instantBindable(using strBinder: QueryStringBindable[String]): QueryStringBindable[Instant] with
+    override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, Instant]] =
+      strBinder
+        .bind(key, params)
+        .map:
           _.flatMap(s => Try(Instant.parse(s)).toEither.left.map(_.getMessage))
-        )
-      }
 
-      override def unbind(key: String, value: Instant): String =
-        strBinder.unbind(key, value.toString)
-    }
+    override def unbind(key: String, value: Instant): String =
+      strBinder.unbind(key, value.toString)
 
-  implicit def curationStatusBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[CurationStatus] =
-    new QueryStringBindable[CurationStatus] {
-      override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, CurationStatus]] =
-        strBinder.bind(key, params).map(
+  given curationStatusBindable(using strBinder: QueryStringBindable[String]): QueryStringBindable[CurationStatus] with
+    override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, CurationStatus]] =
+      strBinder
+        .bind(key, params)
+        .map:
           _.flatMap(s => CurationStatus.parse(s))
-        )
 
-      override def unbind(key: String, value: CurationStatus): String =
-        strBinder.unbind(key, value.asString)
-    }
+    override def unbind(key: String, value: CurationStatus): String =
+      strBinder.unbind(key, value.asString)
 
-  implicit def serviceNameBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[ServiceName] =
+  given serviceNameBindable(using strBinder: QueryStringBindable[String]): QueryStringBindable[ServiceName] =
     strBinder.transform(ServiceName.apply, _.asString)
 
-  implicit def versionBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[Version] =
+  given versionBindable(using strBinder: QueryStringBindable[String]): QueryStringBindable[Version] =
     strBinder.transform(Version.apply, _.original)
-}

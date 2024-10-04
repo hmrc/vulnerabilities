@@ -17,19 +17,16 @@
 package uk.gov.hmrc.vulnerabilities.scheduler
 
 import org.apache.pekko.actor.ActorSystem
-import play.api.Logger
+import play.api.Logging
 import play.api.inject.ApplicationLifecycle
 import uk.gov.hmrc.mongo.lock.ScheduledLockService
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 
-trait SchedulerUtils {
-
-  private val logger = Logger(this.getClass)
-
-  private def schedule(
-    label: String,
+trait SchedulerUtils extends Logging:
+  def schedule(
+    label          : String,
     schedulerConfig: SchedulerConfig
   )(f: => Future[Unit]
   )(implicit
@@ -37,51 +34,41 @@ trait SchedulerUtils {
     applicationLifecycle: ApplicationLifecycle,
     ec                  : ExecutionContext
   ): Unit =
-    if (schedulerConfig.enabled) {
+    if schedulerConfig.enabled then
       val initialDelay = schedulerConfig.initialDelay
       val interval     = schedulerConfig.interval
       logger.info(s"Enabling $label scheduler, running every $interval (after initial delay $initialDelay)")
       val cancellable =
-        actorSystem.scheduler.scheduleWithFixedDelay(initialDelay, interval) { () =>
+        actorSystem.scheduler.scheduleWithFixedDelay(initialDelay, interval): () =>
           val start = System.currentTimeMillis
           logger.info(s"Scheduler $label started")
-          f.map { res =>
-             logger.info(s"Scheduler $label finished - took ${System.currentTimeMillis - start} millis")
-             res
-           }
-           .recover {
-             case e =>
-               logger.error(s"$label interrupted after ${System.currentTimeMillis - start} millis because: ${e.getMessage}", e)
-           }
-        }
+          f.map: res =>
+            logger.info(s"Scheduler $label finished - took ${System.currentTimeMillis - start} millis")
+            res
+          .recover:
+            case NonFatal(e) => logger.error(s"$label interrupted after ${System.currentTimeMillis - start} millis because: ${e.getMessage}", e)
 
-      applicationLifecycle.addStopHook(() => Future(cancellable.cancel()))
-    } else {
-      logger.info(
-        s"$label scheduler is DISABLED. to enable, configure configure ${schedulerConfig.enabledKey}=true in config.")
-    }
+      applicationLifecycle.addStopHook(() => Future.successful(cancellable.cancel()))
+    else
+      logger.info(s"$label scheduler is DISABLED. to enable, configure configure ${schedulerConfig.enabledKey}=true in config.")
 
   def scheduleWithLock(
-    label: String,
+    label          : String,
     schedulerConfig: SchedulerConfig,
-    lock: ScheduledLockService
+    lock           : ScheduledLockService
   )(f: => Future[Unit]
   )(implicit
-    actorSystem: ActorSystem,
+    actorSystem         : ActorSystem,
     applicationLifecycle: ApplicationLifecycle,
-    ec: ExecutionContext
+    ec                  : ExecutionContext
   ): Unit =
-    schedule(label, schedulerConfig) {
+    schedule(label, schedulerConfig):
       lock
         .withLock(f)
-        .map {
+        .map:
           case Some(_) => logger.debug(s"$label finished - releasing lock")
-          case None => logger.debug(s"$label cannot run - lock ${lock.lockId} is taken... skipping update")
-        }
-        .recover {
+          case None    => logger.debug(s"$label cannot run - lock ${lock.lockId} is taken... skipping update")
+        .recover:
           case NonFatal(e) => logger.error(s"$label interrupted because: ${e.getMessage}", e)
-        }
-    }
-}
 
 object SchedulerUtils extends SchedulerUtils

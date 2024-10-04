@@ -28,20 +28,17 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class AssessmentsRepository @Inject()(
   mongoComponent: MongoComponent
-)(implicit
+)(using
   ec            : ExecutionContext
 ) extends PlayMongoRepository(
   collectionName = "assessments",
   mongoComponent = mongoComponent,
   domainFormat   = Assessment.mongoFormat,
-  indexes        = Seq(
-                     IndexModel(Indexes.ascending("id"), IndexOptions().unique(true).background(true)),
-                   )
-) {
+  indexes        = Seq(IndexModel(Indexes.ascending("id"), IndexOptions().unique(true).background(true)))
+):
   // No ttl required for this collection - contains assessments created by ourselves which will evolve over time
   override lazy val requiresTtlIndex = false
 
   // Note assessments are inserted into Mongo directly
   def getAssessments(): Future[Seq[Assessment]] =
     collection.find().toFuture()
-}

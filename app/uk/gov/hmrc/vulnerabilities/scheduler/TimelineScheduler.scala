@@ -39,11 +39,11 @@ class TimelineScheduler @Inject()(
   timelineRepository    : VulnerabilitiesTimelineRepository,
   mongoLockRepository   : MongoLockRepository,
   timestampSupport      : TimestampSupport
- )(implicit
+ )(using
   actorSystem           : ActorSystem,
   applicationLifecycle  : ApplicationLifecycle,
   ec                    : ExecutionContext
- ) extends SchedulerUtils with Logging {
+ ) extends SchedulerUtils with Logging:
 
   private val schedulerConfigs =
     SchedulerConfig(configuration, "scheduler.timeline")
@@ -56,9 +56,9 @@ class TimelineScheduler @Inject()(
       schedulerInterval = schedulerConfigs.interval
     )
 
-  implicit val hc: HeaderCarrier = HeaderCarrier()
+  given HeaderCarrier = HeaderCarrier()
 
-  scheduleWithLock("Vulnerabilities timeline updater", schedulerConfigs, lock) {
+  scheduleWithLock("Vulnerabilities timeline updater", schedulerConfigs, lock):
     val weekBeginning =
       LocalDate
         .now()
@@ -68,18 +68,15 @@ class TimelineScheduler @Inject()(
 
     timelineRepository
       .getTimelineCounts(from = weekBeginning, to = weekBeginning)
-      .flatMap {
-        case xs if (xs.nonEmpty)  =>
+      .flatMap:
+        case xs if xs.nonEmpty  =>
           logger.info(s"Timeline scheduler week beginning: $weekBeginning detected weekly data has already been added - aborting run")
           Future.unit
         case _ =>
-          for {
+          for
             timeline          <- rawReportsRepository.getTimelineData(weekBeginning)
             repositoryTeams   <- teamsAndReposConnector.cachedTeamToReposMap()
             timelineWithTeams =  timeline.map(sv => sv.copy(teams = repositoryTeams.getOrElse(sv.service, Seq())))
             _                 <- timelineRepository.replaceOrInsert(timelineWithTeams)
             _                 =  logger.info(s"Timeline scheduler week beginning: $weekBeginning has added the weekly data: ${timelineWithTeams.size} rows")
-          } yield ()
-      }
-  }
-}
+          yield ()

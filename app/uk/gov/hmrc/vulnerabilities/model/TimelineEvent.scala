@@ -17,7 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.model
 
 import play.api.libs.functional.syntax.toFunctionalBuilderOps
-import play.api.libs.json.{Format, OFormat, __}
+import play.api.libs.json.{Format, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant
@@ -30,40 +30,36 @@ case class TimelineEvent(
   curationStatus: CurationStatus
 )
 
-object TimelineEvent {
-  implicit val csf: Format[CurationStatus] = CurationStatus.format
-
-  val mongoFormat: OFormat[TimelineEvent] =
+object TimelineEvent:
+  val mongoFormat: Format[TimelineEvent] =
     ( (__ \ "id"            ).format[String]
     ~ (__ \ "service"       ).format[String]
     ~ (__ \ "weekBeginning" ).format[Instant](MongoJavatimeFormats.instantFormat)
     ~ (__ \ "teams"         ).format[Seq[String]]
-    ~ (__ \ "curationStatus").format[CurationStatus]
+    ~ (__ \ "curationStatus").format[CurationStatus](CurationStatus.format)
     )(apply, pt => Tuple.fromProductTyped(pt))
 
-  val apiFormat: OFormat[TimelineEvent] =
+  val apiFormat: Format[TimelineEvent] =
     ( (__ \ "id"            ).format[String]
     ~ (__ \ "service"       ).format[String]
     ~ (__ \ "weekBeginning" ).format[Instant]
     ~ (__ \ "teams"         ).format[Seq[String]]
-    ~ (__ \ "curationStatus").format[CurationStatus]
+    ~ (__ \ "curationStatus").format[CurationStatus](CurationStatus.format)
     )(apply, pt => Tuple.fromProductTyped(pt))
-}
 
 case class VulnerabilitiesTimelineCount(
   weekBeginning       : Instant,
   count               : Int
 )
 
-object VulnerabilitiesTimelineCount {
+object VulnerabilitiesTimelineCount:
 
-  val mongoFormat: OFormat[VulnerabilitiesTimelineCount] =
+  val mongoFormat: Format[VulnerabilitiesTimelineCount] =
     ( (__ \ "_id"  ).format[Instant](MongoJavatimeFormats.instantFormat)
     ~ (__ \ "count").format[Int]
     )(apply, pt => Tuple.fromProductTyped(pt))
 
-  val apiFormat: OFormat[VulnerabilitiesTimelineCount] =
+  val apiFormat: Format[VulnerabilitiesTimelineCount] =
     ( (__ \ "weekBeginning").format[Instant]
     ~ (__ \ "count"        ).format[Int]
     )(apply, pt => Tuple.fromProductTyped(pt))
-}

@@ -30,7 +30,7 @@ case class Assessment(
   ticket        : String
 )
 
-object Assessment {
+object Assessment:
   val apiFormat =
     ( (__ \ "id"            ).format[String]
     ~ (__ \ "assessment"    ).format[String]
@@ -46,4 +46,3 @@ object Assessment {
     ~ (__ \ "lastReviewed"  ).format[Instant](MongoJavatimeFormats.instantFormat)
     ~ (__ \ "ticket"        ).format[String]
     )(apply, pt => Tuple.fromProductTyped(pt))
-}

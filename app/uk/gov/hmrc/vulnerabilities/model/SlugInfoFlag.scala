@@ -21,7 +21,7 @@ import play.api.mvc.{PathBindable, QueryStringBindable}
 
 sealed trait SlugInfoFlag { def asString: String }
 
-object SlugInfoFlag {
+object SlugInfoFlag:
   case object Latest       extends SlugInfoFlag { val asString = "latest"      }
   case object Development  extends SlugInfoFlag { val asString = "development" }
   case object Integration  extends SlugInfoFlag { val asString = "integration" }
@@ -37,33 +37,26 @@ object SlugInfoFlag {
   def parse(s: String): Option[SlugInfoFlag] =
     values.find(_.asString == s)
 
-  val format: Format[SlugInfoFlag] = new Format[SlugInfoFlag] {
+  val format: Format[SlugInfoFlag] = new Format[SlugInfoFlag]:
     override def writes(o: SlugInfoFlag): JsValue = JsString(o.asString)
     override def reads(json: JsValue): JsResult[SlugInfoFlag] =
       json.validate[String].flatMap(s => SlugInfoFlag.parse(s).map(e => JsSuccess(e)).getOrElse(JsError("invalid SlugInfoFlag")))
-  }
 
-  implicit val pathBindable: PathBindable[SlugInfoFlag] =
-    new PathBindable[SlugInfoFlag] {
-      override def bind(key: String, value: String): Either[String, SlugInfoFlag] =
-        parse(value).toRight(s"Invalid SlugInfoFlag '$value'")
+  given PathBindable[SlugInfoFlag] with
+    override def bind(key: String, value: String): Either[String, SlugInfoFlag] =
+      parse(value).toRight(s"Invalid SlugInfoFlag '$value'")
 
-      override def unbind(key: String, value: SlugInfoFlag): String =
-        value.asString
-    }
+    override def unbind(key: String, value: SlugInfoFlag): String =
+      value.asString
 
   import cats.data.EitherT
-  implicit def queryStringBindable(implicit stringBinder: QueryStringBindable[String]): QueryStringBindable[SlugInfoFlag] =
-    new QueryStringBindable[SlugInfoFlag] {
-      override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, SlugInfoFlag]] =
-        ( for {
-            x <- EitherT.apply(stringBinder.bind(key, params))
-            y <- EitherT.fromOption[Option](SlugInfoFlag.parse(x), s"Invalid SlugInfoFlag '$x'")
-          } yield y
-        ).value
+  given queryStringBindable(using stringBinder: QueryStringBindable[String]): QueryStringBindable[SlugInfoFlag] with
+    override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, SlugInfoFlag]] =
+      ( for
+          x <- EitherT.apply(stringBinder.bind(key, params))
+          y <- EitherT.fromOption[Option](SlugInfoFlag.parse(x), s"Invalid SlugInfoFlag '$x'")
+        yield y
+      ).value
 
-      override def unbind(key: String, value: SlugInfoFlag): String =
-        stringBinder.unbind(key, value.toString)
-    }
-}
-
+    override def unbind(key: String, value: SlugInfoFlag): String =
+      stringBinder.unbind(key, value.toString)

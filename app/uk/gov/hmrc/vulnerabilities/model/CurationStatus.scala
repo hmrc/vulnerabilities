@@ -20,8 +20,7 @@ import play.api.libs.json.{Format, JsError, JsResult, JsString, JsSuccess, JsVal
 
 sealed trait CurationStatus { def asString: String}
 
-object CurationStatus {
-
+object CurationStatus:
   case object InvestigationOngoing extends CurationStatus { override val asString = "INVESTIGATION_ONGOING"}
   case object NoActionRequired     extends CurationStatus { override val asString = "NO_ACTION_REQUIRED"}
   case object ActionRequired       extends CurationStatus { override val asString = "ACTION_REQUIRED"}
@@ -34,7 +33,7 @@ object CurationStatus {
       .find(_.asString.equalsIgnoreCase(s))
       .toRight(s"Invalid CurationStatus, should be one of: ${values.map(_.asString).mkString(", ")}")
 
-  val format: Format[CurationStatus] = new Format[CurationStatus] {
+  val format: Format[CurationStatus] = new Format[CurationStatus]:
     override def reads(json: JsValue): JsResult[CurationStatus] =
       json match {
         case JsString(s) =>
@@ -44,6 +43,3 @@ object CurationStatus {
 
     override def writes(cs: CurationStatus): JsValue =
       JsString(cs.asString)
-  }
-
-}

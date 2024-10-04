@@ -21,7 +21,6 @@ import play.api.libs.functional.syntax._
 
 case class ServiceName(asString: String) extends AnyVal
 
-object ServiceName {
+object ServiceName:
   val format: Format[ServiceName] =
-    implicitly[Format[String]].inmap(ServiceName.apply, _.asString)
-}
+    summon[Format[String]].inmap(ServiceName.apply, _.asString)

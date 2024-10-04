@@ -37,46 +37,43 @@ class DeploymentHandler @Inject()(
   configuration       : Configuration
 , rawReportsRepository: RawReportsRepository
 , xrayService         : XrayService
-)(implicit
-  actorSystem: ActorSystem,
-  ec         : ExecutionContext
+)(using
+  actorSystem         : ActorSystem,
+  ec                  : ExecutionContext
 ) extends SqsConsumer(
   name   = "Deployment"
 , config = SqsConfig("aws.sqs.deployment", configuration)
-)(actorSystem, ec) {
-
-  private implicit val hc: HeaderCarrier = HeaderCarrier()
+):
+  private given HeaderCarrier = HeaderCarrier()
 
   private def prefix(payload: DeploymentHandler.DeploymentEvent) =
     s"Deployment (${payload.eventType}) ${payload.serviceName.asString} ${payload.version.original} ${payload.environment.asString}"
 
-  override protected def processMessage(message: Message): Future[MessageAction] = {
+  override protected def processMessage(message: Message): Future[MessageAction] =
     logger.debug(s"Starting processing Deployment message with ID '${message.messageId()}'")
-    (for {
+    (for
       payload <- EitherT
                    .fromEither[Future](Json.parse(message.body).validate(DeploymentHandler.mdtpEventReads).asEither)
                    .leftMap(error => s"Could not parse Deployment message with ID '${message.messageId()}'. Reason: $error")
-       _      <- payload.eventType match {
-                   case "deployment-complete"   => for {
+       _      <- payload.eventType match
+                   case "deployment-complete"   =>
+                                                   for
                                                      exists <- EitherT.right[String](rawReportsRepository.exists(payload.serviceName, payload.version))
-                                                     _      <- if (exists) EitherT.right[String](rawReportsRepository.setFlag(payload.environment, payload.serviceName, payload.version))
-                                                               else        EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, payload.slugUri, Some(payload.environment)))
-                                                   } yield ()
+                                                     _      <- if   exists
+                                                               then EitherT.right[String](rawReportsRepository.setFlag(payload.environment, payload.serviceName, payload.version))
+                                                               else EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, payload.slugUri, Some(payload.environment)))
+                                                   yield ()
                    case "undeployment-complete" => EitherT.right[String](rawReportsRepository.clearFlag(payload.environment, payload.serviceName))
                    case _                       => EitherT.right[String](Future.unit)
-                 }
       _       =  logger.info(s"${prefix(payload)} with ID '${message.messageId()}' successfully processed.")
-    } yield
+     yield
       MessageAction.Delete(message)
     ).fold(
       error  => {logger.error(error); MessageAction.Ignore(message)}
     , action => action
     )
-  }
-}
 
-object DeploymentHandler {
-
+object DeploymentHandler:
   private case class DeploymentEvent(
     eventType  : String
   , environment: SlugInfoFlag
@@ -95,4 +92,3 @@ object DeploymentHandler {
     ~ (__ \ "microservice_version").read[Version](Version.format)
     ~ (__ \ "slug_uri"            ).read[String]
     )(DeploymentEvent.apply _)
-}

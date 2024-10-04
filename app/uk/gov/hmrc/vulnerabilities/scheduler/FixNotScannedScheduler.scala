@@ -33,12 +33,12 @@ class FixNotScannedScheduler @Inject()(
   xrayService        : XrayService,
   mongoLockRepository: MongoLockRepository,
   timestampSupport   : TimestampSupport
-)(implicit
+)(using
   actorSystem         : ActorSystem,
   applicationLifecycle: ApplicationLifecycle,
   ec                  : ExecutionContext
 ) extends SchedulerUtils
-  with Logging {
+     with Logging:
 
   private val schedulerConfigs =
     SchedulerConfig(configuration, "scheduler.fix-not-scanned")
@@ -51,9 +51,7 @@ class FixNotScannedScheduler @Inject()(
       schedulerInterval = schedulerConfigs.interval
     )
 
-  implicit val hc: HeaderCarrier = HeaderCarrier()
+  private given HeaderCarrier = HeaderCarrier()
 
-  scheduleWithLock("FixNotScannedScheduler", schedulerConfigs, lock) {
+  scheduleWithLock("FixNotScannedScheduler", schedulerConfigs, lock):
     xrayService.fixNotScanned()
-  }
-}

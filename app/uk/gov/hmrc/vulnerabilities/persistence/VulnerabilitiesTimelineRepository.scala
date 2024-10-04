@@ -33,38 +33,36 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class VulnerabilitiesTimelineRepository @Inject()(
   mongoComponent: MongoComponent,
-)(implicit
+)(using
   ec            : ExecutionContext
 ) extends PlayMongoRepository(
   collectionName = "vulnerabilitiesTimeline",
   mongoComponent = mongoComponent,
   domainFormat   = TimelineEvent.mongoFormat,
   indexes        = Seq(
-    IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")),IndexOptions().unique(true).background(true)),
-    IndexModel(Indexes.ascending("weekBeginning"),IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS).background(true)),
-    IndexModel(Indexes.ascending("id"),IndexOptions().name("id").background(true)),
-    IndexModel(Indexes.ascending("service"),IndexOptions().name("service").background(true)),
-    IndexModel(Indexes.ascending("teams"),IndexOptions().name("teams").background(true)),
-    IndexModel(Indexes.ascending("curationStatus"),IndexOptions().name("curationStatus").background(true))
-  )
-)
-{
-  def replaceOrInsert(serviceVulnerabilities: Seq[TimelineEvent]): Future[Unit] = {
-    val bulkWrites = serviceVulnerabilities.map(sv =>
-      ReplaceOneModel(
-        Filters.and(
-          Filters.equal("id", sv.id),
-          Filters.equal("service", sv.service),
-          Filters.equal("weekBeginning", sv.weekBeginning)
-        ),
-        sv,
-        ReplaceOptions().upsert(true)
-      )
-    )
-    collection.bulkWrite(bulkWrites).toFuture().map(_ => ())
-  }
+                     IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")),IndexOptions().unique(true).background(true)),
+                     IndexModel(Indexes.ascending("weekBeginning"),IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS).background(true)),
+                     IndexModel(Indexes.ascending("id"),IndexOptions().name("id").background(true)),
+                     IndexModel(Indexes.ascending("service"),IndexOptions().name("service").background(true)),
+                     IndexModel(Indexes.ascending("teams"),IndexOptions().name("teams").background(true)),
+                     IndexModel(Indexes.ascending("curationStatus"),IndexOptions().name("curationStatus").background(true))
+                   )
+):
+  def replaceOrInsert(serviceVulnerabilities: Seq[TimelineEvent]): Future[Unit] =
+    collection.bulkWrite(
+      serviceVulnerabilities.map: sv =>
+        ReplaceOneModel(
+          Filters.and(
+            Filters.equal("id", sv.id),
+            Filters.equal("service", sv.service),
+            Filters.equal("weekBeginning", sv.weekBeginning)
+          ),
+          sv,
+          ReplaceOptions().upsert(true)
+        )
+    ).toFuture().map(_ => ())
 
-  val Quoted = """^\"(.*)\"$""".r
+  private val Quoted = """^\"(.*)\"$""".r
 
   def getTimelineCounts(
     serviceName   : Option[ServiceName]    = None
@@ -73,7 +71,7 @@ class VulnerabilitiesTimelineRepository @Inject()(
   , curationStatus: Option[CurationStatus] = None
   , from          : Instant
   , to            : Instant
-  ): Future[Seq[VulnerabilitiesTimelineCount]] = {
+  ): Future[Seq[VulnerabilitiesTimelineCount]] =
     val optFilters: Seq[Bson] = Seq(
       serviceName.map {
         case ServiceName(Quoted(s)) => Filters.equal("service", s.toLowerCase())
@@ -86,11 +84,9 @@ class VulnerabilitiesTimelineRepository @Inject()(
 
     val pipeline: Seq[Bson] = Seq(
       Some(`match`(Filters.and(Filters.gte("weekBeginning", from), Filters.lte("weekBeginning",to)))),
-      if (optFilters.isEmpty) None else Some(`match`(Filters.and(optFilters: _*))),
+      if optFilters.isEmpty then None else Some(`match`(Filters.and(optFilters: _*))),
       Some(group(id = "$weekBeginning", Accumulators.sum("count", 1)))
     ).flatten
 
     CollectionFactory.collection(mongoComponent.database, "vulnerabilitiesTimeline", VulnerabilitiesTimelineCount.mongoFormat)
       .aggregate(pipeline).toFuture()
-  }
-}

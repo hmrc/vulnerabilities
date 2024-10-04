@@ -39,46 +39,43 @@ class SlugInfoHandler @Inject()(
   rawReportsRepository      : RawReportsRepository,
   xrayService               : XrayService
 )(implicit
-  actorSystem         : ActorSystem,
-  ec                  : ExecutionContext
+  actorSystem               : ActorSystem,
+  ec                        : ExecutionContext
 ) extends SqsConsumer(
   name                = "SlugInfo"
 , config              = SqsConfig("aws.sqs.slug", configuration)
-)(actorSystem, ec) {
-
+)(actorSystem, ec):
   private implicit val hc: HeaderCarrier = HeaderCarrier()
 
   private def prefix(payload: SlugInfoHandler.SlugEvent) =
     s"SlugInfo (${payload.jobType}) ${payload.eventType} ${payload.serviceName.asString} ${payload.version.original}"
 
-  override protected def processMessage(message: Message): Future[MessageAction] = {
+  override protected def processMessage(message: Message): Future[MessageAction] =
     logger.debug(s"Starting processing SlugInfo message with ID '${message.messageId()}'")
-    (for {
+    (for
       payload <- EitherT
                    .fromEither[Future](Json.parse(message.body).validate(SlugInfoHandler.reads).asEither)
                    .leftMap(error => s"Could not parse SlugInfo message with ID '${message.messageId()}'. Reason: $error")
-       _      <- (payload.jobType, payload.eventType) match {
-                   case ("slug", "creation") => for {
+       _      <- (payload.jobType, payload.eventType) match
+                   case ("slug", "creation") =>
+                                                for
                                                   slug <- EitherT.fromOptionF(
                                                             artefactProcessorConnector.getSlugInfo(payload.serviceName, payload.version),
                                                             s"SlugInfo for name: ${payload.serviceName.asString}, version: ${payload.version.original} was not found"
                                                           )
                                                   _    <- EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, slug.uri))
-                                                } yield ()
+                                                yield ()
                    case ("slug", "deletion") => EitherT.right[String](rawReportsRepository.delete(payload.serviceName, payload.version))
                    case _                    => EitherT.right[String](Future.unit)
-                 }
       _       =  logger.info(s"${prefix(payload)} with ID '${message.messageId()}' successfully processed.")
-    } yield
+     yield
       MessageAction.Delete(message)
     ).fold(
       error  => {logger.error(error); MessageAction.Ignore(message)}
     , action => action
     )
-  }
-}
 
-object SlugInfoHandler {
+object SlugInfoHandler:
   import play.api.libs.json.{Reads, __}
   import play.api.libs.functional.syntax._
 
@@ -95,4 +92,3 @@ object SlugInfoHandler {
     ~ (__ \ "name"   ).read[ServiceName](ServiceName.format)
     ~ (__ \ "version").read[Version](Version.format)
     )(SlugEvent.apply _)
-}

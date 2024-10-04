@@ -38,10 +38,10 @@ class XrayConnector @Inject() (
   configuration: Configuration,
   httpClientV2 : HttpClientV2,
   clock        : Clock
-)(implicit
+)(using
   ec           : ExecutionContext,
   mat          : Materializer
-) extends Logging{
+) extends Logging:
   import HttpReads.Implicits._
 
   private val xrayBaseUrl         : String         = configuration.get[String]("xray.url")
@@ -53,8 +53,8 @@ class XrayConnector @Inject() (
     s"AppSec-report-${serviceName.asString}_${version.original.replaceAll("\\.", "_")}"
 
   // https://jfrog.com/help/r/xray-rest-apis/generate-vulnerabilities-report
-  def generateReport(serviceName: ServiceName, version: Version)(implicit hc: HeaderCarrier): Future[ReportResponse] = {
-    implicit val rfmt = ReportResponse.apiFormat
+  def generateReport(serviceName: ServiceName, version: Version)(using hc: HeaderCarrier): Future[ReportResponse] =
+    given Reads[ReportResponse] = ReportResponse.apiFormat
     httpClientV2
       .post(url"${xrayBaseUrl}/vulnerabilities")
       .setHeader(
@@ -64,11 +64,10 @@ class XrayConnector @Inject() (
         s"""{"name":"${toReportName(serviceName, version)}","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/${serviceName.asString}_${version.original}*.tgz"}}"""
       ))
       .execute[ReportResponse]
-  }
 
   // https://jfrog.com/help/r/xray-rest-apis/get-report-details-by-id
-  def checkStatus(id: Int)(implicit hc: HeaderCarrier): Future[ReportStatus] = {
-    implicit val fmt = ReportStatus.apiFormat
+  def checkStatus(id: Int)(using hc: HeaderCarrier): Future[ReportStatus] =
+    given Reads[ReportStatus] = ReportStatus.apiFormat
     httpClientV2
       .get(url"${xrayBaseUrl}/$id")
       .setHeader(
@@ -76,36 +75,31 @@ class XrayConnector @Inject() (
         "Content-Type"  -> "application/json"
       )
       .execute[ReportStatus]
-  }
 
-  def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(implicit hc: HeaderCarrier): Future[Option[(Instant, Seq[RawVulnerability])]] = {
-    implicit val readsRawVulnerability: Reads[RawVulnerability] = RawVulnerability.apiFormat
-    for {
+  def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(using hc: HeaderCarrier): Future[Option[(Instant, Seq[RawVulnerability])]] =
+    given Reads[RawVulnerability] = RawVulnerability.apiFormat
+    for
       zip    <- downloadReport(reportId, serviceName, version)
       result =  unzipReport(zip)
                   .map(Json.parse)
-                  .map { json =>
+                  .map: json =>
                     val date = (json \ "generatedDate").asOpt[Instant].getOrElse(Instant.now())
                     val rows = (json \ "rows"         ).as[Seq[RawVulnerability]]
                     (date, rows)
-                  }
-    } yield result
-  }
+    yield result
 
-  private def unzipReport(inputStream: InputStream): Option[String] = {
-    val zip = new java.util.zip.ZipInputStream(inputStream)
-    try {
+  private def unzipReport(inputStream: InputStream): Option[String] =
+    val zip = java.util.zip.ZipInputStream(inputStream)
+    try
       Iterator
         .continually(zip.getNextEntry)
         .takeWhile(_ != null)
         .foldLeft(Option.empty[String])((found, entry) => Some(scala.io.Source.fromInputStream(zip).mkString))
-    } finally {
+    finally
       zip.close()
-    }
-  }
 
   // https://jfrog.com/help/r/xray-rest-apis/export
-  private def downloadReport(reportId: Int, serviceName: ServiceName, version: Version)(implicit hc: HeaderCarrier): Future[InputStream] = {
+  private def downloadReport(reportId: Int, serviceName: ServiceName, version: Version)(using hc: HeaderCarrier): Future[InputStream] =
     val fileName = toReportName(serviceName, version)
     val url = url"${xrayBaseUrl}/export/$reportId?file_name=${fileName}&format=json"
     httpClientV2
@@ -123,19 +117,18 @@ class XrayConnector @Inject() (
           logger.error(s"Could not download zip for: $url", error)
           throw error
       }
-  }
 
   // https://jfrog.com/help/r/xray-rest-apis/delete
-  def deleteReportFromXray(reportId: Int)(implicit hc: HeaderCarrier): Future[Unit] =
+  def deleteReportFromXray(reportId: Int)(using hc: HeaderCarrier): Future[Unit] =
     httpClientV2
       .delete(url"${xrayBaseUrl}/$reportId")
       .setHeader(
         "Authorization" -> s"Bearer $xrayToken",
         "Content-Type"  -> "application/json"
-      ).execute[Unit](throwOnFailure(implicitly[HttpReads[Either[UpstreamErrorResponse, Unit]]]), implicitly[ExecutionContext])
+      ).execute[Unit](throwOnFailure(summon[HttpReads[Either[UpstreamErrorResponse, Unit]]]), summon[ExecutionContext])
 
   // https://jfrog.com/help/r/xray-rest-apis/get-reports-list
-  def getStaleReportIds()(implicit hc: HeaderCarrier): Future[Seq[ReportId]] = {
+  def getStaleReportIds()(using hc: HeaderCarrier): Future[Seq[ReportId]] =
     given Reads[Seq[ReportId]] =
       (__ \ "reports")
         .read(Reads.seq[ReportId](ReportId.reads))
@@ -150,5 +143,4 @@ class XrayConnector @Inject() (
         s"""{"filters":{"author":"${xrayUsername}","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"$cutOff"}}}"""
       ))
       .execute[Seq[ReportId]]
-  }
-}
+

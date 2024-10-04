@@ -17,8 +17,8 @@
 package uk.gov.hmrc.vulnerabilities.controllers
 
 import play.api.Logging
-import play.api.libs.json.{Json, OFormat, Writes}
-import play.api.mvc.{Action, AnyContent, ControllerComponents}
+import play.api.libs.json.{Json, Format, Writes}
+import play.api.mvc.{Action, AnyContent, ControllerComponents, RequestHeader}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, ServiceName, SlugInfoFlag, TotalVulnerabilityCount, Version, VulnerableComponent, VulnerabilityOccurrence, VulnerabilitySummary}
 import uk.gov.hmrc.vulnerabilities.connectors.TeamsAndRepositoriesConnector
@@ -34,9 +34,9 @@ class VulnerabilitiesController @Inject()(
   rawReportsRepository         : RawReportsRepository,
   teamsAndRepositoriesConnector: TeamsAndRepositoriesConnector,
   vulnerabilityAgeRepository   : VulnerabilityAgeRepository
-)(implicit ec: ExecutionContext)
+)(using ec: ExecutionContext)
   extends BackendController(cc)
-     with Logging {
+     with Logging:
 
   def getSummaries(
     flag           : Option[SlugInfoFlag],
@@ -45,19 +45,20 @@ class VulnerabilitiesController @Inject()(
     team           : Option[String ]       ,
     curationStatus : Option[CurationStatus],
   ): Action[AnyContent] =
-    Action.async { implicit request =>
-      implicit val fmt: OFormat[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
-      for {
-        serviceNames  <- (service, team) match {
+    Action.async: request =>
+      given RequestHeader = request
+      given Format[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
+      for
+        serviceNames  <- (service, team) match
                            case (None   , None   ) => Future.successful(None)
                            case (Some(s), _      ) => Future.successful(Some(Seq(s)))
                            case (_      , Some(_)) => teamsAndRepositoriesConnector.repositories(team).map(xs => Some(xs.map(x => ServiceName(x.name))))
-                         }
         reports       <- rawReportsRepository.find(flag, serviceNames, version)
         repoWithTeams <- teamsAndRepositoriesConnector.cachedTeamToReposMap()
         firstDetected <- vulnerabilityAgeRepository.firstDetected()
         assessments   <- assessmentsRepository.getAssessments().map(_.map(a => a.id -> a).toMap)
-        allSummaries  =  for {
+        allSummaries  =
+                         for
                            report      <- reports
                            row         <- report.rows
                            cveId       =  row.cves.flatMap(_.cveId).headOption.getOrElse(row.issueId)
@@ -65,7 +66,7 @@ class VulnerabilitiesController @Inject()(
                            if curationStatus.fold(true)(_ == assessment.map(_.curationStatus).getOrElse(CurationStatus.Uncurated))
                            compName    =  row.vulnerableComponent.split(":").dropRight(1).mkString(":")
                            compVersion =  row.vulnerableComponent.split(":").last
-                         } yield
+                         yield
                            VulnerabilitySummary(
                             distinctVulnerability = DistinctVulnerability(
                                                       vulnerableComponentName    = compName,
@@ -103,33 +104,31 @@ class VulnerabilitiesController @Inject()(
         summaries     = allSummaries
                           .sortBy(_.generatedDate)
                           .groupBy(_.distinctVulnerability.id)
-                          .collect {
+                          .collect:
                             case (_, x +: xs) => x.copy(
                                                    distinctVulnerability = x.distinctVulnerability.copy(vulnerableComponents = (x.distinctVulnerability.vulnerableComponents ++ xs.flatMap(_.distinctVulnerability.vulnerableComponents)).distinct.sortBy(o => (o.component, o.version)))
                                                  , occurrences           = x.occurrences ++ xs.flatMap(_.occurrences.headOption)
                                                  )
                             case (_, List(x: VulnerabilitySummary))
                                               => x
-                          }
-      } yield Ok(Json.toJson(summaries))
-    }
+      yield Ok(Json.toJson(summaries))
 
   def getReportCounts(
     flag   : SlugInfoFlag,
     service: Option[ServiceName],
     team   : Option[String],
   ): Action[AnyContent] =
-    Action.async { implicit request =>
-      implicit val tvw: Writes[TotalVulnerabilityCount] = TotalVulnerabilityCount.writes
-      for {
-        serviceNames <- (service, team) match {
+    Action.async: request =>
+      given RequestHeader = request
+      given Writes[TotalVulnerabilityCount] = TotalVulnerabilityCount.writes
+      for
+        serviceNames <- (service, team) match
                           case (None   , None   ) => Future.successful(None)
                           case (Some(s), _      ) => Future.successful(Some(Seq(s)))
                           case (_      , Some(_)) => teamsAndRepositoriesConnector.repositories(team).map(xs => Some(xs.map(x => ServiceName(x.name))))
-                        }
         reports      <- rawReportsRepository.find(Some(flag), serviceNames, version = None)
         assessments  <- assessmentsRepository.getAssessments()
-        result       =  reports.map { report =>
+        result       =  reports.map: report =>
                           val cves = report.rows.flatMap(_.cves.flatMap(_.cveId)).distinct
                           TotalVulnerabilityCount(
                             service              = report.serviceName
@@ -138,17 +137,15 @@ class VulnerabilitiesController @Inject()(
                           , investigationOngoing = cves.filter   (cveId => assessments.exists(a => a.id == cveId && a.curationStatus == CurationStatus.InvestigationOngoing)).size
                           , uncurated            = cves.filterNot(cveId => assessments.exists(a => a.id == cveId                                                           )).size
                           )
-                        }
-      } yield Ok(Json.toJson(result))
-    }
+      yield Ok(Json.toJson(result))
 
   // temp endpoint till we work out how to display vulnerabilities on the service page
   def getDeployedReportCount(
     service: ServiceName,
   ): Action[AnyContent] =
-    Action.async { _ =>
-      implicit val tvw: Writes[TotalVulnerabilityCount] = TotalVulnerabilityCount.writes
-      for {
+    Action.async: _ =>
+      given tvw: Writes[TotalVulnerabilityCount] = TotalVulnerabilityCount.writes
+      for
         reports     <- rawReportsRepository.findDeployed(service)
         assessments <- assessmentsRepository.getAssessments()
         cves        =  reports.flatMap(_.rows.flatMap(_.cves.flatMap(_.cveId))).distinct
@@ -159,6 +156,7 @@ class VulnerabilitiesController @Inject()(
                        , investigationOngoing = cves.filter   (cveId => assessments.exists(a => a.id == cveId && a.curationStatus == CurationStatus.InvestigationOngoing)).size
                        , uncurated            = cves.filterNot(cveId => assessments.exists(a => a.id == cveId                                                           )).size
                        )
-      } yield if (reports.isEmpty) NotFound else Ok(Json.toJson(result))
-    }
-}
+      yield
+        if   reports.isEmpty
+        then NotFound
+        else Ok(Json.toJson(result))

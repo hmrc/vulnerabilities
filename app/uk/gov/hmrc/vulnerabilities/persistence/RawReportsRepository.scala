@@ -35,7 +35,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class RawReportsRepository @Inject()(
   final val mongoComponent: MongoComponent
 , config                  : Configuration
-)(implicit
+)(using
   ec            : ExecutionContext
 ) extends PlayMongoRepository(
   collectionName = "rawReports"
@@ -45,12 +45,12 @@ class RawReportsRepository @Inject()(
                    IndexModel(Indexes.hashed("scanned"))                                                       ::
                    SlugInfoFlag.values.map(f => IndexModel(Indexes.hashed(f.asString)))
 , replaceIndexes = true
-) with Transactions {
+) with Transactions:
 
   // No ttl required for this collection - managed by SQS
   override lazy val requiresTtlIndex = false
 
-  private implicit val tc: TransactionConfiguration =
+  private given TransactionConfiguration =
     TransactionConfiguration.strict
 
   private val exclusionRegex: String = config.get[String]("regex.exclusion")
@@ -60,11 +60,10 @@ class RawReportsRepository @Inject()(
 
   val Quoted = """^\"(.*)\"$""".r
   private def toServiceNameFilter(serviceNames: Seq[ServiceName]) =
-    serviceNames match {
+    serviceNames match
       case Seq(ServiceName(Quoted(s))) => Filters.equal("serviceName", s.toLowerCase())
       case Seq(ServiceName(s))         => Filters.regex("serviceName", s.toLowerCase())
       case xs                          => Filters.in(   "serviceName", xs.map(_.asString): _*)
-    }
 
   // Like find but service name defaults to an exact match - otherwise we'd have to add quotes
   def exists(
@@ -103,16 +102,16 @@ class RawReportsRepository @Inject()(
       .map(_.map(report => report.copy(rows = report.rows.filter(row => exclusionRegex.r.matches(row.componentPhysicalPath)))))
 
   def put(report: Report): Future[Unit] =
-    withSessionAndTransaction { session =>
-      for {
+    withSessionAndTransaction: session =>
+      for
         latest <- getMaxVersion(report.serviceName, session).map(_.fold(true)(_ <= report.serviceVersion))
-        _      <- if (latest             ) clearFlag(SlugInfoFlag.Latest      , report.serviceName, session) else Future.unit
-        _      <- if (report.production  ) clearFlag(SlugInfoFlag.Production  , report.serviceName, session) else Future.unit
-        _      <- if (report.externalTest) clearFlag(SlugInfoFlag.ExternalTest, report.serviceName, session) else Future.unit
-        _      <- if (report.staging     ) clearFlag(SlugInfoFlag.Staging     , report.serviceName, session) else Future.unit
-        _      <- if (report.qa          ) clearFlag(SlugInfoFlag.QA          , report.serviceName, session) else Future.unit
-        _      <- if (report.development ) clearFlag(SlugInfoFlag.Development , report.serviceName, session) else Future.unit
-        _      <- if (report.integration ) clearFlag(SlugInfoFlag.Integration , report.serviceName, session) else Future.unit
+        _      <- if latest              then clearFlag(SlugInfoFlag.Latest      , report.serviceName, session) else Future.unit
+        _      <- if report.production   then clearFlag(SlugInfoFlag.Production  , report.serviceName, session) else Future.unit
+        _      <- if report.externalTest then clearFlag(SlugInfoFlag.ExternalTest, report.serviceName, session) else Future.unit
+        _      <- if report.staging      then clearFlag(SlugInfoFlag.Staging     , report.serviceName, session) else Future.unit
+        _      <- if report.qa           then clearFlag(SlugInfoFlag.QA          , report.serviceName, session) else Future.unit
+        _      <- if report.development  then clearFlag(SlugInfoFlag.Development , report.serviceName, session) else Future.unit
+        _      <- if report.integration  then clearFlag(SlugInfoFlag.Integration , report.serviceName, session) else Future.unit
         _      <- collection
                     .replaceOne(
                       clientSession = session
@@ -125,12 +124,11 @@ class RawReportsRepository @Inject()(
                     )
                     .toFuture()
                     .map(_ => ())
-      } yield ()
-    }
+      yield ()
 
   def delete(serviceName: ServiceName, version: Version): Future[Unit] =
-    withSessionAndTransaction { session =>
-      for {
+    withSessionAndTransaction: session =>
+      for
         _    <- collection
                   .deleteOne(
                     clientSession = session
@@ -143,8 +141,7 @@ class RawReportsRepository @Inject()(
                   .map(_ => ())
         oMax <- getMaxVersion(serviceName, session)
         _    <- oMax.fold(Future.unit)(v => setFlag(SlugInfoFlag.Latest, serviceName, v, session))
-      } yield ()
-    }
+      yield ()
 
   private def getMaxVersion(serviceName: ServiceName, session: ClientSession): Future[Option[Version]] =
     collection
@@ -160,12 +157,11 @@ class RawReportsRepository @Inject()(
       .map(vs => if (vs.nonEmpty) Some(vs.max) else None)
 
   def setFlag(flag: SlugInfoFlag, serviceName: ServiceName, version: Version): Future[Unit] =
-    withSessionAndTransaction { session =>
+    withSessionAndTransaction: session =>
       setFlag(flag, serviceName, version, session)
-    }
 
   private def setFlag(flag: SlugInfoFlag, serviceName: ServiceName, version: Version, session: ClientSession): Future[Unit] =
-    for {
+    for
       _ <- clearFlag(flag, serviceName, session)
       _ <- collection
               .updateOne(
@@ -178,12 +174,11 @@ class RawReportsRepository @Inject()(
                 options       = UpdateOptions().upsert(true)
               )
               .toFuture()
-    } yield ()
+    yield ()
 
   def clearFlag(flag: SlugInfoFlag, serviceName: ServiceName): Future[Unit] =
-    withSessionAndTransaction { session =>
+    withSessionAndTransaction: session =>
       clearFlag(flag, serviceName, session)
-    }
 
   private def clearFlag(flag: SlugInfoFlag, serviceName: ServiceName, session: ClientSession): Future[Unit] =
     collection
@@ -211,7 +206,7 @@ class RawReportsRepository @Inject()(
       .find(Filters.equal("scanned", false))
       .toFuture()
 
-  def getTimelineData(weekBeginning: Instant): Future[Seq[TimelineEvent]] = {
+  def getTimelineData(weekBeginning: Instant): Future[Seq[TimelineEvent]] =
     //Ensure that any changes made to this query are reflected in the comment above.
     CollectionFactory
       .collection(mongoComponent.database, "rawReports", TimelineEvent.mongoFormat)
@@ -248,5 +243,3 @@ class RawReportsRepository @Inject()(
           ),
         )
       ).toFuture()
-  }
-}

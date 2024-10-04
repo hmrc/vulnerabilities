@@ -34,7 +34,7 @@ class RawReportsRepositorySpec
   extends AnyWordSpecLike
      with Matchers
      with DefaultPlayMongoRepositorySupport[Report]
-     with IntegrationPatience {
+     with IntegrationPatience:
 
   //Tests exercise aggregation pipeline, which don't make use of indices.
   override protected def checkIndexedQueries: Boolean = false
@@ -44,33 +44,30 @@ class RawReportsRepositorySpec
   )
 
   override val repository: RawReportsRepository = RawReportsRepository(mongoComponent, configuration)
+
   private val now = Instant.now.truncatedTo(java.time.temporal.ChronoUnit.MILLIS)
 
-  "find" should {
-    "by service name" in new Setup {
+  "find" should:
+    "by service name" in new Setup:
       repository.collection.insertOne(report1).toFuture().futureValue
       repository.find(flag = None, serviceNames = Some(Seq(report1.serviceName)), version = Some(report1.serviceVersion)).futureValue shouldBe Seq(report1)
-    }
-  }
 
-  "getTimelineData" should {
-    "parse issue id for vulnerabilities with AND without CVE ids" in new Setup {
+  "getTimelineData" should:
+    "parse issue id for vulnerabilities with AND without CVE ids" in new Setup:
       repository.collection.insertMany(Seq(report1, report2)).toFuture().futureValue
       assessmentsCollection.insertMany(assessments).toFuture().futureValue
 
       val res = repository.getTimelineData(Instant.now()).futureValue
       res.map(_.id) should contain theSameElementsAs Seq("CVE-2022-12345", "CVE-2022-12345", "CVE-2021-99999")
-    }
 
-    "extract the serviceName from the path" in new Setup {
+    "extract the serviceName from the path" in new Setup:
       repository.collection.insertMany(Seq(report1, report2)).toFuture().futureValue
       assessmentsCollection.insertMany(assessments).toFuture().futureValue
 
       val res = repository.getTimelineData(Instant.now()).futureValue
       res.map(_.service) should contain theSameElementsAs Seq("service1", "service2", "service2")
-    }
 
-    "default curationStatus to uncurated if the Vulnerability does not exist in the collecitons assessment" in new Setup {
+    "default curationStatus to uncurated if the Vulnerability does not exist in the collecitons assessment" in new Setup:
       val rep1 = report1.copy(rows = report1.rows.map(_.copy(cves = Seq(CVE(cveId = Some("DOES_NOT_EXIST"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))))))
 
       repository.collection.insertOne(rep1).toFuture().futureValue
@@ -78,9 +75,8 @@ class RawReportsRepositorySpec
 
       val res = repository.getTimelineData(Instant.now()).futureValue
       res.head.curationStatus shouldBe CurationStatus.Uncurated
-    }
 
-    "fully transform raw reports to vulnerability timeline data, in which the data is grouped by service AND issue AND weekBeginning" in new Setup {
+    "fully transform raw reports to vulnerability timeline data, in which the data is grouped by service AND issue AND weekBeginning" in new Setup:
       val rep1 = report1.copy(latest = false, production = false, externalTest = false, staging = false, qa = false)
       val rep2 = report2 //contains two cves, so will create two vulnerabilities
 
@@ -94,9 +90,8 @@ class RawReportsRepositorySpec
         TimelineEvent(id = "CVE-2021-99999", service = "service2", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = CurationStatus.ActionRequired),
         TimelineEvent(id = "CVE-2022-12345", service = "service2", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = CurationStatus.NoActionRequired)
       )
-    }
 
-    "fully transform raw reports to vulnerability timeline data, in which the data is grouped by service AND issue AND weekBeginning AND filter entry with invalid regex" in new Setup {
+    "fully transform raw reports to vulnerability timeline data, in which the data is grouped by service AND issue AND weekBeginning AND filter entry with invalid regex" in new Setup:
       val rep1 = report1
       val rep2 = report2.copy(rows = report2.rows.map(_.copy(componentPhysicalPath = "service2-3.0.4/lib/net.sf.ehcache.ehcache-2.10.9.2.jar/rest-management-private-classpath/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.xml" )))
 
@@ -109,11 +104,8 @@ class RawReportsRepositorySpec
       res should contain theSameElementsAs Seq(
         TimelineEvent(id = "CVE-2022-12345", service = "service1", weekBeginning = Instant.parse("2022-12-19T00:00:00.00Z"), teams = Seq(), curationStatus = CurationStatus.NoActionRequired)
       )
-    }
-  }
 
-  trait Setup {
-
+  trait Setup:
    val assessmentsCollection: MongoCollection[Assessment] = CollectionFactory.collection(mongoComponent.database, "assessments", Assessment.mongoFormat)
    lazy val assessments = Seq(
      Assessment(id = "CVE-2022-12345", assessment = "N/A", curationStatus = CurationStatus.NoActionRequired    , lastReviewed = now, ticket = "BDOG-1"),
@@ -158,7 +150,7 @@ class RawReportsRepositorySpec
         integration    = true
       )
 
-    lazy val report2: Report =
+   lazy val report2: Report =
       Report(
         serviceName    = ServiceName("service2"),
         serviceVersion = Version("3.0.4"),
@@ -217,5 +209,3 @@ class RawReportsRepositorySpec
         development    = true,
         integration    = true
       )
-  }
-}
