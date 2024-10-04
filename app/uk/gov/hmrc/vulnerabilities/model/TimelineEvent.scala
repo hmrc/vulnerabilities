@@ -16,8 +16,8 @@
 
 package uk.gov.hmrc.vulnerabilities.model
 
-import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
-import play.api.libs.json.{Format, OFormat, __}
+import play.api.libs.functional.syntax.toFunctionalBuilderOps
+import play.api.libs.json.{Format, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant
@@ -30,40 +30,30 @@ case class TimelineEvent(
   curationStatus: CurationStatus
 )
 
-object TimelineEvent {
-  implicit val csf: Format[CurationStatus] = CurationStatus.format
-
-  val mongoFormat: OFormat[TimelineEvent] =
-    ( (__ \ "id"            ).format[String]
-    ~ (__ \ "service"       ).format[String]
-    ~ (__ \ "weekBeginning" ).format[Instant](MongoJavatimeFormats.instantFormat)
-    ~ (__ \ "teams"         ).format[Seq[String]]
-    ~ (__ \ "curationStatus").format[CurationStatus]
-    )(apply, unlift(unapply))
-
-  val apiFormat: OFormat[TimelineEvent] =
+object TimelineEvent:
+  private def format(using Format[Instant]): Format[TimelineEvent] =
     ( (__ \ "id"            ).format[String]
     ~ (__ \ "service"       ).format[String]
     ~ (__ \ "weekBeginning" ).format[Instant]
     ~ (__ \ "teams"         ).format[Seq[String]]
     ~ (__ \ "curationStatus").format[CurationStatus]
-    )(apply, unlift(unapply))
-}
+    )(apply, pt => Tuple.fromProductTyped(pt))
+
+  val apiFormat   = format(using summon[Format[Instant]])
+  val mongoFormat = format(using MongoJavatimeFormats.instantFormat)
 
 case class VulnerabilitiesTimelineCount(
   weekBeginning       : Instant,
   count               : Int
 )
 
-object VulnerabilitiesTimelineCount {
-
-  val mongoFormat: OFormat[VulnerabilitiesTimelineCount] =
+object VulnerabilitiesTimelineCount:
+  val mongoFormat: Format[VulnerabilitiesTimelineCount] =
     ( (__ \ "_id"  ).format[Instant](MongoJavatimeFormats.instantFormat)
     ~ (__ \ "count").format[Int]
-    )(apply, unlift(unapply))
+    )(apply, pt => Tuple.fromProductTyped(pt))
 
-  val apiFormat: OFormat[VulnerabilitiesTimelineCount] =
+  val apiFormat: Format[VulnerabilitiesTimelineCount] =
     ( (__ \ "weekBeginning").format[Instant]
     ~ (__ \ "count"        ).format[Int]
-    )(apply, unlift(unapply))
-}
+    )(apply, pt => Tuple.fromProductTyped(pt))

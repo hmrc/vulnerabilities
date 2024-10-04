@@ -30,34 +30,30 @@ import scala.concurrent.{ExecutionContext, Future}
 class ArtefactProcessorConnector @Inject()(
   servicesConfig: ServicesConfig
 , httpClientV2  : HttpClientV2
-)(implicit
-  ec            : ExecutionContext
-) {
+)(using
+  ExecutionContext
+):
   import HttpReads.Implicits._
 
   private val baseUrl = servicesConfig.baseUrl("artefact-processor")
 
-  implicit private val rs: Reads[ArtefactProcessorConnector.SlugInfo] =
-    ArtefactProcessorConnector.SlugInfo.reads
-
-  def getSlugInfo(slugName: ServiceName, version: Version)(implicit hc: HeaderCarrier): Future[Option[ArtefactProcessorConnector.SlugInfo]] =
+  def getSlugInfo(slugName: ServiceName, version: Version)(using HeaderCarrier): Future[Option[ArtefactProcessorConnector.SlugInfo]] =
+    given Reads[ArtefactProcessorConnector.SlugInfo] =
+      ArtefactProcessorConnector.SlugInfo.reads
     httpClientV2
       .get(url"$baseUrl/result/slug/${slugName.asString}/${version.original}")
       .execute[Option[ArtefactProcessorConnector.SlugInfo]]
-}
 
-object ArtefactProcessorConnector {
+object ArtefactProcessorConnector:
   case class SlugInfo(
      name   : ServiceName
   ,  version: Version
   ,  uri    : String
   )
 
-  object SlugInfo {
+  object SlugInfo:
     val reads: Reads[SlugInfo] =
       ( (__ \ "name"   ).read[String].map(ServiceName.apply)
       ~ (__ \ "version").read[String].map(Version.apply)
       ~ (__ \ "uri"    ).read[String]
       ) (SlugInfo.apply _)
-  }
-}

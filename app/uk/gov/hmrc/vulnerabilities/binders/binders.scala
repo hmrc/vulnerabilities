@@ -16,39 +16,36 @@
 
 package uk.gov.hmrc.vulnerabilities.binders
 
-import play.api.mvc.QueryStringBindable
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, Version}
+import play.api.mvc.{PathBindable, QueryStringBindable}
 
 import java.time.Instant
 import scala.util.Try
 
-object Binders {
-  implicit def instantBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[Instant] =
-    new QueryStringBindable[Instant] {
-      override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, Instant]] = {
-        strBinder.bind(key, params).map(
-          _.flatMap(s => Try(Instant.parse(s)).toEither.left.map(_.getMessage))
-        )
-      }
+object Binders:
 
-      override def unbind(key: String, value: Instant): String =
-        strBinder.unbind(key, value.toString)
-    }
+  given QueryStringBindable[Instant] =
+    queryStringBindableFromString[Instant](
+      s => Some(Try(Instant.parse(s)).toEither.left.map(_.getMessage)),
+      _.toString
+    )
 
-  implicit def curationStatusBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[CurationStatus] =
-    new QueryStringBindable[CurationStatus] {
-      override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, CurationStatus]] =
-        strBinder.bind(key, params).map(
-          _.flatMap(s => CurationStatus.parse(s))
-        )
+  def queryStringBindableFromString[T](parse: String => Option[Either[String, T]], asString: T => String)(using strBinder: QueryStringBindable[String]): QueryStringBindable[T] =
+    new QueryStringBindable[T]:
+      override def bind(key: String, params: Map[String, Seq[String]]): Option[Either[String, T]] =
+        strBinder.bind(key, params) match
+          case Some(Right(s)) if s.trim.nonEmpty => parse(s.trim)
+          case _                                 => None
 
-      override def unbind(key: String, value: CurationStatus): String =
-        strBinder.unbind(key, value.asString)
-    }
+      override def unbind(key: String, value: T): String =
+        strBinder.unbind(key, asString(value))
 
-  implicit def serviceNameBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[ServiceName] =
-    strBinder.transform(ServiceName.apply, _.asString)
+  /** `summon[PathBindable[String]].transform` doesn't allow us to provide failures.
+    * This function provides `andThen` semantics
+    */
+  def pathBindableFromString[T](parse: String => Either[String, T], asString: T => String)(using strBinder: PathBindable[String]): PathBindable[T] =
+    new PathBindable[T]:
+      override def bind(key: String, value: String): Either[String, T] =
+        parse(value)
 
-  implicit def versionBindable(implicit strBinder: QueryStringBindable[String]): QueryStringBindable[Version] =
-    strBinder.transform(Version.apply, _.original)
-}
+      override def unbind(key: String, value: T): String =
+        asString(value)

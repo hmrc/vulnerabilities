@@ -23,21 +23,21 @@ import uk.gov.hmrc.vulnerabilities.scheduler.{ReloadScheduler, TimelineScheduler
 
 import java.time.Clock
 
-class VulnerabilitiesModule extends play.api.inject.Module {
+class Module extends play.api.inject.Module:
 
   private val logger = Logger(getClass)
 
-  private def ecsDeploymentsBindings(configuration: Configuration): Seq[Binding[_]] = {
-    if (configuration.get[Boolean]("aws.sqs.enabled"))
+  private def ecsDeploymentsBindings(configuration: Configuration): Seq[Binding[_]] =
+    if
+      configuration.get[Boolean]("aws.sqs.enabled")
+    then
       Seq(
         bind[DeploymentHandler].toSelf.eagerly()
       , bind[SlugInfoHandler  ].toSelf.eagerly()
       )
-    else {
+    else
       logger.warn("SQS handlers are disabled")
       Seq.empty
-    }
-  }
 
   override def bindings(environment: Environment, configuration: Configuration): Seq[Binding[_]] =
     Seq(
@@ -47,4 +47,3 @@ class VulnerabilitiesModule extends play.api.inject.Module {
     , bind[Clock                 ].toInstance(Clock.systemUTC())
     ) ++
     ecsDeploymentsBindings(configuration)
-}

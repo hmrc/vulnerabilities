@@ -16,8 +16,9 @@
 
 package uk.gov.hmrc.vulnerabilities.testonly
 
+import org.mongodb.scala.ObservableFuture
 import org.mongodb.scala.bson.BsonDocument
-import play.api.libs.json.{JsError, JsString, OFormat, Reads}
+import play.api.libs.json.{JsError, JsString, Format, Reads}
 import play.api.mvc.{Action, AnyContent, BodyParser, ControllerComponents}
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
@@ -35,58 +36,52 @@ class IntegrationTestController @Inject()(
 , vulnerabilityAgeRepository       : VulnerabilityAgeRepository
 , vulnerabilitiesTimelineRepository: VulnerabilitiesTimelineRepository
 , cc: ControllerComponents
-)(implicit
-  ec: ExecutionContext
-) extends BackendController(cc) {
+)(using
+  ExecutionContext
+) extends BackendController(cc):
 
-  def postAssessments(): Action[Seq[Assessment]] = {
-    implicit val te: OFormat[Assessment] = Assessment.apiFormat
+  def postAssessments(): Action[Seq[Assessment]] =
+    given Format[Assessment] = Assessment.apiFormat
     addAll(assessmentsRepository)
-  }
 
   def deleteAssessments(): Action[AnyContent] =
     deleteAll(assessmentsRepository)
 
-  def postReports(): Action[Seq[Report]] = {
-    implicit val te: OFormat[Report] = Report.apiFormat
+  def postReports(): Action[Seq[Report]] =
+    given Format[Report] = Report.apiFormat
     addAll(rawReportsRepository)
-  }
 
   def deleteReports(): Action[AnyContent] =
     deleteAll(rawReportsRepository)
 
-  def postVulnerabilityAges(): Action[Seq[VulnerabilityAge]] = {
-    implicit val te: OFormat[VulnerabilityAge] = VulnerabilityAge.apiFormat
+  def postVulnerabilityAges(): Action[Seq[VulnerabilityAge]] =
+    given Format[VulnerabilityAge] = VulnerabilityAge.apiFormat
     addAll(vulnerabilityAgeRepository)
-  }
 
   def deleteVulnerabilityAges(): Action[AnyContent] =
     deleteAll(vulnerabilityAgeRepository)
 
-  def postTimelineEvents(): Action[Seq[TimelineEvent]] = {
-    implicit val te: OFormat[TimelineEvent] = TimelineEvent.apiFormat
+  def postTimelineEvents(): Action[Seq[TimelineEvent]] =
+    given Format[TimelineEvent] = TimelineEvent.apiFormat
     addAll(vulnerabilitiesTimelineRepository)
-  }
 
   def deleteTimelineEvents(): Action[AnyContent] =
     deleteAll(vulnerabilitiesTimelineRepository)
 
   private def validNelJson[A: Reads]: BodyParser[Seq[A]] =
-    parse.json.validate(
+    parse.json.validate:
       _.validate[Seq[A]].asEither
         .left.map(e => BadRequest(JsError.toJson(e)))
         .flatMap(l => if (l.isEmpty) Left(BadRequest(JsString("Array cannot be empty"))) else Right(l))
-    )
 
   private def addAll[A: Reads](repo: PlayMongoRepository[A]): Action[Seq[A]] =
-    Action.async(validNelJson[A]) { implicit request =>
-      repo.collection.insertMany(request.body).toFuture()
+    Action.async(validNelJson[A]): request =>
+      repo
+        .collection.insertMany(request.body).toFuture()
         .map(_ => NoContent)
-    }
 
   private def deleteAll[A](repo: PlayMongoRepository[A]) =
-    Action.async {
-      repo.collection.deleteMany(filter = BsonDocument()).toFuture()
+    Action.async:
+      repo
+        .collection.deleteMany(filter = BsonDocument()).toFuture()
         .map(_ => NoContent)
-    }
-}

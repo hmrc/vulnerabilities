@@ -19,6 +19,7 @@ package uk.gov.hmrc.vulnerabilities.connectors
 import play.api.Logging
 import play.api.libs.json._
 import play.api.libs.functional.syntax.{toFunctionalBuilderOps}
+import play.api.libs.ws.writeableOf_JsValue
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
@@ -29,27 +30,25 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class BuildDeployApiConnector @Inject()(
   servicesConfig: ServicesConfig
-, httpClientV2 : HttpClientV2
-)(implicit
-  ec          : ExecutionContext
-) extends Logging {
-
+, httpClientV2  : HttpClientV2
+)(using
+  ExecutionContext
+) extends Logging:
   import HttpReads.Implicits._
 
   private val baseUrl = servicesConfig.baseUrl("platops-bnd-api")
 
-  implicit private val rd: Reads[BuildDeployApiConnector.Result] =
-    BuildDeployApiConnector.Result.reads
-
-  def triggerXrayScanNow(path: String)(implicit hc: HeaderCarrier): Future[Unit] =
-    for {
+  def triggerXrayScanNow(path: String)(using HeaderCarrier): Future[Unit] =
+    given Reads[BuildDeployApiConnector.Result] = BuildDeployApiConnector.Result.reads
+    for
       res <- httpClientV2
               .post(url"$baseUrl/trigger-xray-scan-now")
               .withBody(Json.obj("repo_path" -> path))
               .execute[BuildDeployApiConnector.Result]
-      _   <- if (res.success) Future.unit else Future.failed(new Throwable(s"Failed to trigger Xray scan now for $path: ${res.message}: ${res.details}"))
-    } yield ()
-}
+      _   <- if   res.success
+             then Future.unit
+             else Future.failed(Throwable(s"Failed to trigger Xray scan now for $path: ${res.message}: ${res.details}"))
+    yield ()
 
 object BuildDeployApiConnector {
 

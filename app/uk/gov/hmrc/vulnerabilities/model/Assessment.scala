@@ -16,10 +16,9 @@
 
 package uk.gov.hmrc.vulnerabilities.model
 
-import play.api.libs.functional.syntax.{toFunctionalBuilderOps, unlift}
-import play.api.libs.json.__
+import play.api.libs.functional.syntax.toFunctionalBuilderOps
+import play.api.libs.json.{Format, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
-import uk.gov.hmrc.vulnerabilities.model.CurationStatus
 
 import java.time.Instant
 
@@ -31,20 +30,14 @@ case class Assessment(
   ticket        : String
 )
 
-object Assessment {
-  val apiFormat =
+object Assessment:
+  private def format(using Format[Instant]): Format[Assessment] =
     ( (__ \ "id"            ).format[String]
     ~ (__ \ "assessment"    ).format[String]
-    ~ (__ \ "curationStatus").format[CurationStatus](CurationStatus.format)
+    ~ (__ \ "curationStatus").format[CurationStatus]
     ~ (__ \ "lastReviewed"  ).format[Instant]
     ~ (__ \ "ticket"        ).format[String]
-    )(apply, unlift(unapply))
+    )(apply, pt => Tuple.fromProductTyped(pt))
 
-  val mongoFormat =
-    ( (__ \ "id"            ).format[String]
-    ~ (__ \ "assessment"    ).format[String]
-    ~ (__ \ "curationStatus").format[CurationStatus](CurationStatus.format)
-    ~ (__ \ "lastReviewed"  ).format[Instant](MongoJavatimeFormats.instantFormat)
-    ~ (__ \ "ticket"        ).format[String]
-    )(apply, unlift(unapply))
-}
+  val apiFormat   = format(using summon[Format[Instant]])
+  val mongoFormat = format(using MongoJavatimeFormats.instantFormat)

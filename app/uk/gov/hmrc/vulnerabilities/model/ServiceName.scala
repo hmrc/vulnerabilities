@@ -16,12 +16,6 @@
 
 package uk.gov.hmrc.vulnerabilities.model
 
-import play.api.libs.json.Format
-import play.api.libs.functional.syntax._
-
 case class ServiceName(asString: String) extends AnyVal
 
-object ServiceName {
-  val format: Format[ServiceName] =
-    implicitly[Format[String]].inmap(ServiceName.apply, unlift(ServiceName.unapply))
-}
+object ServiceName extends StringAnyValUtils(ServiceName.apply, _.asString)

@@ -19,10 +19,10 @@ package uk.gov.hmrc.vulnerabilities.connector
 import org.apache.pekko.stream.Materializer
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, containing, equalToJson, postRequestedFor, stubFor, urlEqualTo, urlMatching}
-import org.mockito.MockitoSugar
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
+import org.scalatestplus.mockito.MockitoSugar
 import play.api.Configuration
 import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
@@ -40,9 +40,9 @@ class XrayConnectorSpec
      with IntegrationPatience
      with HttpClientV2Support
      with MockitoSugar
-     with WireMockSupport {
+     with WireMockSupport:
 
-  implicit val hc: HeaderCarrier = HeaderCarrier()
+  private given  HeaderCarrier = HeaderCarrier()
 
   private val config = Configuration.from(Map(
     "xray.url"               -> s"${wireMockUrl}",
@@ -51,14 +51,14 @@ class XrayConnectorSpec
     "xray.reports.retention" -> "1 day"
   ))
 
-  implicit private val materializer: Materializer = mock[Materializer]
+  private given Materializer = mock[Materializer]
 
-  val now               = LocalDate.now().atStartOfDay(ZoneOffset.UTC).toInstant
-  private val connector = new XrayConnector(config, httpClientV2, clock = Clock.fixed(now, ZoneOffset.UTC))
+  private val now       = LocalDate.now().atStartOfDay(ZoneOffset.UTC).toInstant
+  private val connector = XrayConnector(config, httpClientV2, clock = Clock.fixed(now, ZoneOffset.UTC))
 
-  "generateReport" when {
-    "given a serviceVersionDeployments" should {
-      "generate the expected request body" in {
+  "generateReport" when:
+    "given a serviceVersionDeployments" should:
+      "generate the expected request body" in:
         val expectedRequestBody =
           """{"name":"AppSec-report-service1_5_4_0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*.tgz"}}"""
 
@@ -74,30 +74,18 @@ class XrayConnectorSpec
           .withRequestBody(equalToJson(expectedRequestBody)
         ))
 
-      }
-    }
-
-    "it receives a valid response" should {
-      "return a ReportRequestResponse" in {
-        val expectedRequestBody =
-          """{"name":"AppSec-report-service1_5_4_0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*.tgz"}}"""
-
+    "it receives a valid response" should:
+      "return a ReportRequestResponse" in:
         stubFor(WireMock.post(urlMatching("/vulnerabilities"))
-          .withRequestBody(containing(expectedRequestBody))
-          .willReturn(
-            aResponse().withBody(s"""{"report_id":1,"status":"pending"}""")
-        ))
+          .withRequestBody(containing("""{"name":"AppSec-report-service1_5_4_0","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/service1_5.4.0*.tgz"}}"""))
+          .willReturn(aResponse().withBody(s"""{"report_id":1,"status":"pending"}""")))
 
         val res = connector.generateReport(ServiceName("service1"), Version("5.4.0")).futureValue
         res shouldBe ReportResponse(reportID = 1, status = "pending")
-      }
-    }
-  }
 
-  "checkStatus" when {
-    "given a reportId" should {
-      "return a ReportStatus for the given reportID" in {
-
+  "checkStatus" when:
+    "given a reportId" should:
+      "return a ReportStatus for the given reportID" in:
         stubFor(WireMock.get(urlMatching("/1")).willReturn(
           aResponse().withBody(s"""{"id":1,"name":"AppSec-service1","report_type":"vulnerability",
                |"status":"completed","total_artifacts":2,"num_of_processed_artifacts":2,"progress":100,
@@ -107,36 +95,28 @@ class XrayConnectorSpec
 
         val res = connector.checkStatus(id = 1).futureValue
         res shouldBe ReportStatus(status = "completed", numberOfRows = 1, totalArtefacts = 2)
-      }
-    }
-  }
 
-  "deleteReport" when {
-    "xray returns a 4XX response" should {
-      "return an UpstreamErrorResponse Exception" in {
+  "deleteReport" when:
+    "xray returns a 4XX response" should:
+      "return an UpstreamErrorResponse Exception" in:
         stubFor(WireMock.delete(urlMatching("/1")).willReturn(
           aResponse().withStatus(404)
         ))
 
         val res = connector.deleteReportFromXray(reportId = 1).failed.futureValue
         res shouldBe a [UpstreamErrorResponse]
-      }
-    }
 
-    "xray returns a 5XX response" should {
-      "return an UpstreamErrorResponse Exception" in {
+    "xray returns a 5XX response" should:
+      "return an UpstreamErrorResponse Exception" in:
         stubFor(WireMock.delete(urlMatching("/1")).willReturn(
           aResponse().withStatus(500)
         ))
 
         val res = connector.deleteReportFromXray(reportId = 1).failed.futureValue
         res shouldBe a [UpstreamErrorResponse]
-      }
-    }
-  }
 
-  "getStaleReportDetails" should {
-    "generated the expected request body" in {
+  "getStaleReportDetails" should:
+    "generated the expected request body" in:
       stubFor(WireMock.post(urlMatching("/\\?page_num=1&num_of_rows=100")).willReturn(
         aResponse()
           .withStatus(200)
@@ -147,15 +127,11 @@ class XrayConnectorSpec
 
       connector.getStaleReportIds().futureValue
 
-      val expectedRequestBody =
-        s"""{"filters":{"author":"user1","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"${now.minus(1, ChronoUnit.DAYS)}"}}}"""
+      wireMockServer
+        .verify(postRequestedFor(urlMatching("/\\?page_num=1&num_of_rows=100"))
+          .withRequestBody(equalToJson(s"""{"filters":{"author":"user1","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"${now.minus(1, ChronoUnit.DAYS)}"}}}""")))
 
-      wireMockServer.verify(postRequestedFor(urlMatching("/\\?page_num=1&num_of_rows=100"))
-        .withRequestBody(equalToJson(expectedRequestBody)
-        ))
-    }
-
-    "return a Sequence of ReportIDs" in {
+    "return a Sequence of ReportIDs" in:
       stubFor(WireMock.post(urlMatching("/\\?page_num=1&num_of_rows=100")).willReturn(
         aResponse()
           .withStatus(200)
@@ -165,33 +141,20 @@ class XrayConnectorSpec
       ))
 
       val res = connector.getStaleReportIds().futureValue
-
       res shouldBe Seq(ReportId(439753), ReportId(439750))
 
-    }
-
-    "return an UpstreamErrorResponse for 4XX errors" in {
+    "return an UpstreamErrorResponse for 4XX errors" in:
       stubFor(WireMock.post(urlMatching("/\\?page_num=1&num_of_rows=100")).willReturn(
-        aResponse()
-          .withStatus(429)
+        aResponse().withStatus(429)
       ))
 
       val res = connector.getStaleReportIds().failed.futureValue
-
       res shouldBe a [UpstreamErrorResponse]
 
-    }
-
-    "return an UpstreamErrorResponse for 5XX errors" in {
+    "return an UpstreamErrorResponse for 5XX errors" in:
       stubFor(WireMock.post(urlMatching("/\\?page_num=1&num_of_rows=100")).willReturn(
-        aResponse()
-          .withStatus(500)
+        aResponse().withStatus(500)
       ))
 
       val res = connector.getStaleReportIds().failed.futureValue
-
       res shouldBe a [UpstreamErrorResponse]
-
-    }
-  }
-}

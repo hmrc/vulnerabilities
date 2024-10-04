@@ -16,8 +16,8 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-import com.mongodb.client.model.Indexes
-import org.mongodb.scala.model.{IndexModel, IndexOptions}
+import org.mongodb.scala.ObservableFuture
+import org.mongodb.scala.model.{IndexModel, IndexOptions, Indexes}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.vulnerabilities.model.Assessment
@@ -28,20 +28,17 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class AssessmentsRepository @Inject()(
   mongoComponent: MongoComponent
-)(implicit
-  ec            : ExecutionContext
+)(using
+  ExecutionContext
 ) extends PlayMongoRepository(
   collectionName = "assessments",
   mongoComponent = mongoComponent,
   domainFormat   = Assessment.mongoFormat,
-  indexes        = Seq(
-                     IndexModel(Indexes.ascending("id"), IndexOptions().unique(true).background(true)),
-                   )
-) {
+  indexes        = Seq(IndexModel(Indexes.ascending("id"), IndexOptions().unique(true).background(true)))
+):
   // No ttl required for this collection - contains assessments created by ourselves which will evolve over time
   override lazy val requiresTtlIndex = false
 
   // Note assessments are inserted into Mongo directly
   def getAssessments(): Future[Seq[Assessment]] =
     collection.find().toFuture()
-}

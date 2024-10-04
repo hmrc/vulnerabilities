@@ -23,6 +23,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
+import play.api.libs.json.Format
 import play.api.libs.ws.WSClient
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.test.CleanMongoCollectionSupport
@@ -37,7 +38,7 @@ class VulnerabilitiesControllerSpec
      with IntegrationPatience
      with GuiceOneServerPerSuite
      with WireMockSupport
-     with CleanMongoCollectionSupport {
+     with CleanMongoCollectionSupport:
 
   override def fakeApplication(): Application =
     GuiceApplicationBuilder()
@@ -61,22 +62,21 @@ class VulnerabilitiesControllerSpec
    *
    * */
 
-  "Summaries" should {
-    "vulnerabilities/api/summaries should return all" in {
+  "Summaries" should:
+    "vulnerabilities/api/summaries should return all" in:
       //stubbing
-      WireMock.stubFor(
+      WireMock.stubFor:
         WireMock
           .get(WireMock.urlPathMatching("/api/v2/repositories"))
           .willReturn(WireMock.aResponse().withStatus(200).withBody("""[{"name": "service1", "teamNames": ["Team1", "Team2"]}]"""))
-      )
 
       val startOfYear = java.time.Instant.parse("2022-01-01T00:00:00.000Z")
 
       //helpers
-      implicit val fmt = VulnerabilitySummary.apiFormat
+      given Format[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
 
       //Test occurs below
-      rawReportsCollection.put(
+      rawReportsCollection.put:
         Report(
           serviceName    = ServiceName("service1"),
           serviceVersion = Version("0.835.0"),
@@ -114,9 +114,8 @@ class VulnerabilitiesControllerSpec
           integration    = false,
           scanned        = true
         )
-      )
 
-      eventually {
+      eventually:
         val response = wsClient
           .url(resource("vulnerabilities/api/summaries"))
           .get()
@@ -148,10 +147,6 @@ class VulnerabilitiesControllerSpec
             generatedDate         = startOfYear
           )
         )
-      }
-    }
-  }
 
   def resource(path: String): String =
     s"http://localhost:$port/$path"
-}
