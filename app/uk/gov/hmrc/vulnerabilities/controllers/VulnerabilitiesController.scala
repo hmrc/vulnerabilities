@@ -76,6 +76,7 @@ class VulnerabilitiesController @Inject()(
                                                       vulnerableComponents       = Seq(VulnerableComponent(compName, compVersion)),
                                                       id                         = cveId,
                                                       score                      = row.cvss3MaxScore,
+                                                      summary                    = row.summary,
                                                       description                = row.description,
                                                       fixedVersions              = Some(row.fixedVersions),
                                                       references                 = row.references,

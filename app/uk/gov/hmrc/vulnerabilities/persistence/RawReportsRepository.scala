@@ -56,13 +56,13 @@ class RawReportsRepository @Inject()(
   private val exclusionRegex: String = config.get[String]("regex.exclusion")
 
   private val deployedSlugsInfoFlags: List[SlugInfoFlag] =
-    SlugInfoFlag.values.toList.filterNot(f => f == SlugInfoFlag.Latest || f == SlugInfoFlag.Integration || f == SlugInfoFlag.Development)
+    SlugInfoFlag.values.toList.filterNot(Seq(SlugInfoFlag.Latest, SlugInfoFlag.Integration, SlugInfoFlag.Development).contains)
 
   val Quoted = """^\"(.*)\"$""".r
   private def toServiceNameFilter(serviceNames: Seq[ServiceName]) =
     serviceNames match
-      case Seq(ServiceName(Quoted(s))) => Filters.equal("serviceName", s.toLowerCase())
-      case Seq(ServiceName(s))         => Filters.regex("serviceName", s.toLowerCase())
+      case Seq(ServiceName(Quoted(s))) => Filters.equal("serviceName", s.toLowerCase)
+      case Seq(ServiceName(s))         => Filters.regex("serviceName", s.toLowerCase)
       case xs                          => Filters.in(   "serviceName", xs.map(_.asString): _*)
 
   // Like find but service name defaults to an exact match - otherwise we'd have to add quotes
@@ -85,9 +85,9 @@ class RawReportsRepository @Inject()(
   ): Future[Seq[Report]] =
     collection
       .find(Filters.and(
-        serviceNames.fold(Filters.empty())(toServiceNameFilter)
-      , version.fold(Filters.empty())(v => Filters.equal("serviceVersion", v.original))
-      , flag.fold(Filters.empty())(f => Filters.equal(f.asString, true))
+        serviceNames.fold(Filters.empty)(toServiceNameFilter)
+      , version     .fold(Filters.empty)(v => Filters.equal("serviceVersion", v.original))
+      , flag        .fold(Filters.empty)(f => Filters.equal(f.asString, true))
       ))
       .toFuture()
       .map(_.map(report => report.copy(rows = report.rows.filter(row => exclusionRegex.r.matches(row.componentPhysicalPath)))))
@@ -240,6 +240,6 @@ class RawReportsRepository @Inject()(
             Field("weekBeginning" , BsonDateTime(weekBeginning.toEpochMilli())),
             Field("teams"         , BsonArray()),
             Field("curationStatus", BsonDocument("$ifNull" -> BsonArray(BsonDocument("$arrayElemAt" -> BsonArray("$curationStatus.curationStatus", 0)), "UNCURATED")))
-          ),
+          )
         )
       ).toFuture()

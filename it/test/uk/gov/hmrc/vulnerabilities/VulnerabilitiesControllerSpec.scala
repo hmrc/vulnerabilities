@@ -85,7 +85,7 @@ class VulnerabilitiesControllerSpec
                              RawVulnerability(
                                cves                  = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
                                cvss3MaxScore         = Some(8.0),
-                               summary               = "This is an exploit",
+                               summary               = "summary",
                                severity              = "High",
                                severitySource        = "Source",
                                vulnerableComponent   = "gav://com.testxml.test.core:test-bind:1.5.9",
@@ -133,6 +133,7 @@ class VulnerabilitiesControllerSpec
                                       vulnerableComponents       =  Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind","1.5.9")),
                                       id                         = "CVE-2022-12345",
                                       score                      = Some(8.0),
+                                      summary                    = "summary",
                                       description                = "This is an exploit",
                                       fixedVersions              = Some(Seq("1.6.0")),
                                       references                 = Seq("foo.com", "bar.net"),
