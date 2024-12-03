@@ -19,7 +19,7 @@ package uk.gov.hmrc.vulnerabilities.persistence
 import org.mongodb.scala.{MongoCollection, ObservableFuture}
 import org.scalatest.concurrent.IntegrationPatience
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
 import uk.gov.hmrc.mongo.play.json.CollectionFactory
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
@@ -31,7 +31,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 
 class RawReportsRepositorySpec
-  extends AnyWordSpecLike
+  extends AnyWordSpec
      with Matchers
      with DefaultPlayMongoRepositorySupport[Report]
      with IntegrationPatience:
