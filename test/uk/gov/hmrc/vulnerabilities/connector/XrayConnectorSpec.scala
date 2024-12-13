@@ -26,7 +26,6 @@ import org.scalatestplus.mockito.MockitoSugar
 import play.api.Configuration
 import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
-import uk.gov.hmrc.vulnerabilities.connectors.XrayConnector
 import uk.gov.hmrc.vulnerabilities.model.{ReportId, ReportResponse, ReportStatus, ServiceName, Version}
 
 import java.time.temporal.ChronoUnit
@@ -42,7 +41,7 @@ class XrayConnectorSpec
      with MockitoSugar
      with WireMockSupport:
 
-  private given  HeaderCarrier = HeaderCarrier()
+  private given HeaderCarrier = HeaderCarrier()
 
   private val config = Configuration.from(Map(
     "xray.url"               -> s"${wireMockUrl}",

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.vulnerabilities.connectors
+package uk.gov.hmrc.vulnerabilities.connector
 
 import play.api.cache.AsyncCacheApi
 import play.api.libs.json.{Reads, __}
@@ -28,12 +28,25 @@ import scala.concurrent.{ExecutionContext, Future}
 object TeamsAndRepositoriesConnector:
   import play.api.libs.functional.syntax._
 
-  case class Repo(name: String, teamNames: Seq[String])
+  case class Repo(
+    name     : String,
+    teamNames: Seq[String]
+  )
 
-  val readsRepo: Reads[Repo] =
+  private val repoReads: Reads[Repo] =
     ( (__ \ "name"     ).read[String]
     ~ (__ \ "teamNames").read[Seq[String]]
     )(Repo.apply _)
+
+  opaque type DeletedGitRepository = String
+
+  object DeletedGitRepository:
+    def apply(name: String): DeletedGitRepository =
+      name
+
+  private val deletedRepoReads: Reads[DeletedGitRepository] =
+    (__ \ "name").read[String]
+
 
 @Singleton
 class TeamsAndRepositoriesConnector @Inject()(
@@ -43,17 +56,18 @@ class TeamsAndRepositoriesConnector @Inject()(
 )(using
   ExecutionContext
 ):
+  import TeamsAndRepositoriesConnector._
   import HttpReads.Implicits._
 
   private val url = servicesConfig.baseUrl("teams-and-repositories")
 
-  def repositories(teamName: Option[String])(using HeaderCarrier): Future[Seq[TeamsAndRepositoriesConnector.Repo]] =
-    given Reads[TeamsAndRepositoriesConnector.Repo] = TeamsAndRepositoriesConnector.readsRepo
+  def repositories(teamName: Option[String])(using HeaderCarrier): Future[Seq[Repo]] =
+    given Reads[Repo] = repoReads
     httpClientV2
       .get(url"$url/api/v2/repositories?team=$teamName")
       .execute[Seq[TeamsAndRepositoriesConnector.Repo]]
 
-  private def getAllRepositories()(using HeaderCarrier): Future[Seq[TeamsAndRepositoriesConnector.Repo]] =
+  private def getAllRepositories()(using HeaderCarrier): Future[Seq[Repo]] =
     repositories(teamName = None)
 
   private val cacheDuration =

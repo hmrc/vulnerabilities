@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.vulnerabilities.controllers
+package uk.gov.hmrc.vulnerabilities.controller
 
 import play.api.Logging
 import play.api.libs.json.{Json, Format}

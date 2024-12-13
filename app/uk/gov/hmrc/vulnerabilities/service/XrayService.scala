@@ -19,7 +19,7 @@ package uk.gov.hmrc.vulnerabilities.service
 import org.apache.pekko.actor.ActorSystem
 import cats.data.EitherT
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.vulnerabilities.connectors.{BuildDeployApiConnector, XrayConnector}
+import uk.gov.hmrc.vulnerabilities.connector.{BuildDeployApiConnector, XrayConnector}
 import uk.gov.hmrc.vulnerabilities.model._
 import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilityAgeRepository}
 import uk.gov.hmrc.http.HeaderCarrier

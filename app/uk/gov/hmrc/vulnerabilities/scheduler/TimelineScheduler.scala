@@ -22,7 +22,7 @@ import play.api.{Configuration, Logging}
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.TimestampSupport
 import uk.gov.hmrc.mongo.lock.{ScheduledLockService, MongoLockRepository}
-import uk.gov.hmrc.vulnerabilities.connectors.TeamsAndRepositoriesConnector
+import uk.gov.hmrc.vulnerabilities.connector.TeamsAndRepositoriesConnector
 import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilitiesTimelineRepository}
 
 
