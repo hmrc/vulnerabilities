@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.vulnerabilities.controllers
+package uk.gov.hmrc.vulnerabilities.controller
 
 import play.api.Logging
 import play.api.libs.json.{Json, Format, Writes}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, RequestHeader}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, ServiceName, SlugInfoFlag, TotalVulnerabilityCount, Version, VulnerableComponent, VulnerabilityOccurrence, VulnerabilitySummary}
-import uk.gov.hmrc.vulnerabilities.connectors.TeamsAndRepositoriesConnector
+import uk.gov.hmrc.vulnerabilities.connector.TeamsAndRepositoriesConnector
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilityAgeRepository}
 
 import javax.inject.{Inject, Singleton}
@@ -65,7 +65,7 @@ class VulnerabilitiesController @Inject()(
                            row         <- report.rows
                            cveId       =  row.cves.flatMap(_.cveId).headOption.getOrElse(row.issueId)
                            assessment  =  assessments.get(cveId)
-                           if curationStatus.fold(true)(_ == assessment.map(_.curationStatus).getOrElse(CurationStatus.Uncurated))
+                           if curationStatus.fold(true)(_ == assessment.fold(CurationStatus.Uncurated)(_.curationStatus))
                            compName    =  row.vulnerableComponent.split(":").dropRight(1).mkString(":")
                            compVersion =  row.vulnerableComponent.split(":").last
                          yield
@@ -83,7 +83,7 @@ class VulnerabilitiesController @Inject()(
                                                       publishedDate              = row.published,
                                                       firstDetected              = firstDetected.get(cveId),
                                                       assessment                 = assessment.map(_.assessment),
-                                                      curationStatus             = assessment.map(_.curationStatus).getOrElse(CurationStatus.Uncurated),
+                                                      curationStatus             = assessment.fold(CurationStatus.Uncurated)(_.curationStatus),
                                                       ticket                     = assessment.map(_.ticket),
                                                     ),
                              occurrences          = Seq(VulnerabilityOccurrence(
@@ -101,7 +101,7 @@ class VulnerabilitiesController @Inject()(
                                                       vulnerableComponentName    = compName,
                                                       vulnerableComponentVersion = compVersion,
                                                     )),
-                             teams                = repoWithTeams.getOrElse(report.serviceName.asString, Seq.empty).sorted,
+                             teams                = repoWithTeams.getOrElse(report.serviceName.asString, Seq.empty).sorted, // TODO if we can't find the team, then it's possible the "slugname" doesn't match the repo name
                              generatedDate        = report.generatedDate
                            )
         summaries     = allSummaries

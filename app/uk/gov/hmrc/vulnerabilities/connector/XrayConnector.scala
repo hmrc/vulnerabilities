@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.vulnerabilities.connectors
+package uk.gov.hmrc.vulnerabilities.connector
 
 import org.apache.pekko.stream.Materializer
 import org.apache.pekko.stream.scaladsl.{Source, StreamConverters}
@@ -143,4 +143,3 @@ class XrayConnector @Inject() (
         s"""{"filters":{"author":"${xrayUsername}","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"$cutOff"}}}"""
       ))
       .execute[Seq[ReportId]]
-
