@@ -16,12 +16,13 @@
 
 package uk.gov.hmrc.vulnerabilities.controller
 
+import cats.syntax.all._
 import play.api.Logging
 import play.api.libs.json.{Json, Format, Writes}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, RequestHeader}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, ServiceName, SlugInfoFlag, TotalVulnerabilityCount, Version, VulnerableComponent, VulnerabilityOccurrence, VulnerabilitySummary}
-import uk.gov.hmrc.vulnerabilities.connector.TeamsAndRepositoriesConnector
+import uk.gov.hmrc.vulnerabilities.connector.{ServiceConfigsConnector, TeamsAndRepositoriesConnector}
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilityAgeRepository}
 
 import javax.inject.{Inject, Singleton}
@@ -33,6 +34,7 @@ class VulnerabilitiesController @Inject()(
   assessmentsRepository        : AssessmentsRepository,
   rawReportsRepository         : RawReportsRepository,
   teamsAndRepositoriesConnector: TeamsAndRepositoriesConnector,
+  serviceConfigsConnector      : ServiceConfigsConnector,
   vulnerabilityAgeRepository   : VulnerabilityAgeRepository
 )(using
   ExecutionContext
@@ -41,13 +43,14 @@ class VulnerabilitiesController @Inject()(
      with Logging:
 
   def getSummaries(
-    flag           : Option[SlugInfoFlag],
-    service        : Option[ServiceName ]  ,
-    version        : Option[Version]       ,
-    team           : Option[String ]       ,
-    curationStatus : Option[CurationStatus],
+    flag           : Option[SlugInfoFlag]
+  , service        : Option[ServiceName ]
+  , version        : Option[Version]
+  , team           : Option[String ]
+  , curationStatus : Option[CurationStatus]
   ): Action[AnyContent] =
     Action.async: request =>
+      // TODO flag is required if service + version are not provided
       given RequestHeader = request
       given Format[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
       for
@@ -59,6 +62,17 @@ class VulnerabilitiesController @Inject()(
         repoWithTeams <- teamsAndRepositoriesConnector.cachedTeamToReposMap()
         firstDetected <- vulnerabilityAgeRepository.firstDetected()
         assessments   <- assessmentsRepository.getAssessments().map(_.map(a => a.id -> a).toMap)
+        // TODO cache this result too (instead of repoWithTeams)
+        artefactWithTeams <- reports.foldLeftM(repoWithTeams){
+                               case (repoWithTeams, report) =>
+                                 repoWithTeams.get(report.serviceName.asString) match
+                                   case None =>
+                                     serviceConfigsConnector.repoNameForService(report.serviceName)
+                                       .map:
+                                        case Some(repoName) => repoWithTeams ++ Map(repoName -> repoWithTeams.getOrElse(repoName, Seq.empty))
+                                        case None           => repoWithTeams
+                                   case _    => Future.successful(repoWithTeams)
+                             }
         allSummaries  =
                          for
                            report      <- reports
@@ -68,6 +82,7 @@ class VulnerabilitiesController @Inject()(
                            if curationStatus.fold(true)(_ == assessment.fold(CurationStatus.Uncurated)(_.curationStatus))
                            compName    =  row.vulnerableComponent.split(":").dropRight(1).mkString(":")
                            compVersion =  row.vulnerableComponent.split(":").last
+                           teams       =  artefactWithTeams.getOrElse(report.serviceName.asString, Seq.empty)
                          yield
                            VulnerabilitySummary(
                             distinctVulnerability = DistinctVulnerability(
@@ -90,7 +105,7 @@ class VulnerabilitiesController @Inject()(
                                                       service                    = report.serviceName.asString,
                                                       serviceVersion             = report.serviceVersion.original,
                                                       componentPathInSlug        = row.componentPhysicalPath,
-                                                      teams                      = repoWithTeams.getOrElse(report.serviceName.asString, Seq.empty).sorted,
+                                                      teams                      = teams,
                                                       envs                       = (  Option.when(report.development )(SlugInfoFlag.Development.asString ) ++
                                                                                       Option.when(report.integration )(SlugInfoFlag.Integration.asString ) ++
                                                                                       Option.when(report.qa          )(SlugInfoFlag.QA.asString          ) ++
@@ -101,7 +116,7 @@ class VulnerabilitiesController @Inject()(
                                                       vulnerableComponentName    = compName,
                                                       vulnerableComponentVersion = compVersion,
                                                     )),
-                             teams                = repoWithTeams.getOrElse(report.serviceName.asString, Seq.empty).sorted, // TODO if we can't find the team, then it's possible the "slugname" doesn't match the repo name
+                             teams                = teams,
                              generatedDate        = report.generatedDate
                            )
         summaries     = allSummaries
@@ -119,7 +134,7 @@ class VulnerabilitiesController @Inject()(
   def getReportCounts(
     flag   : SlugInfoFlag,
     service: Option[ServiceName],
-    team   : Option[String],
+    team   : Option[String]
   ): Action[AnyContent] =
     Action.async: request =>
       given RequestHeader = request
@@ -144,7 +159,7 @@ class VulnerabilitiesController @Inject()(
 
   // temp endpoint till we work out how to display vulnerabilities on the service page
   def getDeployedReportCount(
-    service: ServiceName,
+    service: ServiceName
   ): Action[AnyContent] =
     Action.async: _ =>
       given tvw: Writes[TotalVulnerabilityCount] = TotalVulnerabilityCount.writes
