@@ -57,22 +57,15 @@ class VulnerabilitiesController @Inject()(
         serviceNames  <- (service, team) match
                            case (None   , None   ) => Future.successful(None)
                            case (Some(s), _      ) => Future.successful(Some(Seq(s)))
-                           case (_      , Some(_)) => teamsAndRepositoriesConnector.repositories(team).map(xs => Some(xs.map(x => ServiceName(x.name))))
+                           case (_      , Some(_)) => teamsAndRepositoriesConnector.repositories(team).map(xs => Some(xs.map(x => ServiceName(x.name.asString))))
         reports       <- rawReportsRepository.find(flag, serviceNames, version)
-        repoWithTeams <- teamsAndRepositoriesConnector.cachedTeamToReposMap()
+        repoWithTeams <- teamsAndRepositoriesConnector.repoToTeams()
+        artefactToRepos <- serviceConfigsConnector.artefactToRepos()
+        artefactWithTeams = artefactToRepos.foldLeft(repoWithTeams.map((k, v) => k.asString -> v)): (acc, artefactToRepo) =>
+                               acc ++ Map(artefactToRepo.artefactName -> acc.getOrElse(artefactToRepo.repoName.asString, Seq.empty))
+
         firstDetected <- vulnerabilityAgeRepository.firstDetected()
         assessments   <- assessmentsRepository.getAssessments().map(_.map(a => a.id -> a).toMap)
-        // TODO cache this result too (instead of repoWithTeams)
-        artefactWithTeams <- reports.foldLeftM(repoWithTeams){
-                               case (repoWithTeams, report) =>
-                                 repoWithTeams.get(report.serviceName.asString) match
-                                   case None =>
-                                     serviceConfigsConnector.repoNameForService(report.serviceName)
-                                       .map:
-                                        case Some(repoName) => repoWithTeams ++ Map(repoName -> repoWithTeams.getOrElse(repoName, Seq.empty))
-                                        case None           => repoWithTeams
-                                   case _    => Future.successful(repoWithTeams)
-                             }
         allSummaries  =
                          for
                            report      <- reports
@@ -106,12 +99,12 @@ class VulnerabilitiesController @Inject()(
                                                       serviceVersion             = report.serviceVersion.original,
                                                       componentPathInSlug        = row.componentPhysicalPath,
                                                       teams                      = teams,
-                                                      envs                       = (  Option.when(report.development )(SlugInfoFlag.Development.asString ) ++
-                                                                                      Option.when(report.integration )(SlugInfoFlag.Integration.asString ) ++
-                                                                                      Option.when(report.qa          )(SlugInfoFlag.QA.asString          ) ++
-                                                                                      Option.when(report.staging     )(SlugInfoFlag.Staging.asString     ) ++
-                                                                                      Option.when(report.externalTest)(SlugInfoFlag.ExternalTest.asString) ++
-                                                                                      Option.when(report.production  )(SlugInfoFlag.Production.asString  )
+                                                      envs                       = ( Option.when(report.development )(SlugInfoFlag.Development.asString ) ++
+                                                                                     Option.when(report.integration )(SlugInfoFlag.Integration.asString ) ++
+                                                                                     Option.when(report.qa          )(SlugInfoFlag.QA.asString          ) ++
+                                                                                     Option.when(report.staging     )(SlugInfoFlag.Staging.asString     ) ++
+                                                                                     Option.when(report.externalTest)(SlugInfoFlag.ExternalTest.asString) ++
+                                                                                     Option.when(report.production  )(SlugInfoFlag.Production.asString  )
                                                                                    ).toSeq,
                                                       vulnerableComponentName    = compName,
                                                       vulnerableComponentVersion = compVersion,
@@ -129,6 +122,46 @@ class VulnerabilitiesController @Inject()(
                                                  )
                             case (_, List(x: VulnerabilitySummary))
                                               => x
+
+        _ = {
+          val teamCount =
+            (for
+               summary <- summaries
+               team    <- summary.teams
+             yield team -> summary.distinctVulnerability.id
+            ).toSet
+          println(teamCount.groupMap(_._1)(_._2).view.mapValues(_.size).toMap.toSeq.sortBy(_._2).reverse.mkString("\n"))
+
+          val teamToType = Map(
+            ("CIP Advanced Search"          ,"CIP")
+          , ("CIP Support"                  ,"CIP")
+          , ("CIP Customer Interaction Team","CIP")
+          , ("CIP Infra and Enable"         ,"CIP")
+          , ("CIP Data Platform"            ,"CIP")
+          , ("CIP Insights and Reputation"  ,"CIP")
+          , ("CIP Search UI"                ,"CIP")
+          , ("Classic Services Telford"     ,"DASS")
+          , ("DASS 3"                       ,"DASS")
+          , ("DASS"                         ,"DASS")
+          , ("DASS 2"                       ,"DASS")
+          , ("Rehoming London"              ,"DASS")
+          )
+          val teamCount2 =
+            (for
+               summary <- summaries
+               team    <- summary.teams
+             yield teamToType.getOrElse(team, team) -> summary.distinctVulnerability.id
+            ).toSet
+          println("\n\n" + teamCount2.groupMap(_._1)(_._2).view.mapValues(_.size).toMap.toSeq.sortBy(_._2).reverse.mkString("\n"))
+
+          val totalUnique =
+            summaries.map(_.distinctVulnerability.id).toSet.size
+          println("\n\n total unique: " + totalUnique)
+
+          val forservice =
+          summaries.filter(_.occurrences.contains("upload-documents-frontend")).map(_.distinctVulnerability.id).toSet.size
+
+        }
       yield Ok(Json.toJson(summaries))
 
   def getReportCounts(
@@ -143,7 +176,7 @@ class VulnerabilitiesController @Inject()(
         serviceNames <- (service, team) match
                           case (None   , None   ) => Future.successful(None)
                           case (Some(s), _      ) => Future.successful(Some(Seq(s)))
-                          case (_      , Some(_)) => teamsAndRepositoriesConnector.repositories(team).map(xs => Some(xs.map(x => ServiceName(x.name))))
+                          case (_      , Some(_)) => teamsAndRepositoriesConnector.repositories(team).map(xs => Some(xs.map(x => ServiceName(x.name.asString))))
         reports      <- rawReportsRepository.find(Some(flag), serviceNames, version = None)
         assessments  <- assessmentsRepository.getAssessments()
         result       =  reports.map: report =>

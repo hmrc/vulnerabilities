@@ -21,6 +21,7 @@ import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
+import uk.gov.hmrc.vulnerabilities.model.RepoName
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -29,12 +30,12 @@ object TeamsAndRepositoriesConnector:
   import play.api.libs.functional.syntax._
 
   case class Repo(
-    name     : String,
+    name     : RepoName,
     teamNames: Seq[String]
   )
 
   private val repoReads: Reads[Repo] =
-    ( (__ \ "name"     ).read[String]
+    ( (__ \ "name"     ).read[RepoName]
     ~ (__ \ "teamNames").read[Seq[String]]
     )(Repo.apply _)
 
@@ -67,15 +68,12 @@ class TeamsAndRepositoriesConnector @Inject()(
       .get(url"$url/api/v2/repositories?team=$teamName")
       .execute[Seq[TeamsAndRepositoriesConnector.Repo]]
 
-  private def getAllRepositories()(using HeaderCarrier): Future[Seq[Repo]] =
-    repositories(teamName = None)
-
   private val cacheDuration =
     servicesConfig.getDuration("microservice.services.teams-and-repositories.cache.expiration")
 
-  def cachedTeamToReposMap()(using HeaderCarrier): Future[Map[String, Seq[String]]] =
-    cache.getOrElseUpdate("teams-for-services", cacheDuration):
-      getAllRepositories()
+  def repoToTeams()(using HeaderCarrier): Future[Map[RepoName, Seq[String]]] =
+    cache.getOrElseUpdate("teams-for-services", cacheDuration): // TODO cache should include the artefact to repo mappings too
+      repositories(teamName = None)
         .map:
           _.map(x => (x.name, x.teamNames))
            .toMap

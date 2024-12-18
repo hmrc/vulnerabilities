@@ -17,11 +17,12 @@
 package uk.gov.hmrc.vulnerabilities.connector
 
 import play.api.cache.AsyncCacheApi
+import play.api.libs.functional.syntax._
 import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.ServiceName
+import uk.gov.hmrc.vulnerabilities.model.RepoName
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -37,7 +38,19 @@ class ServiceConfigsConnector @Inject()(
 
   private val url = servicesConfig.baseUrl("service-configs")
 
-  def repoNameForService(serviceName: ServiceName)(using HeaderCarrier): Future[Option[String]] =
+  def artefactToRepos()(using HeaderCarrier): Future[Seq[ArtefactToRepo]] =
+    given Reads[ArtefactToRepo] = ArtefactToRepo.reads
     httpClientV2
-      .get(url"$url/service-configs/services/repo-name?artefactName=${serviceName.asString}")
-      .execute[Option[String]]
+      .get(url"$url/service-configs/service-repo-names")
+      .execute[Seq[ArtefactToRepo]]
+
+case class ArtefactToRepo(
+  artefactName: String,//ArtefactName,
+  repoName    : RepoName
+)
+
+object ArtefactToRepo:
+  val reads: Reads[ArtefactToRepo] =
+    ( (__ \ "artefactName").read[String]
+    ~ (__ \ "repoName"    ).read[RepoName]
+    )(apply)
