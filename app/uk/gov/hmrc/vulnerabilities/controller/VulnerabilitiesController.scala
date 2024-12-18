@@ -92,7 +92,7 @@ class VulnerabilitiesController @Inject()(
                                                       firstDetected              = firstDetected.get(cveId),
                                                       assessment                 = assessment.map(_.assessment),
                                                       curationStatus             = assessment.fold(CurationStatus.Uncurated)(_.curationStatus),
-                                                      ticket                     = assessment.map(_.ticket),
+                                                      ticket                     = assessment.map(_.ticket)
                                                     ),
                              occurrences          = Seq(VulnerabilityOccurrence(
                                                       service                    = report.serviceName.asString,
@@ -107,7 +107,7 @@ class VulnerabilitiesController @Inject()(
                                                                                      Option.when(report.production  )(SlugInfoFlag.Production.asString  )
                                                                                    ).toSeq,
                                                       vulnerableComponentName    = compName,
-                                                      vulnerableComponentVersion = compVersion,
+                                                      vulnerableComponentVersion = compVersion
                                                     )),
                              teams                = teams,
                              generatedDate        = report.generatedDate
@@ -118,50 +118,11 @@ class VulnerabilitiesController @Inject()(
                           .collect:
                             case (_, x +: xs) => x.copy(
                                                    distinctVulnerability = x.distinctVulnerability.copy(vulnerableComponents = (x.distinctVulnerability.vulnerableComponents ++ xs.flatMap(_.distinctVulnerability.vulnerableComponents)).distinct.sortBy(o => (o.component, o.version)))
-                                                 , occurrences           = x.occurrences ++ xs.flatMap(_.occurrences.headOption)
+                                                 , occurrences           = x.occurrences ++ xs.flatMap(_.occurrences)
+                                                 , teams                 = (x.teams ++ xs.flatMap(_.teams)).distinct
                                                  )
                             case (_, List(x: VulnerabilitySummary))
                                               => x
-
-        _ = {
-          val teamCount =
-            (for
-               summary <- summaries
-               team    <- summary.teams
-             yield team -> summary.distinctVulnerability.id
-            ).toSet
-          println(teamCount.groupMap(_._1)(_._2).view.mapValues(_.size).toMap.toSeq.sortBy(_._2).reverse.mkString("\n"))
-
-          val teamToType = Map(
-            ("CIP Advanced Search"          ,"CIP")
-          , ("CIP Support"                  ,"CIP")
-          , ("CIP Customer Interaction Team","CIP")
-          , ("CIP Infra and Enable"         ,"CIP")
-          , ("CIP Data Platform"            ,"CIP")
-          , ("CIP Insights and Reputation"  ,"CIP")
-          , ("CIP Search UI"                ,"CIP")
-          , ("Classic Services Telford"     ,"DASS")
-          , ("DASS 3"                       ,"DASS")
-          , ("DASS"                         ,"DASS")
-          , ("DASS 2"                       ,"DASS")
-          , ("Rehoming London"              ,"DASS")
-          )
-          val teamCount2 =
-            (for
-               summary <- summaries
-               team    <- summary.teams
-             yield teamToType.getOrElse(team, team) -> summary.distinctVulnerability.id
-            ).toSet
-          println("\n\n" + teamCount2.groupMap(_._1)(_._2).view.mapValues(_.size).toMap.toSeq.sortBy(_._2).reverse.mkString("\n"))
-
-          val totalUnique =
-            summaries.map(_.distinctVulnerability.id).toSet.size
-          println("\n\n total unique: " + totalUnique)
-
-          val forservice =
-          summaries.filter(_.occurrences.contains("upload-documents-frontend")).map(_.distinctVulnerability.id).toSet.size
-
-        }
       yield Ok(Json.toJson(summaries))
 
   def getReportCounts(
