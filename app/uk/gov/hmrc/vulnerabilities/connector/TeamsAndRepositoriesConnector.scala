@@ -20,7 +20,7 @@ import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.RepoName
+import uk.gov.hmrc.vulnerabilities.model.{RepoName, TeamName}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -30,12 +30,12 @@ object TeamsAndRepositoriesConnector:
 
   case class Repo(
     name     : RepoName,
-    teamNames: Seq[String]
+    teamNames: Seq[TeamName]
   )
 
   private val repoReads: Reads[Repo] =
     ( (__ \ "name"     ).read[RepoName]
-    ~ (__ \ "teamNames").read[Seq[String]]
+    ~ (__ \ "teamNames").read[Seq[TeamName]]
     )(Repo.apply _)
 
 @Singleton
@@ -50,13 +50,13 @@ class TeamsAndRepositoriesConnector @Inject()(
 
   private val url = servicesConfig.baseUrl("teams-and-repositories")
 
-  def repositories(teamName: Option[String])(using HeaderCarrier): Future[Seq[Repo]] =
+  def repositories(teamName: Option[TeamName])(using HeaderCarrier): Future[Seq[Repo]] =
     given Reads[Repo] = repoReads
     httpClientV2
-      .get(url"$url/api/v2/repositories?team=$teamName")
+      .get(url"$url/api/v2/repositories?team=${teamName.map(_.asString)}")
       .execute[Seq[TeamsAndRepositoriesConnector.Repo]]
 
-  def repoToTeams()(using HeaderCarrier): Future[Map[RepoName, Seq[String]]] =
+  def repoToTeams()(using HeaderCarrier): Future[Map[RepoName, Seq[TeamName]]] =
     repositories(teamName = None)
       .map:
         _.map(x => (x.name, x.teamNames))

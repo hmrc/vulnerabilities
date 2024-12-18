@@ -20,7 +20,7 @@ import play.api.Logging
 import play.api.libs.json.{Json, Format}
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, VulnerabilitiesTimelineCount}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, TeamName, VulnerabilitiesTimelineCount}
 import uk.gov.hmrc.vulnerabilities.persistence.VulnerabilitiesTimelineRepository
 
 import java.time.Instant
@@ -39,7 +39,7 @@ class VulnerabilitiesTimelineController @Inject()(
 
   def getTimelineCounts(
     service       : Option[ServiceName],
-    team          : Option[String],
+    team          : Option[TeamName],
     vulnerability : Option[String],
     curationStatus: Option[CurationStatus],
     from          : Instant,

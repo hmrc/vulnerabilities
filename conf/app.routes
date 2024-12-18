@@ -1,10 +1,10 @@
 # microservice specific routes
 
-GET        /api/summaries                   uk.gov.hmrc.vulnerabilities.controller.VulnerabilitiesController.getSummaries(flag: Option[SlugInfoFlag], service: Option[ServiceName], version: Option[Version], team: Option[String], curationStatus: Option[CurationStatus])
+GET        /api/summaries                   uk.gov.hmrc.vulnerabilities.controller.VulnerabilitiesController.getSummaries(flag: Option[SlugInfoFlag], service: Option[ServiceName], version: Option[Version], team: Option[TeamName], curationStatus: Option[CurationStatus])
 
-GET        /api/reports/:flag/counts        uk.gov.hmrc.vulnerabilities.controller.VulnerabilitiesController.getReportCounts(flag: SlugInfoFlag, service: Option[ServiceName], team: Option[String])
+GET        /api/reports/:flag/counts        uk.gov.hmrc.vulnerabilities.controller.VulnerabilitiesController.getReportCounts(flag: SlugInfoFlag, service: Option[ServiceName], team: Option[TeamName])
 
 # temp endpoint till we work out how to display vulnerabilities on the service page
 GET        /api/services/:service/deployed-report-count   uk.gov.hmrc.vulnerabilities.controller.VulnerabilitiesController.getDeployedReportCount(service: ServiceName)
 
-GET        /api/reports/timeline            uk.gov.hmrc.vulnerabilities.controller.VulnerabilitiesTimelineController.getTimelineCounts(service: Option[ServiceName], team: Option[String], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: java.time.Instant, to: java.time.Instant)
+GET        /api/reports/timeline            uk.gov.hmrc.vulnerabilities.controller.VulnerabilitiesTimelineController.getTimelineCounts(service: Option[ServiceName], team: Option[TeamName], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: java.time.Instant, to: java.time.Instant)

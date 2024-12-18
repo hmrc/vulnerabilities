@@ -22,6 +22,7 @@ import play.api.{Configuration, Logging}
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.TimestampSupport
 import uk.gov.hmrc.mongo.lock.{ScheduledLockService, MongoLockRepository}
+import uk.gov.hmrc.vulnerabilities.model.ArtefactName
 import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilitiesTimelineRepository}
 import uk.gov.hmrc.vulnerabilities.service.TeamService
 
@@ -75,7 +76,7 @@ class TimelineScheduler @Inject()(
           for
             timeline          <- rawReportsRepository.getTimelineData(weekBeginning)
             artefactToTeams   <- teamService.artefactToTeams()
-            timelineWithTeams =  timeline.map(sv => sv.copy(teams = artefactToTeams.getOrElse(sv.service, Seq())))
+            timelineWithTeams =  timeline.map(sv => sv.copy(teams = artefactToTeams.getOrElse(ArtefactName(sv.service), Seq.empty)))
             _                 <- timelineRepository.replaceOrInsert(timelineWithTeams)
             _                 =  logger.info(s"Timeline scheduler week beginning: $weekBeginning has added the weekly data: ${timelineWithTeams.size} rows")
           yield ()

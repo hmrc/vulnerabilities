@@ -23,7 +23,7 @@ import org.mongodb.scala.model.Indexes.{compoundIndex, descending}
 import org.mongodb.scala.model._
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, TimelineEvent, VulnerabilitiesTimelineCount}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, TeamName, TimelineEvent, VulnerabilitiesTimelineCount}
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -66,7 +66,7 @@ class VulnerabilitiesTimelineRepository @Inject()(
 
   def getTimelineCounts(
     serviceName   : Option[ServiceName]    = None
-  , team          : Option[String]         = None
+  , team          : Option[TeamName]       = None
   , vulnerability : Option[String]         = None
   , curationStatus: Option[CurationStatus] = None
   , from          : Instant
@@ -77,14 +77,14 @@ class VulnerabilitiesTimelineRepository @Inject()(
         case ServiceName(Quoted(s)) => Filters.equal("service", s.toLowerCase())
         case ServiceName(s)         => Filters.regex("service", s.toLowerCase())
       },
-      team.map         (t => Filters.eq("teams", t)),
+      team.map         (t => Filters.eq("teams", t.asString)),
       vulnerability.map(v => Filters.eq("id", v.toUpperCase)),
       curationStatus.map(cs => Filters.eq("curationStatus", cs.asString))
     ).flatten
 
     val pipeline: Seq[Bson] = Seq(
       Some(`match`(Filters.and(Filters.gte("weekBeginning", from), Filters.lte("weekBeginning",to)))),
-      if optFilters.isEmpty then None else Some(`match`(Filters.and(optFilters: _*))),
+      if optFilters.isEmpty then None else Some(`match`(Filters.and(optFilters: _*))), // TODO flatten filters
       Some(group(id = "$weekBeginning", Accumulators.sum("count", 1)))
     ).flatten
 

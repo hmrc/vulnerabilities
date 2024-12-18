@@ -23,11 +23,10 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.Configuration
-import play.api.cache.AsyncCacheApi
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.RepoName
+import uk.gov.hmrc.vulnerabilities.model.{RepoName, TeamName}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -65,6 +64,6 @@ class TeamsAndRepositoriesConnectorSpec
               ]"""
 
       connector.repositories(teamName = None).futureValue shouldBe Seq(
-        Repo(RepoName("service1"), Seq("team1", "team2")),
-        Repo(RepoName("service2"), Seq("team1", "team3"))
+        Repo(RepoName("service1"), Seq(TeamName("team1"), TeamName("team2"))),
+        Repo(RepoName("service2"), Seq(TeamName("team1"), TeamName("team3")))
       )

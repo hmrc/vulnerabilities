@@ -23,11 +23,10 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.Configuration
-import play.api.cache.AsyncCacheApi
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.RepoName
+import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, RepoName}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -63,6 +62,6 @@ class ServiceConfigsConnectorSpec
               ]"""
 
       connector.artefactToRepos().futureValue shouldBe Seq(
-        ArtefactToRepo("artefact1", RepoName("repo1")),
-        ArtefactToRepo("artefact2", RepoName("repo2"))
+        ArtefactToRepo(ArtefactName("artefact1"), RepoName("repo1")),
+        ArtefactToRepo(ArtefactName("artefact2"), RepoName("repo2"))
       )

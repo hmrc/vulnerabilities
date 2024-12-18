@@ -20,7 +20,7 @@ import play.api.Logging
 import play.api.libs.json.{Json, Format, Writes}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, RequestHeader}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, ServiceName, SlugInfoFlag, TotalVulnerabilityCount, Version, VulnerableComponent, VulnerabilityOccurrence, VulnerabilitySummary}
+import uk.gov.hmrc.vulnerabilities.model.*
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilityAgeRepository}
 import uk.gov.hmrc.vulnerabilities.service.TeamService
 
@@ -42,9 +42,9 @@ class VulnerabilitiesController @Inject()(
 
   def getSummaries(
     flag           : Option[SlugInfoFlag]
-  , service        : Option[ServiceName ]
+  , service        : Option[ServiceName]
   , version        : Option[Version]
-  , team           : Option[String ]
+  , team           : Option[TeamName]
   , curationStatus : Option[CurationStatus]
   ): Action[AnyContent] =
     Action.async: request =>
@@ -69,7 +69,7 @@ class VulnerabilitiesController @Inject()(
                            if curationStatus.fold(true)(_ == assessment.fold(CurationStatus.Uncurated)(_.curationStatus))
                            compName    =  row.vulnerableComponent.split(":").dropRight(1).mkString(":")
                            compVersion =  row.vulnerableComponent.split(":").last
-                           teams       =  artefactToTeams.getOrElse(report.serviceName.asString, Seq.empty).sorted
+                           teams       =  artefactToTeams.getOrElse(ArtefactName(report.serviceName.asString), Seq.empty).sorted // report serviceName is really ArtefactName
                          yield
                            VulnerabilitySummary(
                             distinctVulnerability = DistinctVulnerability(
@@ -125,7 +125,7 @@ class VulnerabilitiesController @Inject()(
   def getReportCounts(
     flag   : SlugInfoFlag,
     service: Option[ServiceName],
-    team   : Option[String]
+    team   : Option[TeamName]
   ): Action[AnyContent] =
     Action.async: request =>
       given RequestHeader = request

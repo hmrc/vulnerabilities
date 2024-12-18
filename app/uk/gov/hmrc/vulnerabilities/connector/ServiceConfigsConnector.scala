@@ -16,13 +16,12 @@
 
 package uk.gov.hmrc.vulnerabilities.connector
 
-import play.api.cache.AsyncCacheApi
 import play.api.libs.functional.syntax._
 import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.RepoName
+import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, RepoName}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -45,12 +44,12 @@ class ServiceConfigsConnector @Inject()(
       .execute[Seq[ArtefactToRepo]]
 
 case class ArtefactToRepo(
-  artefactName: String,//ArtefactName,
+  artefactName: ArtefactName,
   repoName    : RepoName
 )
 
 object ArtefactToRepo:
   val reads: Reads[ArtefactToRepo] =
-    ( (__ \ "artefactName").read[String]
+    ( (__ \ "artefactName").read[ArtefactName]
     ~ (__ \ "repoName"    ).read[RepoName]
     )(apply)
