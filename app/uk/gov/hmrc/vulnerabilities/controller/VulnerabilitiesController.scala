@@ -16,26 +16,24 @@
 
 package uk.gov.hmrc.vulnerabilities.controller
 
-import cats.syntax.all._
 import play.api.Logging
 import play.api.libs.json.{Json, Format, Writes}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, RequestHeader}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DistinctVulnerability, ServiceName, SlugInfoFlag, TotalVulnerabilityCount, Version, VulnerableComponent, VulnerabilityOccurrence, VulnerabilitySummary}
-import uk.gov.hmrc.vulnerabilities.connector.{ServiceConfigsConnector, TeamsAndRepositoriesConnector}
 import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilityAgeRepository}
+import uk.gov.hmrc.vulnerabilities.service.TeamService
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{Future, ExecutionContext}
 
 @Singleton()
 class VulnerabilitiesController @Inject()(
-  cc                           : ControllerComponents,
-  assessmentsRepository        : AssessmentsRepository,
-  rawReportsRepository         : RawReportsRepository,
-  teamsAndRepositoriesConnector: TeamsAndRepositoriesConnector,
-  serviceConfigsConnector      : ServiceConfigsConnector,
-  vulnerabilityAgeRepository   : VulnerabilityAgeRepository
+  cc                        : ControllerComponents,
+  assessmentsRepository     : AssessmentsRepository,
+  rawReportsRepository      : RawReportsRepository,
+  teamService               : TeamService,
+  vulnerabilityAgeRepository: VulnerabilityAgeRepository
 )(using
   ExecutionContext
 )
@@ -54,19 +52,15 @@ class VulnerabilitiesController @Inject()(
       given RequestHeader = request
       given Format[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
       for
-        serviceNames  <- (service, team) match
-                           case (None   , None   ) => Future.successful(None)
-                           case (Some(s), _      ) => Future.successful(Some(Seq(s)))
-                           case (_      , Some(_)) => teamsAndRepositoriesConnector.repositories(team).map(xs => Some(xs.map(x => ServiceName(x.name.asString))))
-        reports       <- rawReportsRepository.find(flag, serviceNames, version)
-        repoWithTeams <- teamsAndRepositoriesConnector.repoToTeams()
-        artefactToRepos <- serviceConfigsConnector.artefactToRepos()
-        artefactWithTeams = artefactToRepos.foldLeft(repoWithTeams.map((k, v) => k.asString -> v)): (acc, artefactToRepo) =>
-                               acc ++ Map(artefactToRepo.artefactName -> acc.getOrElse(artefactToRepo.repoName.asString, Seq.empty))
-
-        firstDetected <- vulnerabilityAgeRepository.firstDetected()
-        assessments   <- assessmentsRepository.getAssessments().map(_.map(a => a.id -> a).toMap)
-        allSummaries  =
+        serviceNames    <- (service, team) match
+                             case (None   , None   ) => Future.successful(None)
+                             case (Some(s), _      ) => Future.successful(Some(Seq(s)))
+                             case (_      , Some(_)) => teamService.services(team).map(Some.apply)
+        reports         <- rawReportsRepository.find(flag, serviceNames, version)
+        artefactToTeams <- teamService.artefactToTeams()
+        firstDetected   <- vulnerabilityAgeRepository.firstDetected()
+        assessments     <- assessmentsRepository.getAssessments().map(_.map(a => a.id -> a).toMap)
+        allSummaries    =
                          for
                            report      <- reports
                            row         <- report.rows
@@ -75,7 +69,7 @@ class VulnerabilitiesController @Inject()(
                            if curationStatus.fold(true)(_ == assessment.fold(CurationStatus.Uncurated)(_.curationStatus))
                            compName    =  row.vulnerableComponent.split(":").dropRight(1).mkString(":")
                            compVersion =  row.vulnerableComponent.split(":").last
-                           teams       =  artefactWithTeams.getOrElse(report.serviceName.asString, Seq.empty)
+                           teams       =  artefactToTeams.getOrElse(report.serviceName.asString, Seq.empty).sorted
                          yield
                            VulnerabilitySummary(
                             distinctVulnerability = DistinctVulnerability(
@@ -117,9 +111,12 @@ class VulnerabilitiesController @Inject()(
                           .groupBy(_.distinctVulnerability.id)
                           .collect:
                             case (_, x +: xs) => x.copy(
-                                                   distinctVulnerability = x.distinctVulnerability.copy(vulnerableComponents = (x.distinctVulnerability.vulnerableComponents ++ xs.flatMap(_.distinctVulnerability.vulnerableComponents)).distinct.sortBy(o => (o.component, o.version)))
+                                                   distinctVulnerability = x.distinctVulnerability.copy(vulnerableComponents =
+                                                                             (x.distinctVulnerability.vulnerableComponents ++ xs.flatMap(_.distinctVulnerability.vulnerableComponents))
+                                                                               .distinct.sortBy(o => (o.component, o.version))
+                                                                           )
                                                  , occurrences           = x.occurrences ++ xs.flatMap(_.occurrences)
-                                                 , teams                 = (x.teams ++ xs.flatMap(_.teams)).distinct
+                                                 , teams                 = (x.teams ++ xs.flatMap(_.teams)).distinct.sorted
                                                  )
                             case (_, List(x: VulnerabilitySummary))
                                               => x
@@ -137,7 +134,7 @@ class VulnerabilitiesController @Inject()(
         serviceNames <- (service, team) match
                           case (None   , None   ) => Future.successful(None)
                           case (Some(s), _      ) => Future.successful(Some(Seq(s)))
-                          case (_      , Some(_)) => teamsAndRepositoriesConnector.repositories(team).map(xs => Some(xs.map(x => ServiceName(x.name.asString))))
+                          case (_      , Some(_)) => teamService.services(team).map(Some.apply)
         reports      <- rawReportsRepository.find(Some(flag), serviceNames, version = None)
         assessments  <- assessmentsRepository.getAssessments()
         result       =  reports.map: report =>

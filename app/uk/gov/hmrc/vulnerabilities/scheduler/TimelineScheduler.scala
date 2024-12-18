@@ -22,9 +22,8 @@ import play.api.{Configuration, Logging}
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.TimestampSupport
 import uk.gov.hmrc.mongo.lock.{ScheduledLockService, MongoLockRepository}
-import uk.gov.hmrc.vulnerabilities.connector.TeamsAndRepositoriesConnector
 import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilitiesTimelineRepository}
-
+import uk.gov.hmrc.vulnerabilities.service.TeamService
 
 import java.time.{DayOfWeek, LocalDate, ZoneOffset}
 import java.time.temporal.TemporalAdjusters
@@ -34,7 +33,7 @@ import scala.concurrent.{ExecutionContext, Future}
 @Singleton
 class TimelineScheduler @Inject()(
   configuration         : Configuration,
-  teamsAndReposConnector: TeamsAndRepositoriesConnector,
+  teamService           : TeamService,
   rawReportsRepository  : RawReportsRepository,
   timelineRepository    : VulnerabilitiesTimelineRepository,
   mongoLockRepository   : MongoLockRepository,
@@ -75,8 +74,8 @@ class TimelineScheduler @Inject()(
         case _ =>
           for
             timeline          <- rawReportsRepository.getTimelineData(weekBeginning)
-            repositoryTeams   <- teamsAndReposConnector.repoToTeams().map(_.map((k, v) => (k.asString, v)))
-            timelineWithTeams =  timeline.map(sv => sv.copy(teams = repositoryTeams.getOrElse(sv.service, Seq())))
+            artefactToTeams   <- teamService.artefactToTeams()
+            timelineWithTeams =  timeline.map(sv => sv.copy(teams = artefactToTeams.getOrElse(sv.service, Seq())))
             _                 <- timelineRepository.replaceOrInsert(timelineWithTeams)
             _                 =  logger.info(s"Timeline scheduler week beginning: $weekBeginning has added the weekly data: ${timelineWithTeams.size} rows")
           yield ()
