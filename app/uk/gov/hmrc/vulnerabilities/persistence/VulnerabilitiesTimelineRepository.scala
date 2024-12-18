@@ -72,21 +72,20 @@ class VulnerabilitiesTimelineRepository @Inject()(
   , from          : Instant
   , to            : Instant
   ): Future[Seq[VulnerabilitiesTimelineCount]] =
-    val optFilters: Seq[Bson] = Seq(
-      serviceName.map {
-        case ServiceName(Quoted(s)) => Filters.equal("service", s.toLowerCase())
-        case ServiceName(s)         => Filters.regex("service", s.toLowerCase())
-      },
-      team.map         (t => Filters.eq("teams", t.asString)),
-      vulnerability.map(v => Filters.eq("id", v.toUpperCase)),
-      curationStatus.map(cs => Filters.eq("curationStatus", cs.asString))
-    ).flatten
-
-    val pipeline: Seq[Bson] = Seq(
-      Some(`match`(Filters.and(Filters.gte("weekBeginning", from), Filters.lte("weekBeginning",to)))),
-      if optFilters.isEmpty then None else Some(`match`(Filters.and(optFilters: _*))), // TODO flatten filters
-      Some(group(id = "$weekBeginning", Accumulators.sum("count", 1)))
-    ).flatten
-
     CollectionFactory.collection(mongoComponent.database, "vulnerabilitiesTimeline", VulnerabilitiesTimelineCount.mongoFormat)
-      .aggregate(pipeline).toFuture()
+      .aggregate:
+        Seq(
+          `match`:
+            Filters.and(
+              Filters.gte("weekBeginning", from)
+            , Filters.lte("weekBeginning", to)
+            , serviceName.fold(Filters.empty):
+                case ServiceName(Quoted(s)) => Filters.equal("service", s.toLowerCase)
+                case ServiceName(s)         => Filters.regex("service", s.toLowerCase)
+            , team          .fold(Filters.empty)(t  => Filters.eq("teams"         , t.asString))
+            , vulnerability .fold(Filters.empty)(v  => Filters.eq("id"            , v.toUpperCase))
+            , curationStatus.fold(Filters.empty)(cs => Filters.eq("curationStatus", cs.asString))
+            )
+        , group(id = "$weekBeginning", Accumulators.sum("count", 1))
+        )
+      .toFuture()

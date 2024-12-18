@@ -44,6 +44,7 @@ class VulnerabilitiesControllerSpec
     GuiceApplicationBuilder()
       .configure(Map(
         "microservice.services.teams-and-repositories.port" -> wireMockPort,
+        "microservice.services.service-configs.port"        -> wireMockPort,
         "xray.url"                                          -> wireMockUrl,
         "mongodb.uri"                                       -> mongoUri
       ))
@@ -53,15 +54,12 @@ class VulnerabilitiesControllerSpec
 
   private val rawReportsCollection = app.injector.instanceOf[RawReportsRepository]
 
-  /**
-   *
+  /*
    * This test exercises the fact that it is possible for a scheduler run to fail part of the way through.
    * When it retries 3 hours later it should only attempt to download reports that don't already exist
    * in the raw reports repository within the specified data cut off time. This means we don't have to
    * re-download the whole data set in case of transient error.
-   *
-   * */
-
+   */
   "Summaries" should:
     "vulnerabilities/api/summaries should return all" in:
       //stubbing
@@ -69,6 +67,11 @@ class VulnerabilitiesControllerSpec
         WireMock
           .get(WireMock.urlPathMatching("/api/v2/repositories"))
           .willReturn(WireMock.aResponse().withStatus(200).withBody("""[{"name": "service1", "teamNames": ["Team1", "Team2"]}]"""))
+
+      WireMock.stubFor:
+        WireMock
+          .get(WireMock.urlPathMatching("/service-configs/service-repo-names"))
+          .willReturn(WireMock.aResponse().withStatus(200).withBody("""[]"""))
 
       val startOfYear = java.time.Instant.parse("2022-01-01T00:00:00.000Z")
 
@@ -143,8 +146,8 @@ class VulnerabilitiesControllerSpec
                                       curationStatus             = CurationStatus.Uncurated,
                                       ticket                     = None
                                     ),
-            occurrences           = Seq(VulnerabilityOccurrence("service1","0.835.0", "service1-0.835.0/some/physical/path", Seq("Team1", "Team2"), Seq("staging", "production"), "gav://com.testxml.test.core:test-bind","1.5.9")),
-            teams                 = List("Team1", "Team2"),
+            occurrences           = Seq(VulnerabilityOccurrence("service1","0.835.0", "service1-0.835.0/some/physical/path", Seq(TeamName("Team1"), TeamName("Team2")), Seq("staging", "production"), "gav://com.testxml.test.core:test-bind","1.5.9")),
+            teams                 = List(TeamName("Team1"), TeamName("Team2")),
             generatedDate         = startOfYear
           )
         )
