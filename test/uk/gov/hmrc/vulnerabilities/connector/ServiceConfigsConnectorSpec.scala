@@ -26,11 +26,11 @@ import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.{RepoName, TeamName}
+import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, RepoName}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class TeamsAndRepositoriesConnectorSpec
+class ServiceConfigsConnectorSpec
   extends AnyWordSpec
      with Matchers
      with ScalaFutures
@@ -39,31 +39,29 @@ class TeamsAndRepositoriesConnectorSpec
      with MockitoSugar
      with WireMockSupport:
 
-  import TeamsAndRepositoriesConnector._
-
   private given HeaderCarrier = HeaderCarrier()
 
   private val servicesConfig = ServicesConfig(
     Configuration(
-      "microservice.services.teams-and-repositories.port" -> wireMockPort,
-      "microservice.services.teams-and-repositories.host" -> wireMockHost
+      "microservice.services.service-configs.port" -> wireMockPort,
+      "microservice.services.service-configs.host" -> wireMockHost
     )
   )
 
-  private val connector = TeamsAndRepositoriesConnector(servicesConfig, httpClientV2)
+  private val connector = ServiceConfigsConnector(servicesConfig, httpClientV2)
 
-  "TeamsAndRepositoriesConnector.repositories" should:
+  "ServiceConfigsConnector.repositories" should:
     "return all the repositories" in:
       stubFor:
-        WireMock.get(urlMatching("/api/v2/repositories"))
+        WireMock.get(urlMatching("/service-configs/service-repo-names"))
           .willReturn:
             aResponse().withBody:
               s"""[
-                {"name": "service1", "teamNames": ["team1", "team2"]},
-                {"name": "service2", "teamNames": ["team1", "team3"]}
+                {"artefactName": "artefact1", "repoName": "repo1"},
+                {"artefactName": "artefact2", "repoName": "repo2"}
               ]"""
 
-      connector.repositories(teamName = None).futureValue shouldBe Seq(
-        Repo(RepoName("service1"), Seq(TeamName("team1"), TeamName("team2"))),
-        Repo(RepoName("service2"), Seq(TeamName("team1"), TeamName("team3")))
+      connector.artefactToRepos().futureValue shouldBe Seq(
+        ArtefactToRepo(ArtefactName("artefact1"), RepoName("repo1")),
+        ArtefactToRepo(ArtefactName("artefact2"), RepoName("repo2"))
       )

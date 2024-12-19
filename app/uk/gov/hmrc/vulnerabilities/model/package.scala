@@ -43,3 +43,19 @@ package object model:
         s => Some(Right(fromString(s))),
         toString
       )
+
+  case class ServiceName(asString: String) extends AnyVal
+
+  object ServiceName extends StringAnyValUtils(ServiceName.apply, _.asString)
+
+  case class RepoName(asString: String) extends AnyVal
+
+  object RepoName extends StringAnyValUtils(RepoName.apply, _.asString)
+
+  case class ArtefactName(asString: String) extends AnyVal
+
+  object ArtefactName extends StringAnyValUtils(ArtefactName.apply, _.asString)
+
+  case class TeamName(asString: String) extends AnyVal
+
+  object TeamName extends StringAnyValUtils(TeamName.apply, _.asString)

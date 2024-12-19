@@ -16,48 +16,40 @@
 
 package uk.gov.hmrc.vulnerabilities.connector
 
+import play.api.libs.functional.syntax._
 import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.{RepoName, TeamName}
+import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, RepoName}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
-object TeamsAndRepositoriesConnector:
-  import play.api.libs.functional.syntax._
-
-  case class Repo(
-    name     : RepoName,
-    teamNames: Seq[TeamName]
-  )
-
-  private val repoReads: Reads[Repo] =
-    ( (__ \ "name"     ).read[RepoName]
-    ~ (__ \ "teamNames").read[Seq[TeamName]]
-    )(Repo.apply _)
-
 @Singleton
-class TeamsAndRepositoriesConnector @Inject()(
+class ServiceConfigsConnector @Inject()(
   servicesConfig: ServicesConfig,
   httpClientV2  : HttpClientV2
 )(using
   ExecutionContext
 ):
-  import TeamsAndRepositoriesConnector._
   import HttpReads.Implicits._
 
-  private val url = servicesConfig.baseUrl("teams-and-repositories")
+  private val url = servicesConfig.baseUrl("service-configs")
 
-  def repositories(teamName: Option[TeamName])(using HeaderCarrier): Future[Seq[Repo]] =
-    given Reads[Repo] = repoReads
+  def artefactToRepos()(using HeaderCarrier): Future[Seq[ArtefactToRepo]] =
+    given Reads[ArtefactToRepo] = ArtefactToRepo.reads
     httpClientV2
-      .get(url"$url/api/v2/repositories?team=${teamName.map(_.asString)}")
-      .execute[Seq[TeamsAndRepositoriesConnector.Repo]]
+      .get(url"$url/service-configs/service-repo-names")
+      .execute[Seq[ArtefactToRepo]]
 
-  def repoToTeams()(using HeaderCarrier): Future[Map[RepoName, Seq[TeamName]]] =
-    repositories(teamName = None)
-      .map:
-        _.map(x => (x.name, x.teamNames))
-         .toMap
+case class ArtefactToRepo(
+  artefactName: ArtefactName,
+  repoName    : RepoName
+)
+
+object ArtefactToRepo:
+  val reads: Reads[ArtefactToRepo] =
+    ( (__ \ "artefactName").read[ArtefactName]
+    ~ (__ \ "repoName"    ).read[RepoName]
+    )(apply)

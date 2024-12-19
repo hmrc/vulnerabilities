@@ -23,7 +23,7 @@ import org.mongodb.scala.model.Indexes.{compoundIndex, descending}
 import org.mongodb.scala.model._
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
-import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, TimelineEvent, VulnerabilitiesTimelineCount}
+import uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, TeamName, TimelineEvent, VulnerabilitiesTimelineCount}
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -66,27 +66,26 @@ class VulnerabilitiesTimelineRepository @Inject()(
 
   def getTimelineCounts(
     serviceName   : Option[ServiceName]    = None
-  , team          : Option[String]         = None
+  , team          : Option[TeamName]       = None
   , vulnerability : Option[String]         = None
   , curationStatus: Option[CurationStatus] = None
   , from          : Instant
   , to            : Instant
   ): Future[Seq[VulnerabilitiesTimelineCount]] =
-    val optFilters: Seq[Bson] = Seq(
-      serviceName.map {
-        case ServiceName(Quoted(s)) => Filters.equal("service", s.toLowerCase())
-        case ServiceName(s)         => Filters.regex("service", s.toLowerCase())
-      },
-      team.map         (t => Filters.eq("teams", t)),
-      vulnerability.map(v => Filters.eq("id", v.toUpperCase)),
-      curationStatus.map(cs => Filters.eq("curationStatus", cs.asString))
-    ).flatten
-
-    val pipeline: Seq[Bson] = Seq(
-      Some(`match`(Filters.and(Filters.gte("weekBeginning", from), Filters.lte("weekBeginning",to)))),
-      if optFilters.isEmpty then None else Some(`match`(Filters.and(optFilters: _*))),
-      Some(group(id = "$weekBeginning", Accumulators.sum("count", 1)))
-    ).flatten
-
     CollectionFactory.collection(mongoComponent.database, "vulnerabilitiesTimeline", VulnerabilitiesTimelineCount.mongoFormat)
-      .aggregate(pipeline).toFuture()
+      .aggregate:
+        Seq(
+          `match`:
+            Filters.and(
+              Filters.gte("weekBeginning", from)
+            , Filters.lte("weekBeginning", to)
+            , serviceName.fold(Filters.empty):
+                case ServiceName(Quoted(s)) => Filters.equal("service", s.toLowerCase)
+                case ServiceName(s)         => Filters.regex("service", s.toLowerCase)
+            , team          .fold(Filters.empty)(t  => Filters.eq("teams"         , t.asString))
+            , vulnerability .fold(Filters.empty)(v  => Filters.eq("id"            , v.toUpperCase))
+            , curationStatus.fold(Filters.empty)(cs => Filters.eq("curationStatus", cs.asString))
+            )
+        , group(id = "$weekBeginning", Accumulators.sum("count", 1))
+        )
+      .toFuture()

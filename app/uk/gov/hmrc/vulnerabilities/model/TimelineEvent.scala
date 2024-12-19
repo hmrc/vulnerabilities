@@ -26,7 +26,7 @@ case class TimelineEvent(
   id            : String,
   service       : String,
   weekBeginning : Instant,
-  teams         : Seq[String],
+  teams         : Seq[TeamName],
   curationStatus: CurationStatus
 )
 
@@ -35,7 +35,7 @@ object TimelineEvent:
     ( (__ \ "id"            ).format[String]
     ~ (__ \ "service"       ).format[String]
     ~ (__ \ "weekBeginning" ).format[Instant]
-    ~ (__ \ "teams"         ).format[Seq[String]]
+    ~ (__ \ "teams"         ).format[Seq[TeamName]]
     ~ (__ \ "curationStatus").format[CurationStatus]
     )(apply, pt => Tuple.fromProductTyped(pt))
 
