@@ -53,15 +53,19 @@ class XrayConnector @Inject() (
     s"AppSec-report-${serviceName.asString}_${version.original.replaceAll("\\.", "_")}"
 
   // https://jfrog.com/help/r/xray-rest-apis/generate-vulnerabilities-report
-  def generateReport(serviceName: ServiceName, version: Version)(using HeaderCarrier): Future[ReportResponse] =
+  def generateReport(serviceName: ServiceName, version: Version, path: String)(using HeaderCarrier): Future[ReportResponse] =
     given Reads[ReportResponse] = ReportResponse.apiFormat
+    // Search does not work with slug path - just */artefact-name
+    // Search is fuzzy when including * in filename e.g. $service_$version*.tgz and returns .tgz.sig files
+    // Needs to be full name and include the slug runner version too but start with */
+    val artefactName = path.split("/").lastOption.getOrElse(sys.error(s"invalid path for $path"))
     httpClientV2
       .post(url"${xrayBaseUrl}/vulnerabilities")
       .setHeader(
         "Authorization" -> s"Bearer $xrayToken",
         "Content-Type"  -> "application/json"
       ).withBody(Json.parse(
-        s"""{"name":"${toReportName(serviceName, version)}","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/${serviceName.asString}_${version.original}*.tgz"}}"""
+        s"""{"name":"${toReportName(serviceName, version)}","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/$artefactName"}}"""
       ))
       .execute[ReportResponse]
 
