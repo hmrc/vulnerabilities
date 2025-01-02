@@ -121,7 +121,7 @@ class XrayService @Inject()(
         }
 
         go(1)
-      .map(x => logger.info(s"Finished processing $x / ${slugs.size} reports."))
+      .map(x => logger.info(s"Finished processing ${x + 1} / ${slugs.size} reports."))
 
   private def toReport(slug: SlugInfo, generatedDate: Instant, rows: Seq[RawVulnerability], scanned: Boolean): Report =
     Report(
@@ -142,7 +142,7 @@ class XrayService @Inject()(
 
   private def scan(slug: SlugInfo)(using HeaderCarrier): EitherT[Future, XrayStatus, (Instant, Seq[RawVulnerability])] =
     EitherT
-      .liftF(xrayConnector.generateReport(slug.serviceName, slug.version))
+      .liftF(xrayConnector.generateReport(slug.serviceName, slug.version, slug.path))
       .flatMap: resp =>
         logger.info(s"Began generating report for ${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")}. Report will have id ${resp.reportID}")
         val et =
