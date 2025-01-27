@@ -73,6 +73,13 @@ class XrayService @Inject()(
       _ <- processReports(Seq(SlugInfo(serviceName, version, slugUri, flag.toSeq)))
     yield ()
 
+  def rescanLatestAndDeployed()(using HeaderCarrier): Future[Unit] =
+    for
+      _       <- deleteStaleReports()
+      reports <- rawReportsRepository.findFlagged()
+      _       <- processReports(reports.map(SlugInfo.fromReport))
+    yield ()
+
   def rescanStaleReports(reportsBefore: Instant)(using HeaderCarrier): Future[Unit] =
     for
       _       <- deleteStaleReports()

@@ -101,6 +101,12 @@ class RawReportsRepository @Inject()(
       .toFuture()
       .map(_.map(report => report.copy(rows = report.rows.filter(row => exclusionRegex.r.matches(row.componentPhysicalPath)))))
 
+  def findFlagged(): Future[Seq[Report]] =
+    collection
+      .find(Filters.or(SlugInfoFlag.values.map(f => Filters.equal(f.asString, true)): _*))
+      .toFuture()
+      .map(_.map(report => report.copy(rows = report.rows.filter(row => exclusionRegex.r.matches(row.componentPhysicalPath)))))
+  
   def put(report: Report): Future[Unit] =
     withSessionAndTransaction: session =>
       for
