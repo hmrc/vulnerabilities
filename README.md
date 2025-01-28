@@ -31,6 +31,10 @@ A re-scan scheduler runs every `scheduler.rescan.interval`. Processing a stale r
   * Insert the report into the rawReports collection
   * If, after `maxRetries` attempts to generate a report and wait for it to be ready, the report is still not ready to be downloaded. This indicates an issue on the Xray side, so the process will quit with an exception, and retry in 3 hours time.
 
+## Manually triggered re-scan
+
+A re-scan of all services that are `latest` or deployed in an environment can be manually triggered via the `POST   /vulnerabilities/admin/rescan` endpoint.
+
 ### License
 
 This code is open source software licensed under the [Apache 2.0 License]("http://www.apache.org/licenses/LICENSE-2.0.html").
