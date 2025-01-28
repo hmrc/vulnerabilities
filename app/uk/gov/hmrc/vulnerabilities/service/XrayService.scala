@@ -74,11 +74,19 @@ class XrayService @Inject()(
     yield ()
 
   def rescanLatestAndDeployed()(using HeaderCarrier): Future[Unit] =
-    for
-      _       <- deleteStaleReports()
-      reports <- rawReportsRepository.findFlagged()
-      _       <- processReports(reports.map(SlugInfo.fromReport))
-    yield ()
+    val start = System.currentTimeMillis()
+    logger.info("Rescan of latest and deployed services started")
+    (for
+      _        <- deleteStaleReports()
+      reports  <- rawReportsRepository.findFlagged()
+      _        <- processReports(reports.map(SlugInfo.fromReport))
+      duration =  System.currentTimeMillis() - start
+    yield logger.info(s"Rescan of ${reports.length} latest and deployed services finished - took ${duration}ms")
+    ).recover:
+      case ex =>
+        val duration = System.currentTimeMillis() - start
+        logger.error(s"Rescan of latest and deployed services terminated after ${duration}ms", ex)
+        throw ex
 
   def rescanStaleReports(reportsBefore: Instant)(using HeaderCarrier): Future[Unit] =
     for
@@ -115,7 +123,7 @@ class XrayService @Inject()(
                                         } yield x
             case Left(XrayStatus.Retry)
               if count < maxRetries  => go(count + 1)
-            case Left(_)             => logger.error(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
+            case Left(_)             => logger.warn(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
                                         val report = toReport(slug, generatedDate = Instant.now(), rows = Nil, scanned = false)
                                         for {
                                           _ <- rawReportsRepository.put(report)
