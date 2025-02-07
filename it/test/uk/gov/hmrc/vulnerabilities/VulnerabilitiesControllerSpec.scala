@@ -104,7 +104,14 @@ class VulnerabilitiesControllerSpec
                                provider              = "test",
                                description           = "This is an exploit",
                                references            = Seq("foo.com", "bar.net"),
-                               projectKeys           = Seq()
+                               projectKeys           = Seq(),
+                               dependency            = Some(Dependency(
+                                                         group        = "com.testxml.test.core",
+                                                         artefact     = "test-bind",
+                                                         scalaVersion = None,
+                                                         version      = Version("1.5.9"),
+                                                         importedBy   = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.1.0")))
+                                                       ))
                              )
                            ),
           generatedDate  = startOfYear,
@@ -146,7 +153,22 @@ class VulnerabilitiesControllerSpec
                                       curationStatus             = CurationStatus.Uncurated,
                                       ticket                     = None
                                     ),
-            occurrences           = Seq(VulnerabilityOccurrence("service1","0.835.0", "service1-0.835.0/some/physical/path", Seq(TeamName("Team1"), TeamName("Team2")), Seq("staging", "production"), "gav://com.testxml.test.core:test-bind","1.5.9")),
+            occurrences           = Seq(VulnerabilityOccurrence(
+                                      service                    = "service1",
+                                      serviceVersion             = "0.835.0",
+                                      componentPathInSlug        = "service1-0.835.0/some/physical/path",
+                                      teams                      = Seq(TeamName("Team1"), TeamName("Team2")),
+                                      envs                       = Seq("staging", "production"),
+                                      vulnerableComponentName    = "gav://com.testxml.test.core:test-bind",
+                                      vulnerableComponentVersion = "1.5.9",
+                                      dependency                 = Dependency(
+                                                                     group        = "com.testxml.test.core",
+                                                                     artefact     = "test-bind",
+                                                                     scalaVersion = None,
+                                                                     version      = Version("1.5.9"),
+                                                                     importedBy   = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.1.0")))
+                                                                   )
+                                    )),
             teams                 = List(TeamName("Team1"), TeamName("Team2")),
             generatedDate         = startOfYear
           )

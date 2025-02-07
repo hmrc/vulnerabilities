@@ -19,9 +19,10 @@ package uk.gov.hmrc.vulnerabilities.service
 import org.apache.pekko.actor.ActorSystem
 import cats.data.EitherT
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.vulnerabilities.connector.{BuildDeployApiConnector, XrayConnector}
+import uk.gov.hmrc.vulnerabilities.connector.{ArtefactProcessorConnector, BuildDeployApiConnector, XrayConnector}
 import uk.gov.hmrc.vulnerabilities.model._
 import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilityAgeRepository}
+import uk.gov.hmrc.vulnerabilities.util.DependencyGraphParser
 import uk.gov.hmrc.http.HeaderCarrier
 
 import cats.implicits._
@@ -30,15 +31,17 @@ import java.time.Instant
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
 @Singleton
 class XrayService @Inject()(
-  configuration             : Configuration,
-  buildAndDeployConnector   : BuildDeployApiConnector,
-  xrayConnector             : XrayConnector,
-  system                    : ActorSystem,
-  rawReportsRepository      : RawReportsRepository,
-  vulnerabilityAgeRepository: VulnerabilityAgeRepository
+  configuration               : Configuration,
+  buildAndDeployConnector     : BuildDeployApiConnector,
+  artefactProcessorConnector  : ArtefactProcessorConnector,
+  xrayConnector               : XrayConnector,
+  system                      : ActorSystem,
+  rawReportsRepository        : RawReportsRepository,
+  vulnerabilityAgeRepository  : VulnerabilityAgeRepository
 )(using
   ExecutionContext
 ) extends Logging:
@@ -109,37 +112,50 @@ class XrayService @Inject()(
   private val maxRetries = 3
   private def processReports(slugs: Seq[SlugInfo])(using HeaderCarrier): Future[Unit] =
     slugs
-      .foldLeftM(0): (acc, slug) =>
-        def go(count: Int): Future[Int] =
-          scan(slug).value.flatMap {
+      .foldLeftM(()): (_, slug) =>
+        def go(count: Int): Future[Unit] =
+          scan(slug).value.flatMap:
             case Left(XrayStatus.ArtefactNotFound)
-              if count < maxRetries => for {
+              if count < maxRetries  =>
+                                        for
                                           _ <- buildAndDeployConnector
                                                 .triggerXrayScanNow(slug.path)
-                                                .recover {
+                                                .recover:
                                                   case ex => logger.error(s"Error calling B&D API ${ex.getMessage}", ex)
-                                                }
-                                          x <- org.apache.pekko.pattern.after(1000.millis, system.scheduler) { go(count + 1) }
-                                        } yield x
+                                          _ <- org.apache.pekko.pattern.after(1000.millis, system.scheduler) { go(count + 1) }
+                                        yield ()
             case Left(XrayStatus.Retry)
               if count < maxRetries  => go(count + 1)
             case Left(_)             => logger.warn(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
-                                        val report = toReport(slug, generatedDate = Instant.now(), rows = Nil, scanned = false)
-                                        for {
-                                          _ <- rawReportsRepository.put(report)
-                                        } yield acc + 1
-            case Right((date, rows)) => val report = toReport(slug, generatedDate = date, rows = rows, scanned = true)
-                                        for {
-                                        _ <- vulnerabilityAgeRepository.insertNonExisting(report)
-                                        _ <- rawReportsRepository.put(report)
-                                        } yield acc
-        }
+                                        for
+                                          r <- toReport(slug, generatedDate = Instant.now(), rows = Nil, scanned = false)
+                                          _ <- rawReportsRepository.put(report = r)
+                                        yield ()
+            case Right((date, rows)) => for
+                                          r <- toReport(slug, generatedDate = date, rows = rows, scanned = true)
+                                          _ <- vulnerabilityAgeRepository.insertNonExisting(report = r)
+                                          _ <- rawReportsRepository.put(report = r)
+                                        yield ()
 
         go(1)
-      .map(x => logger.info(s"Finished processing ${x + 1} / ${slugs.size} reports."))
+      .map(x => logger.info(s"Finished processing ${slugs.size} reports."))
 
-  private def toReport(slug: SlugInfo, generatedDate: Instant, rows: Seq[RawVulnerability], scanned: Boolean): Report =
-    Report(
+  private val jarRegex = raw".*\/([^\/]+)\.jar.*".r
+
+  private def isMatch(v: RawVulnerability, d: Dependency): Boolean =
+    if   v.vulnerableComponent == s"gav://${d.group}:${d.artefact}${d.scalaVersion.fold("")("_" + _.original)}:${d.version.original}"
+    then true
+    else
+      val str = s"${d.group}.${d.artefact}${d.scalaVersion.fold("")("_" + _.original)}-${d.version.original}"
+      v.componentPhysicalPath match
+        case jarRegex(jar) => jar == str || s"${d.group}.$jar" == str // WAR files have JARs without the group in the name
+        case _             => false
+
+  private def toReport(slug: SlugInfo, generatedDate: Instant, rows: Seq[RawVulnerability], scanned: Boolean)(using HeaderCarrier): Future[Report] =
+    for
+      oSlugInfo <- artefactProcessorConnector.getSlugInfo(slug.serviceName, slug.version)
+      deps      =  oSlugInfo.fold(Seq.empty[Dependency])(x => DependencyGraphParser.dependencies(x.dependencyDotCompile))
+    yield Report(
       slug.serviceName
     , slug.version
     , slugUri       = slug.uri
@@ -151,7 +167,18 @@ class XrayService @Inject()(
     , externalTest  = slug.flags.contains(SlugInfoFlag.ExternalTest)
     , integration   = slug.flags.contains(SlugInfoFlag.Integration)
     , generatedDate = generatedDate
-    , rows          = rows
+    , rows          = rows.map: vuln =>
+                        vuln.copy(
+                          dependency = Some:
+                                        deps
+                                          .find(isMatch(vuln, _))
+                                          .getOrElse:
+                                            Try {
+                                              val Array(g, a, v) = vuln.vulnerableComponent.stripPrefix("gav://").split(":")
+                                              Dependency(group = g, artefact = a, version = Version(v))
+                                            }.toOption.getOrElse:
+                                              Dependency(group = "", artefact = vuln.vulnerableComponent, version = Version(""))
+                        )
     , scanned       = scanned
     )
 
@@ -214,3 +241,20 @@ class XrayService @Inject()(
                  yield acc + 1
       _     =  logger.info(s"Deleted $count stale reports")
     yield ()
+
+  def addDependencyInfoScheduler()(using HeaderCarrier): Future[Unit] =
+    def recursiveBatch(skip: Int): Future[Unit] =
+      for
+        xs <- rawReportsRepository.findAllForAddDependencyInfo(skip)
+        _  <- xs.foldLeftM(()): (_, report) =>
+                for
+                  r <- toReport(SlugInfo.fromReport(report), generatedDate = report.generatedDate, rows = report.rows, scanned = true)
+                  _ <- rawReportsRepository.put(report = r)
+                yield ()
+        _  <-
+              if   xs.isEmpty
+              then Future.unit
+              else recursiveBatch(skip + xs.size)
+      yield ()
+
+    recursiveBatch(skip = 0)

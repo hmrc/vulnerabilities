@@ -17,7 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.model
 
 import play.api.libs.functional.syntax.toFunctionalBuilderOps
-import play.api.libs.json.{Format, __}
+import play.api.libs.json.{Format, OFormat, Json, Reads, Writes, OWrites, __}
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 
 import java.time.Instant
@@ -106,11 +106,15 @@ case class RawVulnerability(
   provider             : String,
   description          : String,
   references           : Seq[String],
-  projectKeys          : Seq[String]
+  projectKeys          : Seq[String],
+  dependency           : Option[Dependency] // Added after scan
 )
 
 object RawVulnerability:
-  private def format(using Format[Instant]): Format[RawVulnerability] =
+  private def ignore[A]: OWrites[A] =
+      _ => Json.obj()
+
+  val apiFormat   =
     given Format[CVE] = CVE.format
     ( (__ \ "cves"                   ).format[Seq[CVE]]
     ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
@@ -131,14 +135,41 @@ object RawVulnerability:
     ~ (__ \ "description"            ).format[String]
     ~ (__ \ "references"             ).format[Seq[String]]
     ~ (__ \ "project_keys"           ).format[Seq[String]]
+    ~ OFormat(
+        Reads.pure(Option.empty[Dependency])
+      , ignore[Option[Dependency]]
+      )
     )(apply, pt => Tuple.fromProductTyped(pt))
 
-  val apiFormat   = format(using summon[Format[Instant]])
-  val mongoFormat = format(using MongoJavatimeFormats.instantFormat)
+  val mongoFormat =
+    given Format[Instant]    = MongoJavatimeFormats.instantFormat
+    given Format[CVE]        = CVE.format
+    given Format[Dependency] = Dependency.format
+    ( (__ \ "cves"                   ).format[Seq[CVE]]
+    ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
+    ~ (__ \ "summary"                ).format[String]
+    ~ (__ \ "severity"               ).format[String]
+    ~ (__ \ "severity_source"        ).format[String]
+    ~ (__ \ "vulnerable_component"   ).format[String]
+    ~ (__ \ "component_physical_path").format[String]
+    ~ (__ \ "impacted_artifact"      ).format[String]
+    ~ (__ \ "impact_path"            ).format[Seq[String]]
+    ~ (__ \ "path"                   ).format[String]
+    ~ (__ \ "fixed_versions"         ).format[Seq[String]]
+    ~ (__ \ "published"              ).format[Instant]
+    ~ (__ \ "artifact_scan_time"     ).format[Instant]
+    ~ (__ \ "issue_id"               ).format[String]
+    ~ (__ \ "package_type"           ).format[String]
+    ~ (__ \ "provider"               ).format[String]
+    ~ (__ \ "description"            ).format[String]
+    ~ (__ \ "references"             ).format[Seq[String]]
+    ~ (__ \ "project_keys"           ).format[Seq[String]]
+    ~ (__ \ "dependency"             ).formatNullable[Dependency]
+    )(apply, pt => Tuple.fromProductTyped(pt))
 
 case class CVE(
-  cveId: Option[String],
-  cveV3Score: Option[Double],
+  cveId      : Option[String],
+  cveV3Score : Option[Double],
   cveV3Vector: Option[String]
 )
 
