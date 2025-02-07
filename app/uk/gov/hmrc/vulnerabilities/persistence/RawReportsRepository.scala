@@ -20,7 +20,7 @@ import play.api.Configuration
 import org.mongodb.scala.ObservableFuture
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonDateTime}
 import org.mongodb.scala.ClientSession
-import org.mongodb.scala.model.{Aggregates, Field, Filters, IndexModel, IndexOptions, Indexes, ReplaceOptions, Projections, Updates, UpdateOptions}
+import org.mongodb.scala.model.{Aggregates, Field, Filters, IndexModel, IndexOptions, Indexes, ReplaceOptions, Sorts, Projections, Updates, UpdateOptions}
 import uk.gov.hmrc.mongo.transaction.{TransactionConfiguration, Transactions}
 
 import uk.gov.hmrc.mongo.MongoComponent
@@ -104,9 +104,10 @@ class RawReportsRepository @Inject()(
   def findFlagged(): Future[Seq[Report]] =
     collection
       .find(Filters.or(SlugInfoFlag.values.map(f => Filters.equal(f.asString, true)): _*))
+      .sort(Sorts.ascending("serviceName"))
       .toFuture()
       .map(_.map(report => report.copy(rows = report.rows.filter(row => exclusionRegex.r.matches(row.componentPhysicalPath)))))
-  
+
   def put(report: Report): Future[Unit] =
     withSessionAndTransaction: session =>
       for
@@ -249,3 +250,11 @@ class RawReportsRepository @Inject()(
           )
         )
       ).toFuture()
+
+  def findAllForAddDependencyInfo(skip: Int): Future[Seq[Report]] =
+    collection
+      .find(Filters.equal("scanned", true))
+      .sort(Sorts.ascending("serviceName"))
+      .limit(100)
+      .skip(skip)
+      .toFuture()

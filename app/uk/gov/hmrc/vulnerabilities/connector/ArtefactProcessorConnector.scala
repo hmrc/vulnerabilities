@@ -46,14 +46,24 @@ class ArtefactProcessorConnector @Inject()(
 
 object ArtefactProcessorConnector:
   case class SlugInfo(
-     name   : ServiceName
-  ,  version: Version
-  ,  uri    : String
+    name                 : ServiceName
+  , version              : Version
+  , uri                  : String
+  , dependencyDotCompile : String
+  , dependencyDotProvided: String
+  , dependencyDotTest    : String
+  , dependencyDotIt      : String
+  , dependencyDotBuild   : String
   )
 
   object SlugInfo:
     val reads: Reads[SlugInfo] =
-      ( (__ \ "name"   ).read[String].map(ServiceName.apply)
-      ~ (__ \ "version").read[String].map(Version.apply)
-      ~ (__ \ "uri"    ).read[String]
+      ( (__ \ "name"                      ).read[String].map(ServiceName.apply)
+      ~ (__ \ "version"                   ).read[String].map(Version.apply)
+      ~ (__ \ "uri"                       ).read[String]
+      ~ (__ \ "dependencyDot" \ "compile" ).formatWithDefault[String]("")
+      ~ (__ \ "dependencyDot" \ "provided").formatWithDefault[String]("")
+      ~ (__ \ "dependencyDot" \ "test"    ).formatWithDefault[String]("")
+      ~ (__ \ "dependencyDot" \ "it"      ).formatWithDefault[String]("")
+      ~ (__ \ "dependencyDot" \ "build"   ).formatWithDefault[String]("")
       ) (SlugInfo.apply _)
