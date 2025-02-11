@@ -19,7 +19,7 @@ package uk.gov.hmrc.vulnerabilities.service
 import org.apache.pekko.actor.ActorSystem
 import cats.data.EitherT
 import play.api.{Configuration, Logging}
-import uk.gov.hmrc.vulnerabilities.connector.{ArtefactProcessorConnector, BuildDeployApiConnector, XrayConnector}
+import uk.gov.hmrc.vulnerabilities.connector.{ArtefactProcessorConnector, BuildDeployApiConnector, ServiceConfigsConnector, XrayConnector}
 import uk.gov.hmrc.vulnerabilities.model._
 import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilityAgeRepository}
 import uk.gov.hmrc.vulnerabilities.util.DependencyGraphParser
@@ -38,6 +38,7 @@ class XrayService @Inject()(
   buildAndDeployConnector     : BuildDeployApiConnector,
   artefactProcessorConnector  : ArtefactProcessorConnector,
   xrayConnector               : XrayConnector,
+  serviceConfigsConnector     : ServiceConfigsConnector,
   system                      : ActorSystem,
   rawReportsRepository        : RawReportsRepository,
   vulnerabilityAgeRepository  : VulnerabilityAgeRepository
@@ -150,10 +151,18 @@ class XrayService @Inject()(
         case jarRegex(jar) => jar == str || s"${d.group}.$jar" == str // WAR files have JARs without the group in the name
         case _             => false
 
+  def toRepoName(serviceName: ServiceName)(using HeaderCarrier): Future[RepoName] =
+    serviceConfigsConnector
+      .artefactToRepos()
+      .map:
+        _.find(_.artefactName == ArtefactName(serviceName.asString))
+         .fold(RepoName(serviceName.asString))(_.repoName)
+
   private def toReport(slug: SlugInfo, generatedDate: Instant, rows: Seq[RawVulnerability], scanned: Boolean)(using HeaderCarrier): Future[Report] =
     for
-      oSlugInfo <- artefactProcessorConnector.getSlugInfo(slug.serviceName, slug.version)
-      deps      =  oSlugInfo.fold(Seq.empty[Dependency])(x => DependencyGraphParser.dependencies(x.dependencyDotCompile))
+      repoName <- toRepoName(slug.serviceName)
+      oMeta    <- artefactProcessorConnector.getMetaArtefact(repoName, slug.version)
+      deps     =  oMeta.map(_.modules.flatMap(x => (DependencyGraphParser.dependencies(x.dependencyDotCompile.getOrElse(""))))).getOrElse(Nil)
     yield Report(
       slug.serviceName
     , slug.version
