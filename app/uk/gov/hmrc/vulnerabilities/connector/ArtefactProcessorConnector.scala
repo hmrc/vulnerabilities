@@ -22,7 +22,7 @@ import play.api.libs.functional.syntax.{toFunctionalBuilderOps}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
+import uk.gov.hmrc.vulnerabilities.model.{ServiceName, RepoName, Version}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -44,26 +44,32 @@ class ArtefactProcessorConnector @Inject()(
       .get(url"$baseUrl/result/slug/${slugName.asString}/${version.original}")
       .execute[Option[ArtefactProcessorConnector.SlugInfo]]
 
+  def getMetaArtefact(repoName: RepoName, version: Version)(using hc: HeaderCarrier): Future[Option[ArtefactProcessorConnector.MetaArtefact]] =
+    given Reads[ArtefactProcessorConnector.MetaArtefact] = ArtefactProcessorConnector.MetaArtefact.reads
+    httpClientV2
+      .get(url"$baseUrl/result/meta/${repoName.asString}/${version.original}")
+      .execute[Option[ArtefactProcessorConnector.MetaArtefact]]
+
 object ArtefactProcessorConnector:
   case class SlugInfo(
-    name                 : ServiceName
-  , version              : Version
-  , uri                  : String
-  , dependencyDotCompile : String
-  , dependencyDotProvided: String
-  , dependencyDotTest    : String
-  , dependencyDotIt      : String
-  , dependencyDotBuild   : String
+    name   : ServiceName
+  , version: Version
+  , uri    : String
   )
 
   object SlugInfo:
     val reads: Reads[SlugInfo] =
-      ( (__ \ "name"                      ).read[String].map(ServiceName.apply)
-      ~ (__ \ "version"                   ).read[String].map(Version.apply)
-      ~ (__ \ "uri"                       ).read[String]
-      ~ (__ \ "dependencyDot" \ "compile" ).formatWithDefault[String]("")
-      ~ (__ \ "dependencyDot" \ "provided").formatWithDefault[String]("")
-      ~ (__ \ "dependencyDot" \ "test"    ).formatWithDefault[String]("")
-      ~ (__ \ "dependencyDot" \ "it"      ).formatWithDefault[String]("")
-      ~ (__ \ "dependencyDot" \ "build"   ).formatWithDefault[String]("")
+      ( (__ \ "name"   ).read[String].map(ServiceName.apply)
+      ~ (__ \ "version").read[String].map(Version.apply)
+      ~ (__ \ "uri"    ).read[String]
       ) (SlugInfo.apply _)
+
+  case class MetaArtefact(modules: Seq[MetaArtefact.Module])
+
+  object MetaArtefact:
+    case class Module(dependencyDotCompile: Option[String])
+
+    val reads: Reads[MetaArtefact] =
+      given Reads[Module] = (__ \ "dependencyDotCompile").readNullable[String].map(Module.apply)
+
+      (__ \ "modules").read[Seq[Module]].map(MetaArtefact.apply)
