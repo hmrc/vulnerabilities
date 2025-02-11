@@ -19,7 +19,7 @@ package uk.gov.hmrc.vulnerabilities.service
 import play.api.Configuration
 import play.api.cache.AsyncCacheApi
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, ServiceName, TeamName}
+import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, DigitalService, ServiceName, TeamName}
 import uk.gov.hmrc.vulnerabilities.connector.{ServiceConfigsConnector, TeamsAndRepositoriesConnector}
 
 import javax.inject.{Inject, Singleton}
@@ -51,5 +51,5 @@ class TeamService @Inject() (
         artefactToRepos.foldLeft(defaultArtefactToTeams): (acc, artefactToRepo) =>
           acc ++ Map(artefactToRepo.artefactName -> acc.getOrElse(ArtefactName(artefactToRepo.repoName.asString), Seq.empty))
 
-  def services(team: Option[TeamName])(using HeaderCarrier): Future[Seq[ServiceName]] =
-    teamsAndRepositoriesConnector.repositories(team).map(_.map(x => ServiceName(x.name.asString)))
+  def services(team: Option[TeamName], digitalService: Option[DigitalService])(using HeaderCarrier): Future[Seq[ServiceName]] =
+    teamsAndRepositoriesConnector.repositories(team, digitalService).map(_.map(x => ServiceName(x.name.asString)))

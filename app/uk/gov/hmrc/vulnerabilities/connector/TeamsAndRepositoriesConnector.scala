@@ -20,7 +20,7 @@ import play.api.libs.json.{Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.{RepoName, TeamName}
+import uk.gov.hmrc.vulnerabilities.model.{DigitalService, RepoName, TeamName}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -50,14 +50,17 @@ class TeamsAndRepositoriesConnector @Inject()(
 
   private val url = servicesConfig.baseUrl("teams-and-repositories")
 
-  def repositories(teamName: Option[TeamName])(using HeaderCarrier): Future[Seq[Repo]] =
+  def repositories(
+    teamName      : Option[TeamName]       = None,
+    digitalService: Option[DigitalService] = None
+  )(using HeaderCarrier): Future[Seq[Repo]] =
     given Reads[Repo] = repoReads
     httpClientV2
-      .get(url"$url/api/v2/repositories?team=${teamName.map(_.asString)}")
+      .get(url"$url/api/v2/repositories?team=${teamName.map(_.asString)}&digitalServiceName=${digitalService.map(_.asString)}")
       .execute[Seq[TeamsAndRepositoriesConnector.Repo]]
 
   def repoToTeams()(using HeaderCarrier): Future[Map[RepoName, Seq[TeamName]]] =
-    repositories(teamName = None)
+    repositories()
       .map:
         _.map(x => (x.name, x.teamNames))
          .toMap

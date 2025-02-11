@@ -12,7 +12,7 @@ lazy val microservice = Project("vulnerabilities", file("."))
     libraryDependencies     ++= AppDependencies.compile ++ AppDependencies.test,
     RoutesKeys.routesImport ++= Seq(
       "uk.gov.hmrc.vulnerabilities.binders.Binders.given"
-    , "uk.gov.hmrc.vulnerabilities.model.{CurationStatus, ServiceName, TeamName, SlugInfoFlag, Version}"
+    , "uk.gov.hmrc.vulnerabilities.model.{CurationStatus, DigitalService, ServiceName, TeamName, SlugInfoFlag, Version}"
     ),
     scalacOptions += "-Wconf:src=routes/.*:s"
   )
