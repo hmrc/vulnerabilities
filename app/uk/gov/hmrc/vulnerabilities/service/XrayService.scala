@@ -139,6 +139,17 @@ class XrayService @Inject()(
         go(1)
       .map(x => logger.info(s"Finished processing ${slugs.size} reports."))
 
+  private val jarRegex = raw".*\/([^\/]+)\.jar.*".r
+
+  private def isGavMatch(v: RawVulnerability, d: Dependency): Boolean =
+    if   v.vulnerableComponent == s"gav://${d.group}:${d.artefact}${d.scalaVersion.fold("")("_" + _.original)}:${d.version.original}"
+    then true
+    else
+      val str = s"${d.group}.${d.artefact}${d.scalaVersion.fold("")("_" + _.original)}-${d.version.original}"
+      v.componentPhysicalPath match
+        case jarRegex(jar) => jar == str || s"${d.group}.$jar" == str // WAR files have JARs without the group in the name
+        case _             => false
+
   private def toReport(slug: SlugInfo, generatedDate: Instant, rows: Seq[RawVulnerability], scanned: Boolean)(using HeaderCarrier): Future[Report] =
     for
       oSlugInfo <- artefactProcessorConnector.getSlugInfo(slug.serviceName, slug.version)
@@ -157,12 +168,7 @@ class XrayService @Inject()(
     , generatedDate = generatedDate
     , rows          = rows.map: vuln =>
                         vuln.copy(
-                          importedBy = deps
-                                        .find: d =>
-                                           vuln.vulnerableComponent == s"gav://${d.group}:${d.artefact}${d.scalaVersion.fold("")("_" + _.original)}:${d.version.original}"
-                                        .flatMap:
-                                          _.importedBy
-
+                          importedBy = deps.find(isGavMatch(vuln, _)).flatMap(_.importedBy)
                         )
     , scanned       = scanned
     )
