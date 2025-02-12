@@ -59,3 +59,7 @@ package object model:
   case class TeamName(asString: String) extends AnyVal
 
   object TeamName extends StringAnyValUtils(TeamName.apply, _.asString)
+
+  case class DigitalService(asString: String) extends AnyVal
+
+  object DigitalService extends StringAnyValUtils(TeamName.apply, _.asString)

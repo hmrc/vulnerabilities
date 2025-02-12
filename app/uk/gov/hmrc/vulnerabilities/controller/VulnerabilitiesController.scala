@@ -45,6 +45,7 @@ class VulnerabilitiesController @Inject()(
   , service        : Option[ServiceName]
   , version        : Option[Version]
   , team           : Option[TeamName]
+  , digitalService : Option[DigitalService]
   , curationStatus : Option[CurationStatus]
   ): Action[AnyContent] =
     Action.async: request =>
@@ -52,10 +53,10 @@ class VulnerabilitiesController @Inject()(
       given RequestHeader = request
       given Format[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
       for
-        serviceNames    <- (service, team) match
-                             case (None   , None   ) => Future.successful(None)
-                             case (Some(s), _      ) => Future.successful(Some(Seq(s)))
-                             case (_      , Some(_)) => teamService.services(team).map(Some.apply)
+        serviceNames    <- (service, team, digitalService) match
+                             case (None   , None, None) => Future.successful(None)
+                             case (Some(s), _   , _   ) => Future.successful(Some(Seq(s)))
+                             case (_      , _   , _   ) => teamService.services(team, digitalService).map(Some.apply)
         reports         <- rawReportsRepository.find(flag, serviceNames, version)
         artefactToTeams <- teamService.artefactToTeams()
         firstDetected   <- vulnerabilityAgeRepository.firstDetected()
@@ -123,18 +124,19 @@ class VulnerabilitiesController @Inject()(
       yield Ok(Json.toJson(summaries))
 
   def getReportCounts(
-    flag   : SlugInfoFlag,
-    service: Option[ServiceName],
-    team   : Option[TeamName]
+    flag          : SlugInfoFlag,
+    service       : Option[ServiceName],
+    team          : Option[TeamName],
+    digitalService: Option[DigitalService]
   ): Action[AnyContent] =
     Action.async: request =>
       given RequestHeader = request
       given Writes[TotalVulnerabilityCount] = TotalVulnerabilityCount.writes
       for
-        serviceNames <- (service, team) match
-                          case (None   , None   ) => Future.successful(None)
-                          case (Some(s), _      ) => Future.successful(Some(Seq(s)))
-                          case (_      , Some(_)) => teamService.services(team).map(Some.apply)
+        serviceNames <- (service, team, digitalService) match
+                          case (None   , None   , None) => Future.successful(None)
+                          case (Some(s), _      , _   ) => Future.successful(Some(Seq(s)))
+                          case (_      , _      , _   ) => teamService.services(team, digitalService).map(Some.apply)
         reports      <- rawReportsRepository.find(Some(flag), serviceNames, version = None)
         assessments  <- assessmentsRepository.getAssessments()
         result       =  reports.map: report =>

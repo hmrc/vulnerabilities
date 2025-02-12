@@ -5,14 +5,14 @@ import sbt._
 
 object AppDependencies {
 
-  private val bootstrapPlayVersion = "9.7.0"
-  private val hmrcMongoPlayVersion = "2.3.0"
+  private val bootstrapPlayVersion = "9.8.0"
+  private val hmrcMongoPlayVersion = "2.5.0"
 
   val compile = Seq(
     caffeine,
     "uk.gov.hmrc"             %% "bootstrap-backend-play-30"  % bootstrapPlayVersion,
     "uk.gov.hmrc.mongo"       %% "hmrc-mongo-play-30"         % hmrcMongoPlayVersion,
-    "org.typelevel"           %% "cats-core"                  % "2.12.0",
+    "org.typelevel"           %% "cats-core"                  % "2.13.0",
     "software.amazon.awssdk"  %  "sqs"                        % "2.29.15",
   )
 
