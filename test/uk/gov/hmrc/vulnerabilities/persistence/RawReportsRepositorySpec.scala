@@ -23,7 +23,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
 import uk.gov.hmrc.mongo.play.json.CollectionFactory
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
-import uk.gov.hmrc.vulnerabilities.model.{Assessment, CurationStatus, CVE, RawVulnerability, Report, TimelineEvent, ServiceName, Version}
+import uk.gov.hmrc.vulnerabilities.model.{Assessment, CurationStatus, CVE, ImportedBy, RawVulnerability, Report, TimelineEvent, ServiceName, Version}
 
 import java.time.Instant
 import scala.collection.immutable.Seq
@@ -137,7 +137,8 @@ class RawReportsRepositorySpec
                              provider              = "test",
                              description           = "This is an exploit",
                              references            = Seq("foo.com", "bar.net"),
-                             projectKeys           = Seq()
+                             projectKeys           = Seq(),
+                             importedBy            = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.1.0")))
                          )),
         generatedDate  = now,
         scanned        = true,
@@ -175,7 +176,8 @@ class RawReportsRepositorySpec
                              provider              = "test",
                              description           = "This is an exploit",
                              references            = Seq("foo.com", "bar.net"),
-                             projectKeys           = Seq()
+                             projectKeys           = Seq(),
+                             importedBy            = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.2.0")))
                            ),
                            RawVulnerability(
                              cves                  = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
@@ -196,7 +198,8 @@ class RawReportsRepositorySpec
                              provider              = "test",
                              description           = "This is an exploit",
                              references            = Seq("foo.com", "bar.net"),
-                             projectKeys           = Seq()
+                             projectKeys           = Seq(),
+                             importedBy            = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.1.0")))
                            )
                          ),
         generatedDate  = now,

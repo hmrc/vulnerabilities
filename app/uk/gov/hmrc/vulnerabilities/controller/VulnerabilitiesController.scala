@@ -93,6 +93,7 @@ class VulnerabilitiesController @Inject()(
                                                       service                    = report.serviceName.asString,
                                                       serviceVersion             = report.serviceVersion.original,
                                                       componentPathInSlug        = row.componentPhysicalPath,
+                                                      importedBy                 = row.importedBy,
                                                       teams                      = teams,
                                                       envs                       = ( Option.when(report.development )(SlugInfoFlag.Development.asString ) ++
                                                                                      Option.when(report.integration )(SlugInfoFlag.Integration.asString ) ++
