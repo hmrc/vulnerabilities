@@ -250,3 +250,11 @@ class ReportRepository @Inject()(
           )
         )
       ).toFuture()
+
+  def findAllBatched(skip: Int, limit: Int): Future[Seq[Report]] =
+    collection
+      .find()
+      .sort(Sorts.ascending("serviceName"))
+      .skip(skip)
+      .limit(limit)
+      .toFuture()

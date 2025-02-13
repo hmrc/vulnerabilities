@@ -239,3 +239,23 @@ class XrayService @Inject()(
                  yield acc + 1
       _     =  logger.info(s"Deleted $count stale reports")
     yield ()
+
+  def removeOldReports()(using HeaderCarrier): Future[Unit] =
+    def recursiveBatch(skip: Int): Future[Unit] =
+      for
+        xs <- reportRepository.findAllBatched(skip = skip, limit = 100)
+        _  <- xs.foldLeftM(()): (_, report) =>
+                for
+                  o <- artefactProcessorConnector.getSlugInfo(report.serviceName, report.serviceVersion)
+                  _ <- o match
+                         case None    => logger.info(s"Removing report ${report.serviceName.asString}:${report.serviceVersion.original} - slug not found in artefact processor ")
+                                         reportRepository.delete(report.serviceName, report.serviceVersion)
+                         case Some(_) => Future.unit
+                yield ()
+        _  <-
+              if   xs.isEmpty
+              then Future.unit
+              else recursiveBatch(skip + xs.size)
+      yield ()
+
+    recursiveBatch(skip = 0)
