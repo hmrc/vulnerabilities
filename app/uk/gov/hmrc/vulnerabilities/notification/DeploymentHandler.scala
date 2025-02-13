@@ -27,16 +27,16 @@ import play.api.libs.json.Json
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.model.{ServiceName, SlugInfoFlag, Version}
 import uk.gov.hmrc.vulnerabilities.service.XrayService
-import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
+import uk.gov.hmrc.vulnerabilities.persistence.ReportRepository
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class DeploymentHandler @Inject()(
-  configuration       : Configuration
-, rawReportsRepository: RawReportsRepository
-, xrayService         : XrayService
+  configuration   : Configuration
+, reportRepository: ReportRepository
+, xrayService     : XrayService
 )(using
   ActorSystem,
   ExecutionContext
@@ -58,12 +58,12 @@ class DeploymentHandler @Inject()(
        _      <- payload.eventType match
                    case "deployment-complete"   =>
                                                    for
-                                                     exists <- EitherT.right[String](rawReportsRepository.exists(payload.serviceName, payload.version))
+                                                     exists <- EitherT.right[String](reportRepository.exists(payload.serviceName, payload.version))
                                                      _      <- if   exists
-                                                               then EitherT.right[String](rawReportsRepository.setFlag(payload.environment, payload.serviceName, payload.version))
+                                                               then EitherT.right[String](reportRepository.setFlag(payload.environment, payload.serviceName, payload.version))
                                                                else EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, payload.slugUri, Some(payload.environment)))
                                                    yield ()
-                   case "undeployment-complete" => EitherT.right[String](rawReportsRepository.clearFlag(payload.environment, payload.serviceName))
+                   case "undeployment-complete" => EitherT.right[String](reportRepository.clearFlag(payload.environment, payload.serviceName))
                    case _                       => EitherT.right[String](Future.unit)
       _       =  logger.info(s"${prefix(payload)} with ID '${message.messageId()}' successfully processed.")
      yield

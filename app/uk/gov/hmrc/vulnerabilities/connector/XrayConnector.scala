@@ -24,7 +24,7 @@ import play.api.libs.json.{Json, Reads, __}
 import play.api.libs.ws.writeableOf_JsValue
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.{HttpClientV2, readEitherSource}
-import uk.gov.hmrc.vulnerabilities.model.{ReportId, RawVulnerability, ReportResponse, ReportStatus, ServiceName, Version}
+import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
 
 import java.io.InputStream
 import java.time.{Clock, Instant}
@@ -43,6 +43,7 @@ class XrayConnector @Inject() (
   Materializer
 ) extends Logging:
   import HttpReads.Implicits._
+  import XrayConnector._
 
   private val xrayBaseUrl         : String         = configuration.get[String]("xray.url")
   private val xrayToken           : String         = configuration.get[String]("xray.token")
@@ -54,7 +55,7 @@ class XrayConnector @Inject() (
 
   // https://jfrog.com/help/r/xray-rest-apis/generate-vulnerabilities-report
   def generateReport(serviceName: ServiceName, version: Version, path: String)(using HeaderCarrier): Future[ReportResponse] =
-    given Reads[ReportResponse] = ReportResponse.apiFormat
+    given Reads[ReportResponse] = ReportResponse.reads
     // Search does not work with slug path - just */artefact-name
     // Search is fuzzy when including * in filename e.g. $service_$version*.tgz and returns .tgz.sig files
     // Needs to be full name and include the slug runner version too but start with */
@@ -71,7 +72,7 @@ class XrayConnector @Inject() (
 
   // https://jfrog.com/help/r/xray-rest-apis/get-report-details-by-id
   def checkStatus(id: Int)(using HeaderCarrier): Future[ReportStatus] =
-    given Reads[ReportStatus] = ReportStatus.apiFormat
+    given Reads[ReportStatus] = ReportStatus.reads
     httpClientV2
       .get(url"${xrayBaseUrl}/$id")
       .setHeader(
@@ -80,15 +81,15 @@ class XrayConnector @Inject() (
       )
       .execute[ReportStatus]
 
-  def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(using HeaderCarrier): Future[Option[(Instant, Seq[RawVulnerability])]] =
-    given Reads[RawVulnerability] = RawVulnerability.apiFormat
+  def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(using HeaderCarrier): Future[Option[(Instant, Seq[Vulnerability])]] =
+    given Reads[Vulnerability] = Vulnerability.reads
     for
       zip    <- downloadReport(reportId, serviceName, version)
       result =  unzipReport(zip)
                   .map(Json.parse)
                   .map: json =>
                     val date = (json \ "generatedDate").asOpt[Instant].getOrElse(Instant.now())
-                    val rows = (json \ "rows"         ).as[Seq[RawVulnerability]]
+                    val rows = (json \ "rows"         ).as[Seq[Vulnerability]]
                     (date, rows)
     yield result
 
@@ -147,3 +148,94 @@ class XrayConnector @Inject() (
         s"""{"filters":{"author":"${xrayUsername}","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"$cutOff"}}}"""
       ))
       .execute[Seq[ReportId]]
+
+object XrayConnector:
+  import play.api.libs.functional.syntax.toFunctionalBuilderOps
+
+  case class ReportResponse(
+    reportID: Int,
+    status  : String,
+  )
+
+  object ReportResponse:
+    val reads =
+    ( (__ \ "report_id").read[Int]
+    ~ (__ \ "status"   ).read[String]
+    )(apply)
+
+  case class ReportId(id: Int) extends AnyVal
+
+  object ReportId:
+    val reads = (__ \ "id").read[Int].map(ReportId.apply)
+
+  case class ReportStatus(
+    status        : String,
+    numberOfRows  : Int,
+    totalArtefacts: Int
+  )
+
+  object ReportStatus:
+    val reads =
+      ( (__ \ "status"         ).read[String]
+      ~ (__ \ "number_of_rows" ).read[Int]
+      ~ (__ \ "total_artifacts").read[Int]
+      )(apply)
+
+  case class Vulnerability(
+    cves                 : Seq[CVE],
+    cvss3MaxScore        : Option[Double],
+    summary              : String,
+    severity             : String,
+    severitySource       : String,
+    vulnerableComponent  : String,
+    componentPhysicalPath: String,
+    impactedArtefact     : String,
+    impactPath           : Seq[String],
+    path                 : String,
+    fixedVersions        : Seq[String],
+    published            : Instant,
+    artefactScanTime     : Instant,
+    issueId              : String,
+    packageType          : String,
+    provider             : String,
+    description          : String,
+    references           : Seq[String],
+    projectKeys          : Seq[String],
+  )
+
+  object Vulnerability:
+    val reads =
+      given Reads[CVE] = CVE.reads
+      ( (__ \ "cves"                   ).read[Seq[CVE]]
+      ~ (__ \ "cvss3_max_score"        ).readNullable[Double]
+      ~ (__ \ "summary"                ).read[String]
+      ~ (__ \ "severity"               ).read[String]
+      ~ (__ \ "severity_source"        ).read[String]
+      ~ (__ \ "vulnerable_component"   ).read[String]
+      ~ (__ \ "component_physical_path").read[String]
+      ~ (__ \ "impacted_artifact"      ).read[String]
+      ~ (__ \ "impact_path"            ).read[Seq[String]]
+      ~ (__ \ "path"                   ).read[String]
+      ~ (__ \ "fixed_versions"         ).read[Seq[String]]
+      ~ (__ \ "published"              ).read[Instant]
+      ~ (__ \ "artifact_scan_time"     ).read[Instant]
+      ~ (__ \ "issue_id"               ).read[String]
+      ~ (__ \ "package_type"           ).read[String]
+      ~ (__ \ "provider"               ).read[String]
+      ~ (__ \ "description"            ).read[String]
+      ~ (__ \ "references"             ).read[Seq[String]]
+      ~ (__ \ "project_keys"           ).read[Seq[String]]
+      )(apply)
+
+  case class CVE(
+    cveId      : Option[String],
+    cveV3Score : Option[Double],
+    cveV3Vector: Option[String]
+  )
+
+  object CVE:
+    val reads =
+      ( (__ \ "cve"           ).readNullable[String]
+      ~ (__ \ "cvss_v3_score" ).readNullable[Double]
+      ~ (__ \ "cvss_v3_vector").readNullable[String]
+      )(apply)

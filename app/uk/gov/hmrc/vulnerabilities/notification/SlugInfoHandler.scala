@@ -25,7 +25,7 @@ import play.api.Configuration
 import play.api.libs.json.Json
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.connector.ArtefactProcessorConnector
-import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
+import uk.gov.hmrc.vulnerabilities.persistence.ReportRepository
 import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
 import uk.gov.hmrc.vulnerabilities.service.XrayService
 
@@ -36,7 +36,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class SlugInfoHandler @Inject()(
   configuration             : Configuration,
   artefactProcessorConnector: ArtefactProcessorConnector,
-  rawReportsRepository      : RawReportsRepository,
+  reportRepository          : ReportRepository,
   xrayService               : XrayService
 )(using
   ActorSystem,
@@ -65,7 +65,7 @@ class SlugInfoHandler @Inject()(
                                                           )
                                                   _    <- EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, slug.uri))
                                                 yield ()
-                   case ("slug", "deletion") => EitherT.right[String](rawReportsRepository.delete(payload.serviceName, payload.version))
+                   case ("slug", "deletion") => EitherT.right[String](reportRepository.delete(payload.serviceName, payload.version))
                    case _                    => EitherT.right[String](Future.unit)
       _       =  logger.info(s"${prefix(payload)} with ID '${message.messageId()}' successfully processed.")
      yield

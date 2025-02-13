@@ -21,7 +21,7 @@ import play.api.libs.json.{Json, Format, Writes}
 import play.api.mvc.{Action, AnyContent, ControllerComponents, RequestHeader}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.model.*
-import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilityAgeRepository}
+import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, ReportRepository, VulnerabilityAgeRepository}
 import uk.gov.hmrc.vulnerabilities.service.TeamService
 
 import javax.inject.{Inject, Singleton}
@@ -31,7 +31,7 @@ import scala.concurrent.{Future, ExecutionContext}
 class VulnerabilitiesController @Inject()(
   cc                        : ControllerComponents,
   assessmentsRepository     : AssessmentsRepository,
-  rawReportsRepository      : RawReportsRepository,
+  reportRepository          : ReportRepository,
   teamService               : TeamService,
   vulnerabilityAgeRepository: VulnerabilityAgeRepository
 )(using
@@ -57,7 +57,7 @@ class VulnerabilitiesController @Inject()(
                              case (None   , None, None) => Future.successful(None)
                              case (Some(s), _   , _   ) => Future.successful(Some(Seq(s)))
                              case (_      , _   , _   ) => teamService.services(team, digitalService).map(Some.apply)
-        reports         <- rawReportsRepository.find(flag, serviceNames, version)
+        reports         <- reportRepository.find(flag, serviceNames, version)
         artefactToTeams <- teamService.artefactToTeams()
         firstDetected   <- vulnerabilityAgeRepository.firstDetected()
         assessments     <- assessmentsRepository.getAssessments().map(_.map(a => a.id -> a).toMap)
@@ -138,7 +138,7 @@ class VulnerabilitiesController @Inject()(
                           case (None   , None   , None) => Future.successful(None)
                           case (Some(s), _      , _   ) => Future.successful(Some(Seq(s)))
                           case (_      , _      , _   ) => teamService.services(team, digitalService).map(Some.apply)
-        reports      <- rawReportsRepository.find(Some(flag), serviceNames, version = None)
+        reports      <- reportRepository.find(Some(flag), serviceNames, version = None)
         assessments  <- assessmentsRepository.getAssessments()
         result       =  reports.map: report =>
                           val cves = report.rows.flatMap(_.cves.flatMap(_.cveId)).distinct
@@ -158,7 +158,7 @@ class VulnerabilitiesController @Inject()(
     Action.async: _ =>
       given tvw: Writes[TotalVulnerabilityCount] = TotalVulnerabilityCount.writes
       for
-        reports     <- rawReportsRepository.findDeployed(service)
+        reports     <- reportRepository.findDeployed(service)
         assessments <- assessmentsRepository.getAssessments()
         cves        =  reports.flatMap(_.rows.flatMap(_.cves.flatMap(_.cveId))).distinct
         result      =  TotalVulnerabilityCount(

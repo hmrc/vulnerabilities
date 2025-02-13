@@ -26,7 +26,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import play.api.Configuration
 import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
-import uk.gov.hmrc.vulnerabilities.model.{ReportId, ReportResponse, ReportStatus, ServiceName, Version}
+import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
 
 import java.time.temporal.ChronoUnit
 import java.time.{Clock, LocalDate, ZoneOffset}
@@ -80,7 +80,7 @@ class XrayConnectorSpec
           .willReturn(aResponse().withBody(s"""{"report_id":1,"status":"pending"}""")))
 
         val res = connector.generateReport(ServiceName("service1"), Version("5.4.0"), "some/path/service1_5.4.0_0.5.2.tgz").futureValue
-        res shouldBe ReportResponse(reportID = 1, status = "pending")
+        res shouldBe XrayConnector.ReportResponse(reportID = 1, status = "pending")
 
   "checkStatus" when:
     "given a reportId" should:
@@ -93,7 +93,7 @@ class XrayConnectorSpec
         ))
 
         val res = connector.checkStatus(id = 1).futureValue
-        res shouldBe ReportStatus(status = "completed", numberOfRows = 1, totalArtefacts = 2)
+        res shouldBe XrayConnector.ReportStatus(status = "completed", numberOfRows = 1, totalArtefacts = 2)
 
   "deleteReport" when:
     "xray returns a 4XX response" should:
@@ -140,7 +140,7 @@ class XrayConnectorSpec
       ))
 
       val res = connector.getStaleReportIds().futureValue
-      res shouldBe Seq(ReportId(439753), ReportId(439750))
+      res shouldBe Seq(XrayConnector.ReportId(439753), XrayConnector.ReportId(439750))
 
     "return an UpstreamErrorResponse for 4XX errors" in:
       stubFor(WireMock.post(urlMatching("/\\?page_num=1&num_of_rows=100")).willReturn(

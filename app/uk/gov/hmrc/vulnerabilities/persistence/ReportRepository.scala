@@ -32,7 +32,7 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class RawReportsRepository @Inject()(
+class ReportRepository @Inject()(
   final val mongoComponent: MongoComponent
 , config                  : Configuration
 )(using
@@ -250,11 +250,3 @@ class RawReportsRepository @Inject()(
           )
         )
       ).toFuture()
-
-  def findAllForAddDependencyInfo(skip: Int): Future[Seq[Report]] =
-    collection
-      .find(Filters.equal("scanned", true))
-      .sort(Sorts.ascending("serviceName"))
-      .limit(100)
-      .skip(skip)
-      .toFuture()

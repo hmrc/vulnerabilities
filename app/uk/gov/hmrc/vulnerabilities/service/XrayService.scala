@@ -21,7 +21,7 @@ import cats.data.EitherT
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.vulnerabilities.connector.{ArtefactProcessorConnector, BuildDeployApiConnector, ServiceConfigsConnector, XrayConnector}
 import uk.gov.hmrc.vulnerabilities.model._
-import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilityAgeRepository}
+import uk.gov.hmrc.vulnerabilities.persistence.{ReportRepository, VulnerabilityAgeRepository}
 import uk.gov.hmrc.vulnerabilities.util.DependencyGraphParser
 import uk.gov.hmrc.http.HeaderCarrier
 
@@ -40,7 +40,7 @@ class XrayService @Inject()(
   xrayConnector               : XrayConnector,
   serviceConfigsConnector     : ServiceConfigsConnector,
   system                      : ActorSystem,
-  rawReportsRepository        : RawReportsRepository,
+  reportRepository            : ReportRepository,
   vulnerabilityAgeRepository  : VulnerabilityAgeRepository
 )(using
   ExecutionContext
@@ -81,7 +81,7 @@ class XrayService @Inject()(
     logger.info("Rescan of latest and deployed services started")
     (for
       _        <- deleteStaleReports()
-      reports  <- rawReportsRepository.findFlagged()
+      reports  <- reportRepository.findFlagged()
       _        <- processReports(reports.map(SlugInfo.fromReport))
       duration =  System.currentTimeMillis() - start
     yield logger.info(s"Rescan of ${reports.length} latest and deployed services finished - took ${duration}ms")
@@ -94,14 +94,14 @@ class XrayService @Inject()(
   def rescanStaleReports(reportsBefore: Instant)(using HeaderCarrier): Future[Unit] =
     for
       _       <- deleteStaleReports()
-      reports <- rawReportsRepository.findGeneratedBefore(reportsBefore)
+      reports <- reportRepository.findGeneratedBefore(reportsBefore)
       _       <- processReports(reports.map(SlugInfo.fromReport))
     yield ()
 
   def fixNotScanned()(using HeaderCarrier): Future[Unit] =
     for
       _       <- deleteStaleReports()
-      reports <- rawReportsRepository.findNotScanned()
+      reports <- reportRepository.findNotScanned()
       _       <- processReports(reports.map(SlugInfo.fromReport))
     yield ()
 
@@ -129,12 +129,12 @@ class XrayService @Inject()(
             case Left(_)             => logger.warn(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
                                         for
                                           r <- toReport(slug, generatedDate = Instant.now(), rows = Nil, scanned = false)
-                                          _ <- rawReportsRepository.put(report = r)
+                                          _ <- reportRepository.put(report = r)
                                         yield ()
             case Right((date, rows)) => for
                                           r <- toReport(slug, generatedDate = date, rows = rows, scanned = true)
                                           _ <- vulnerabilityAgeRepository.insertNonExisting(report = r)
-                                          _ <- rawReportsRepository.put(report = r)
+                                          _ <- reportRepository.put(report = r)
                                         yield ()
 
         go(1)
@@ -142,7 +142,7 @@ class XrayService @Inject()(
 
   private val jarRegex = raw".*\/([^\/]+)\.jar.*".r
 
-  private def isGavMatch(v: RawVulnerability, d: Dependency): Boolean =
+  private def isGavMatch(v: XrayConnector.Vulnerability, d: Dependency): Boolean =
     if   v.vulnerableComponent == s"gav://${d.group}:${d.artefact}${d.scalaVersion.fold("")("_" + _.original)}:${d.version.original}"
     then true
     else
@@ -158,7 +158,7 @@ class XrayService @Inject()(
         _.find(_.artefactName == ArtefactName(serviceName.asString))
          .fold(RepoName(serviceName.asString))(_.repoName)
 
-  private def toReport(slug: SlugInfo, generatedDate: Instant, rows: Seq[RawVulnerability], scanned: Boolean)(using HeaderCarrier): Future[Report] =
+  private def toReport(slug: SlugInfo, generatedDate: Instant, rows: Seq[XrayConnector.Vulnerability], scanned: Boolean)(using HeaderCarrier): Future[Report] =
     for
       repoName <- toRepoName(slug.serviceName)
       oMeta    <- artefactProcessorConnector.getMetaArtefact(repoName, slug.version)
@@ -176,13 +176,11 @@ class XrayService @Inject()(
     , integration   = slug.flags.contains(SlugInfoFlag.Integration)
     , generatedDate = generatedDate
     , rows          = rows.map: vuln =>
-                        vuln.copy(
-                          importedBy = deps.find(isGavMatch(vuln, _)).flatMap(_.importedBy)
-                        )
+                        Report.Vulnerability.apply(vuln, importedBy = deps.find(isGavMatch(vuln, _)).flatMap(_.importedBy))
     , scanned       = scanned
     )
 
-  private def scan(slug: SlugInfo)(using HeaderCarrier): EitherT[Future, XrayStatus, (Instant, Seq[RawVulnerability])] =
+  private def scan(slug: SlugInfo)(using HeaderCarrier): EitherT[Future, XrayStatus, (Instant, Seq[XrayConnector.Vulnerability])] =
     EitherT
       .liftF(xrayConnector.generateReport(slug.serviceName, slug.version, slug.path))
       .flatMap: resp =>
@@ -192,7 +190,7 @@ class XrayService @Inject()(
             status  <- EitherT(checkIfReportReady(slug, resp))
             tuple   <- if   status.numberOfRows > 0
                        then EitherT.fromOptionF(xrayConnector.downloadAndUnzipReport(resp.reportID, slug.serviceName, slug.version), XrayStatus.Retry)
-                       else EitherT.rightT[Future, XrayStatus]((Instant.now(), Seq.empty[RawVulnerability]))
+                       else EitherT.rightT[Future, XrayStatus]((Instant.now(), Seq.empty[XrayConnector.Vulnerability]))
           yield tuple
 
         et.value.onComplete:
@@ -208,7 +206,7 @@ class XrayService @Inject()(
   private val waitTimeSeconds: Long =
     configuration.get[FiniteDuration]("xray.reports.waitTime").toSeconds
 
-  private [service] def checkIfReportReady(slug: SlugInfo, reportResponse: ReportResponse, counter: Int = 0)(using HeaderCarrier): Future[Either[XrayStatus, ReportStatus]] =
+  private [service] def checkIfReportReady(slug: SlugInfo, reportResponse: XrayConnector.ReportResponse, counter: Int = 0)(using HeaderCarrier): Future[Either[XrayStatus, XrayConnector.ReportStatus]] =
     xrayConnector
       .checkStatus(reportResponse.reportID)
       .flatMap:
@@ -241,20 +239,3 @@ class XrayService @Inject()(
                  yield acc + 1
       _     =  logger.info(s"Deleted $count stale reports")
     yield ()
-
-  def addDependencyInfoScheduler()(using HeaderCarrier): Future[Unit] =
-    def recursiveBatch(skip: Int): Future[Unit] =
-      for
-        xs <- rawReportsRepository.findAllForAddDependencyInfo(skip)
-        _  <- xs.foldLeftM(()): (_, report) =>
-                for
-                  r <- toReport(SlugInfo.fromReport(report), generatedDate = report.generatedDate, rows = report.rows, scanned = true)
-                  _ <- rawReportsRepository.put(report = r)
-                yield ()
-        _  <-
-              if   xs.isEmpty
-              then Future.unit
-              else recursiveBatch(skip + xs.size)
-      yield ()
-
-    recursiveBatch(skip = 0)

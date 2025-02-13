@@ -23,7 +23,7 @@ import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.mongo.TimestampSupport
 import uk.gov.hmrc.mongo.lock.{ScheduledLockService, MongoLockRepository}
 import uk.gov.hmrc.vulnerabilities.model.ArtefactName
-import uk.gov.hmrc.vulnerabilities.persistence.{RawReportsRepository, VulnerabilitiesTimelineRepository}
+import uk.gov.hmrc.vulnerabilities.persistence.{ReportRepository, VulnerabilitiesTimelineRepository}
 import uk.gov.hmrc.vulnerabilities.service.TeamService
 
 import java.time.{DayOfWeek, LocalDate, ZoneOffset}
@@ -33,12 +33,12 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class TimelineScheduler @Inject()(
-  configuration         : Configuration,
-  teamService           : TeamService,
-  rawReportsRepository  : RawReportsRepository,
-  timelineRepository    : VulnerabilitiesTimelineRepository,
-  mongoLockRepository   : MongoLockRepository,
-  timestampSupport      : TimestampSupport
+  configuration       : Configuration,
+  teamService         : TeamService,
+  reportRepository    : ReportRepository,
+  timelineRepository  : VulnerabilitiesTimelineRepository,
+  mongoLockRepository : MongoLockRepository,
+  timestampSupport    : TimestampSupport
  )(using
   ActorSystem,
   ApplicationLifecycle,
@@ -74,7 +74,7 @@ class TimelineScheduler @Inject()(
           Future.unit
         case _ =>
           for
-            timeline          <- rawReportsRepository.getTimelineData(weekBeginning)
+            timeline          <- reportRepository.getTimelineData(weekBeginning)
             artefactToTeams   <- teamService.artefactToTeams()
             timelineWithTeams =  timeline.map(sv => sv.copy(teams = artefactToTeams.getOrElse(ArtefactName(sv.service), Seq.empty)))
             _                 <- timelineRepository.replaceOrInsert(timelineWithTeams)
