@@ -23,14 +23,14 @@ import org.scalatest.wordspec.AnyWordSpec
 import play.api.Configuration
 import uk.gov.hmrc.mongo.play.json.CollectionFactory
 import uk.gov.hmrc.mongo.test.DefaultPlayMongoRepositorySupport
-import uk.gov.hmrc.vulnerabilities.model.{Assessment, CurationStatus, CVE, RawVulnerability, Report, TimelineEvent, ServiceName, Version}
+import uk.gov.hmrc.vulnerabilities.model.{Assessment, CurationStatus, ImportedBy, Report, TimelineEvent, ServiceName, Version}
 
 import java.time.Instant
 import scala.collection.immutable.Seq
 import scala.concurrent.ExecutionContext.Implicits.global
 
 
-class RawReportsRepositorySpec
+class ReportRepositorySpec
   extends AnyWordSpec
      with Matchers
      with DefaultPlayMongoRepositorySupport[Report]
@@ -43,7 +43,7 @@ class RawReportsRepositorySpec
     "regex.exclusion" -> "^(?!.*ehcache.*/rest-management-private-classpath/META-INF/maven/.*).*"
   )
 
-  override val repository: RawReportsRepository = RawReportsRepository(mongoComponent, configuration)
+  override val repository: ReportRepository = ReportRepository(mongoComponent, configuration)
 
   private val now = Instant.now.truncatedTo(java.time.temporal.ChronoUnit.MILLIS)
 
@@ -68,7 +68,7 @@ class RawReportsRepositorySpec
       res.map(_.service) should contain theSameElementsAs Seq("service1", "service2", "service2")
 
     "default curationStatus to uncurated if the Vulnerability does not exist in the collecitons assessment" in new Setup:
-      val rep1 = report1.copy(rows = report1.rows.map(_.copy(cves = Seq(CVE(cveId = Some("DOES_NOT_EXIST"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))))))
+      val rep1 = report1.copy(rows = report1.rows.map(_.copy(cves = Seq(Report.CVE(cveId = Some("DOES_NOT_EXIST"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))))))
 
       repository.collection.insertOne(rep1).toFuture().futureValue
       assessmentsCollection.insertMany(assessments).toFuture().futureValue
@@ -118,8 +118,8 @@ class RawReportsRepositorySpec
         serviceVersion = Version("1.0.4"),
         slugUri        = "http://artifactory/webstore/service1_1.0.4.tgz",
         rows           = Seq(
-                           RawVulnerability(
-                             cves                  = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
+                           Report.Vulnerability(
+                             cves                  = Seq(Report.CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
                              cvss3MaxScore         = Some(8.0),
                              summary               = "This is an exploit",
                              severity              = "High",
@@ -137,7 +137,8 @@ class RawReportsRepositorySpec
                              provider              = "test",
                              description           = "This is an exploit",
                              references            = Seq("foo.com", "bar.net"),
-                             projectKeys           = Seq()
+                             projectKeys           = Seq(),
+                             importedBy            = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.1.0")))
                          )),
         generatedDate  = now,
         scanned        = true,
@@ -156,8 +157,8 @@ class RawReportsRepositorySpec
         serviceVersion = Version("3.0.4"),
         slugUri        = "http://artifactory/webstore/service2_3.0.4.tgz",
         rows           = Seq(
-                           RawVulnerability(
-                             cves                  = Seq(CVE(cveId = Some("CVE-2021-99999"), cveV3Score = Some(7.0), cveV3Vector = Some("test2"))),
+                           Report.Vulnerability(
+                             cves                  = Seq(Report.CVE(cveId = Some("CVE-2021-99999"), cveV3Score = Some(7.0), cveV3Vector = Some("test2"))),
                              cvss3MaxScore         = Some(7.0),
                              summary               = "This is an exploit",
                              severity              = "High",
@@ -175,10 +176,11 @@ class RawReportsRepositorySpec
                              provider              = "test",
                              description           = "This is an exploit",
                              references            = Seq("foo.com", "bar.net"),
-                             projectKeys           = Seq()
+                             projectKeys           = Seq(),
+                             importedBy            = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.2.0")))
                            ),
-                           RawVulnerability(
-                             cves                  = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
+                           Report.Vulnerability(
+                             cves                  = Seq(Report.CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
                              cvss3MaxScore         = Some(8.0),
                              summary               = "This is an exploit",
                              severity              = "High",
@@ -196,7 +198,8 @@ class RawReportsRepositorySpec
                              provider              = "test",
                              description           = "This is an exploit",
                              references            = Seq("foo.com", "bar.net"),
-                             projectKeys           = Seq()
+                             projectKeys           = Seq(),
+                             importedBy            = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.1.0")))
                            )
                          ),
         generatedDate  = now,

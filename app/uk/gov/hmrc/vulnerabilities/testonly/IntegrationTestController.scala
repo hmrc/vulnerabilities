@@ -23,7 +23,7 @@ import play.api.mvc.{Action, AnyContent, BodyParser, ControllerComponents}
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import uk.gov.hmrc.vulnerabilities.model.{Assessment, TimelineEvent, VulnerabilityAge}
-import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, RawReportsRepository, VulnerabilityAgeRepository, VulnerabilitiesTimelineRepository}
+import uk.gov.hmrc.vulnerabilities.persistence.{AssessmentsRepository, ReportRepository, VulnerabilityAgeRepository, VulnerabilitiesTimelineRepository}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
@@ -32,7 +32,7 @@ import uk.gov.hmrc.vulnerabilities.model.Report
 @Singleton
 class IntegrationTestController @Inject()(
   assessmentsRepository            : AssessmentsRepository
-, rawReportsRepository             : RawReportsRepository
+, reportRepository                 : ReportRepository
 , vulnerabilityAgeRepository       : VulnerabilityAgeRepository
 , vulnerabilitiesTimelineRepository: VulnerabilitiesTimelineRepository
 , cc: ControllerComponents
@@ -49,10 +49,10 @@ class IntegrationTestController @Inject()(
 
   def postReports(): Action[Seq[Report]] =
     given Format[Report] = Report.apiFormat
-    addAll(rawReportsRepository)
+    addAll(reportRepository)
 
   def deleteReports(): Action[AnyContent] =
-    deleteAll(rawReportsRepository)
+    deleteAll(reportRepository)
 
   def postVulnerabilityAges(): Action[Seq[VulnerabilityAge]] =
     given Format[VulnerabilityAge] = VulnerabilityAge.apiFormat

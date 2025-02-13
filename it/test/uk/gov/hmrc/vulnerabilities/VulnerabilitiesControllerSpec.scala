@@ -28,7 +28,7 @@ import play.api.libs.ws.WSClient
 import uk.gov.hmrc.http.test.WireMockSupport
 import uk.gov.hmrc.mongo.test.CleanMongoCollectionSupport
 import uk.gov.hmrc.vulnerabilities.model._
-import uk.gov.hmrc.vulnerabilities.persistence.RawReportsRepository
+import uk.gov.hmrc.vulnerabilities.persistence.ReportRepository
 
 class VulnerabilitiesControllerSpec
   extends AnyWordSpec
@@ -52,7 +52,7 @@ class VulnerabilitiesControllerSpec
 
   private val wsClient = app.injector.instanceOf[WSClient]
 
-  private val rawReportsCollection = app.injector.instanceOf[RawReportsRepository]
+  private val reportCollection = app.injector.instanceOf[ReportRepository]
 
   /*
    * This test exercises the fact that it is possible for a scheduler run to fail part of the way through.
@@ -79,14 +79,14 @@ class VulnerabilitiesControllerSpec
       given Format[VulnerabilitySummary] = VulnerabilitySummary.apiFormat
 
       //Test occurs below
-      rawReportsCollection.put:
+      reportCollection.put:
         Report(
           serviceName    = ServiceName("service1"),
           serviceVersion = Version("0.835.0"),
           slugUri        = "https://artifactory/webstore/service1_0.8.35.0.tgz",
           rows           = Seq(
-                             RawVulnerability(
-                               cves                  = Seq(CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
+                             Report.Vulnerability(
+                               cves                  = Seq(Report.CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
                                cvss3MaxScore         = Some(8.0),
                                summary               = "summary",
                                severity              = "High",
@@ -104,7 +104,8 @@ class VulnerabilitiesControllerSpec
                                provider              = "test",
                                description           = "This is an exploit",
                                references            = Seq("foo.com", "bar.net"),
-                               projectKeys           = Seq()
+                               projectKeys           = Seq(),
+                               importedBy            = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.1.0")))
                              )
                            ),
           generatedDate  = startOfYear,
@@ -146,7 +147,16 @@ class VulnerabilitiesControllerSpec
                                       curationStatus             = CurationStatus.Uncurated,
                                       ticket                     = None
                                     ),
-            occurrences           = Seq(VulnerabilityOccurrence("service1","0.835.0", "service1-0.835.0/some/physical/path", Seq(TeamName("Team1"), TeamName("Team2")), Seq("staging", "production"), "gav://com.testxml.test.core:test-bind","1.5.9")),
+            occurrences           = Seq(VulnerabilityOccurrence(
+                                      service                    = "service1",
+                                      serviceVersion             = "0.835.0",
+                                      componentPathInSlug        = "service1-0.835.0/some/physical/path",
+                                      teams                      = Seq(TeamName("Team1"), TeamName("Team2")),
+                                      envs                       = Seq("staging", "production"),
+                                      vulnerableComponentName    = "gav://com.testxml.test.core:test-bind",
+                                      vulnerableComponentVersion = "1.5.9",
+                                      importedBy                 = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.1.0")))
+                                    )),
             teams                 = List(TeamName("Team1"), TeamName("Team2")),
             generatedDate         = startOfYear
           )
