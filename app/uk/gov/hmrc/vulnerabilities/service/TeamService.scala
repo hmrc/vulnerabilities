@@ -52,4 +52,11 @@ class TeamService @Inject() (
           acc ++ Map(artefactToRepo.artefactName -> acc.getOrElse(ArtefactName(artefactToRepo.repoName.asString), Seq.empty))
 
   def services(team: Option[TeamName], digitalService: Option[DigitalService])(using HeaderCarrier): Future[Seq[ServiceName]] =
-    teamsAndRepositoriesConnector.repositories(team, digitalService).map(_.map(x => ServiceName(x.name.asString)))
+    for
+      repos           <- teamsAndRepositoriesConnector.repositories(team, digitalService)
+      artefactToRepos <- serviceConfigsConnector.artefactToRepos()
+      serviceNames    =  repos.map: repo =>
+                           artefactToRepos.find(repo.name == _.repoName).fold(ServiceName(repo.name.asString))(x => ServiceName(x.artefactName.asString))
+    yield
+      serviceNames
+
