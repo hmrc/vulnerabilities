@@ -25,6 +25,7 @@ import org.apache.pekko.actor.ActorSystem
 import play.api.Configuration
 import play.api.libs.json.Json
 import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.vulnerabilities.connector.ArtefactProcessorConnector
 import uk.gov.hmrc.vulnerabilities.model.{ServiceName, SlugInfoFlag, Version}
 import uk.gov.hmrc.vulnerabilities.service.XrayService
 import uk.gov.hmrc.vulnerabilities.persistence.ReportRepository
@@ -34,9 +35,10 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
 class DeploymentHandler @Inject()(
-  configuration   : Configuration
-, reportRepository: ReportRepository
-, xrayService     : XrayService
+  configuration             : Configuration
+, reportRepository          : ReportRepository
+, artefactProcessorConnector: ArtefactProcessorConnector
+, xrayService               : XrayService
 )(using
   ActorSystem,
   ExecutionContext
@@ -61,7 +63,17 @@ class DeploymentHandler @Inject()(
                                                      exists <- EitherT.right[String](reportRepository.exists(payload.serviceName, payload.version))
                                                      _      <- if   exists
                                                                then EitherT.right[String](reportRepository.setFlag(payload.environment, payload.serviceName, payload.version))
-                                                               else EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, payload.slugUri, Some(payload.environment)))
+                                                               else
+                                                                for
+                                                                  oSlug <- EitherT.right[String](artefactProcessorConnector.getSlugInfo(payload.serviceName, payload.version))
+                                                                  _    <- if   oSlug.isDefined
+                                                                          then EitherT.right[String](xrayService.firstScan(payload.serviceName, payload.version, payload.slugUri, Some(payload.environment)))
+                                                                          else if payload.serviceName == ServiceName("build-and-deploy-canary-service") && payload.environment == SlugInfoFlag.Integration
+                                                                          then //  build-and-deploy-canary-service hotfix builds are created in lab03 and deployed to integration
+                                                                            EitherT.rightT[Future, String](logger.info(s"${prefix(payload)} with ID '${message.messageId()}' no scan required - does not exist in artefact processor."))
+                                                                          else
+                                                                            EitherT.leftT[Future, Unit](s"${prefix(payload)} with ID '${message.messageId()}' does not exist in artefact processor.")
+                                                                yield ()
                                                    yield ()
                    case "undeployment-complete" => EitherT.right[String](reportRepository.clearFlag(payload.environment, payload.serviceName))
                    case _                       => EitherT.right[String](Future.unit)
