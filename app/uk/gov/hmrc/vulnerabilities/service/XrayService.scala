@@ -163,17 +163,18 @@ class XrayService @Inject()(
       repoName <- toRepoName(slug.serviceName)
       oMeta    <- artefactProcessorConnector.getMetaArtefact(repoName, slug.version)
       deps     =  oMeta.map(_.modules.flatMap(x => (DependencyGraphParser.dependencies(x.dependencyDotCompile.getOrElse(""))))).getOrElse(Nil)
+      current  <- reportRepository.find(flag = None, serviceNames = Some(Seq(slug.serviceName)), version = Some(slug.version)) // avoids race condition
     yield Report(
       slug.serviceName
     , slug.version
     , slugUri       = slug.uri
-    , latest        = slug.flags.contains(SlugInfoFlag.Latest)
-    , production    = slug.flags.contains(SlugInfoFlag.Production)
-    , qa            = slug.flags.contains(SlugInfoFlag.QA)
-    , staging       = slug.flags.contains(SlugInfoFlag.Staging)
-    , development   = slug.flags.contains(SlugInfoFlag.Development)
-    , externalTest  = slug.flags.contains(SlugInfoFlag.ExternalTest)
-    , integration   = slug.flags.contains(SlugInfoFlag.Integration)
+    , latest        = current.exists(_.latest)       || slug.flags.contains(SlugInfoFlag.Latest)
+    , production    = current.exists(_.production)   || slug.flags.contains(SlugInfoFlag.Production)
+    , externalTest  = current.exists(_.externalTest) || slug.flags.contains(SlugInfoFlag.ExternalTest)
+    , staging       = current.exists(_.staging)      || slug.flags.contains(SlugInfoFlag.Staging)
+    , qa            = current.exists(_.qa)           || slug.flags.contains(SlugInfoFlag.QA)
+    , development   = current.exists(_.development)  || slug.flags.contains(SlugInfoFlag.Development)
+    , integration   = current.exists(_.integration)  || slug.flags.contains(SlugInfoFlag.Integration)
     , generatedDate = generatedDate
     , rows          = rows.map: vuln =>
                         Report.Vulnerability.apply(vuln, importedBy = deps.find(isGavMatch(vuln, _)).flatMap(_.importedBy))
