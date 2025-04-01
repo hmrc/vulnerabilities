@@ -17,7 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.connector
 
 import com.github.tomakehurst.wiremock.client.WireMock
-import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, stubFor, urlMatching}
+import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, stubFor, urlEqualTo}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -55,7 +55,7 @@ class TeamsAndRepositoriesConnectorSpec
   "TeamsAndRepositoriesConnector.repositories" should:
     "return all the repositories" in:
       stubFor:
-        WireMock.get(urlMatching("/api/v2/repositories"))
+        WireMock.get(urlEqualTo("/api/v2/repositories?organisation=mdtp"))
           .willReturn:
             aResponse().withBody:
               s"""[
