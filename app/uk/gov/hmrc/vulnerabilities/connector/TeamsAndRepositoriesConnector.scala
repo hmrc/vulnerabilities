@@ -56,7 +56,7 @@ class TeamsAndRepositoriesConnector @Inject()(
   )(using HeaderCarrier): Future[Seq[Repo]] =
     given Reads[Repo] = repoReads
     httpClientV2
-      .get(url"$url/api/v2/repositories?team=${teamName.map(_.asString)}&digitalServiceName=${digitalService.map(_.asString)}")
+      .get(url"$url/api/v2/repositories?organisation=mdtp&team=${teamName.map(_.asString)}&digitalServiceName=${digitalService.map(_.asString)}")
       .execute[Seq[TeamsAndRepositoriesConnector.Repo]]
 
   def repoToTeams()(using HeaderCarrier): Future[Map[RepoName, Seq[TeamName]]] =
