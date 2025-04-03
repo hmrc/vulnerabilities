@@ -2,7 +2,7 @@ import play.sbt.routes.RoutesKeys
 import uk.gov.hmrc.DefaultBuildSettings
 
 ThisBuild / majorVersion  := 0
-ThisBuild / scalaVersion  := "3.3.4"
+ThisBuild / scalaVersion  := "3.3.5"
 ThisBuild / scalacOptions += "-Wconf:msg=Flag.*repeatedly:s"
 
 lazy val microservice = Project("vulnerabilities", file("."))
