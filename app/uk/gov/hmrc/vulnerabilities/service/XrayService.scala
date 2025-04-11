@@ -109,36 +109,47 @@ class XrayService @Inject()(
     case ArtefactNotFound extends XrayStatus
     case Retry            extends XrayStatus
 
+
+  private val enabled = configuration.get[Boolean]("xray.enabled")
+
   private val maxRetries = 3
   private def processReports(slugs: Seq[SlugInfo])(using HeaderCarrier): Future[Unit] =
-    slugs
-      .foldLeftM(()): (_, slug) =>
-        def go(count: Int): Future[Unit] =
-          scan(slug).value.flatMap:
-            case Left(XrayStatus.ArtefactNotFound)
-              if count < maxRetries  =>
-                                        for
-                                          _ <- buildAndDeployConnector
-                                                .triggerXrayScanNow(slug.path)
-                                                .recover:
-                                                  case ex => logger.error(s"Error calling B&D API ${ex.getMessage}", ex)
-                                          _ <- org.apache.pekko.pattern.after(1000.millis, system.scheduler) { go(count + 1) }
-                                        yield ()
-            case Left(XrayStatus.Retry)
-              if count < maxRetries  => go(count + 1)
-            case Left(_)             => logger.warn(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
-                                        for
-                                          r <- toReport(slug, generatedDate = Instant.now(), rows = Nil, scanned = false)
-                                          _ <- reportRepository.put(report = r)
-                                        yield ()
-            case Right((date, rows)) => for
-                                          r <- toReport(slug, generatedDate = date, rows = rows, scanned = true)
-                                          _ <- vulnerabilityAgeRepository.insertNonExisting(report = r)
-                                          _ <- reportRepository.put(report = r)
-                                        yield ()
+    if enabled then
+      slugs
+        .foldLeftM(()): (_, slug) =>
+          def go(count: Int): Future[Unit] =
+            scan(slug).value.flatMap:
+              case Left(XrayStatus.ArtefactNotFound)
+                if count < maxRetries  =>
+                                          for
+                                            _ <- buildAndDeployConnector
+                                                  .triggerXrayScanNow(slug.path)
+                                                  .recover:
+                                                    case ex => logger.error(s"Error calling B&D API ${ex.getMessage}", ex)
+                                            _ <- org.apache.pekko.pattern.after(1000.millis, system.scheduler) { go(count + 1) }
+                                          yield ()
+              case Left(XrayStatus.Retry)
+                if count < maxRetries  => go(count + 1)
+              case Left(_)             => logger.warn(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
+                                          for
+                                            r <- toReport(slug, generatedDate = Instant.now(), rows = Nil, scanned = false)
+                                            _ <- reportRepository.put(report = r)
+                                          yield ()
+              case Right((date, rows)) => for
+                                            r <- toReport(slug, generatedDate = date, rows = rows, scanned = true)
+                                            _ <- vulnerabilityAgeRepository.insertNonExisting(report = r)
+                                            _ <- reportRepository.put(report = r)
+                                          yield ()
 
-        go(1)
-      .map(x => logger.info(s"Finished processing ${slugs.size} reports."))
+          go(1)
+        .map(x => logger.info(s"Finished processing ${slugs.size} reports."))
+    else
+      slugs
+        .foldLeftM(()): (_, slug) =>
+          for
+            r <- toReport(slug, generatedDate = Instant.now(), rows = Nil, scanned = false)
+            _ <- reportRepository.put(report = r)
+          yield ()
 
   private val jarRegex = raw".*\/([^\/]+)\.jar.*".r
 
