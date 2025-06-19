@@ -49,7 +49,7 @@ trait SchedulerUtils extends Logging:
 
       applicationLifecycle.addStopHook(() => Future.successful(cancellable.cancel()))
     else
-      logger.info(s"Scheduler $label is DISABLED. to enable, configure configure ${schedulerConfig.enabledKey}=true in config.")
+      logger.info(s"Scheduler $label is DISABLED. to enable, configure ${schedulerConfig.enabledKey}=true in config.")
 
   def scheduleWithLock(
     label          : String,
