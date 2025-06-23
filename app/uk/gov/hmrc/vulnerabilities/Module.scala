@@ -46,4 +46,4 @@ class Module extends play.api.inject.Module:
     , bind[FixNotScannedScheduler].toSelf.eagerly()
     , bind[Clock                 ].toInstance(Clock.systemUTC())
     ) ++
-    ecsDeploymentsBindings(configuration)
+      ecsDeploymentsBindings(configuration)

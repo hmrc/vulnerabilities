@@ -17,19 +17,18 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import org.apache.pekko.actor.ActorSystem
+import cats.implicits.*
 import cats.data.EitherT
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.vulnerabilities.connector.{ArtefactProcessorConnector, BuildDeployApiConnector, ServiceConfigsConnector, XrayConnector}
-import uk.gov.hmrc.vulnerabilities.model._
+import uk.gov.hmrc.vulnerabilities.model.*
 import uk.gov.hmrc.vulnerabilities.persistence.{ReportRepository, VulnerabilityAgeRepository}
 import uk.gov.hmrc.vulnerabilities.util.DependencyGraphParser
 import uk.gov.hmrc.http.HeaderCarrier
 
-import cats.implicits._
-
 import java.time.Instant
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration._
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
@@ -173,7 +172,7 @@ class XrayService @Inject()(
     for
       repoName <- toRepoName(slug.serviceName)
       oMeta    <- artefactProcessorConnector.getMetaArtefact(repoName, slug.version)
-      deps     =  oMeta.map(_.modules.flatMap(x => (DependencyGraphParser.dependencies(x.dependencyDotCompile.getOrElse(""))))).getOrElse(Nil)
+      deps     =  oMeta.map(_.modules.flatMap(x => DependencyGraphParser.dependencies(x.dependencyDotCompile.getOrElse("")))).getOrElse(Nil)
       current  <- reportRepository.find(flag = None, serviceNames = Some(Seq(slug.serviceName)), version = Some(slug.version)) // avoids race condition
     yield Report(
       slug.serviceName

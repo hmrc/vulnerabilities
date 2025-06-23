@@ -18,8 +18,6 @@ package uk.gov.hmrc.vulnerabilities.persistence
 
 import org.mongodb.scala.ObservableFuture
 import org.mongodb.scala.bson.conversions.Bson
-import org.mongodb.scala.model.Aggregates.{`match`, group}
-import org.mongodb.scala.model.Indexes.{compoundIndex, descending}
 import org.mongodb.scala.model._
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
@@ -35,17 +33,17 @@ class VulnerabilitiesTimelineRepository @Inject()(
   mongoComponent: MongoComponent,
 )(using
   ExecutionContext
-) extends PlayMongoRepository(
+) extends PlayMongoRepository[TimelineEvent](
   collectionName = "vulnerabilitiesTimeline",
   mongoComponent = mongoComponent,
   domainFormat   = TimelineEvent.mongoFormat,
   indexes        = Seq(
-                     IndexModel(compoundIndex(descending("weekBeginning"), descending("service"), descending("id")),IndexOptions().unique(true).background(true)),
-                     IndexModel(Indexes.ascending("weekBeginning"),IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS).background(true)),
-                     IndexModel(Indexes.ascending("id"),IndexOptions().name("id").background(true)),
-                     IndexModel(Indexes.ascending("service"),IndexOptions().name("service").background(true)),
-                     IndexModel(Indexes.ascending("teams"),IndexOptions().name("teams").background(true)),
-                     IndexModel(Indexes.ascending("curationStatus"),IndexOptions().name("curationStatus").background(true))
+                     IndexModel(Indexes.descending("weekBeginning", "service", "id"), IndexOptions().unique(true)),
+                     IndexModel(Indexes.ascending("weekBeginning") , IndexOptions().expireAfter(2 * 365, TimeUnit.DAYS)),
+                     IndexModel(Indexes.ascending("id")            , IndexOptions().name("id")),
+                     IndexModel(Indexes.ascending("service")       , IndexOptions().name("service")),
+                     IndexModel(Indexes.ascending("teams")         , IndexOptions().name("teams")),
+                     IndexModel(Indexes.ascending("curationStatus"), IndexOptions().name("curationStatus"))
                    )
 ):
   def replaceOrInsert(serviceVulnerabilities: Seq[TimelineEvent]): Future[Unit] =
@@ -53,8 +51,8 @@ class VulnerabilitiesTimelineRepository @Inject()(
       serviceVulnerabilities.map: sv =>
         ReplaceOneModel(
           Filters.and(
-            Filters.equal("id", sv.id),
-            Filters.equal("service", sv.service),
+            Filters.equal("id"           , sv.id),
+            Filters.equal("service"      , sv.service),
             Filters.equal("weekBeginning", sv.weekBeginning)
           ),
           sv,
@@ -75,7 +73,7 @@ class VulnerabilitiesTimelineRepository @Inject()(
     CollectionFactory.collection(mongoComponent.database, "vulnerabilitiesTimeline", VulnerabilitiesTimelineCount.mongoFormat)
       .aggregate:
         Seq(
-          `match`:
+          Aggregates.`match`:
             Filters.and(
               Filters.gte("weekBeginning", from)
             , Filters.lte("weekBeginning", to)
@@ -86,6 +84,6 @@ class VulnerabilitiesTimelineRepository @Inject()(
             , vulnerability .fold(Filters.empty)(v  => Filters.eq("id"            , v.toUpperCase))
             , curationStatus.fold(Filters.empty)(cs => Filters.eq("curationStatus", cs.asString))
             )
-        , group(id = "$weekBeginning", Accumulators.sum("count", 1))
+        , Aggregates.group(id = "$weekBeginning", Accumulators.sum("count", 1))
         )
       .toFuture()

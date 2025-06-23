@@ -58,7 +58,7 @@ object Report:
   val apiFormat   = format(using Report.Vulnerability.apiFormat  , summon[Format[Instant]]) // For Integration Test
   val mongoFormat = format(using Report.Vulnerability.mongoFormat, MongoJavatimeFormats.instantFormat)
 
-    case class Vulnerability(
+  case class Vulnerability(
     cves                 : Seq[CVE],
     cvss3MaxScore        : Option[Double],
     summary              : String,

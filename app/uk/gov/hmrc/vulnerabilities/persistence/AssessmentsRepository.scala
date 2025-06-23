@@ -30,11 +30,11 @@ class AssessmentsRepository @Inject()(
   mongoComponent: MongoComponent
 )(using
   ExecutionContext
-) extends PlayMongoRepository(
+) extends PlayMongoRepository[Assessment](
   collectionName = "assessments",
   mongoComponent = mongoComponent,
   domainFormat   = Assessment.mongoFormat,
-  indexes        = Seq(IndexModel(Indexes.ascending("id"), IndexOptions().unique(true).background(true)))
+  indexes        = Seq(IndexModel(Indexes.ascending("id"), IndexOptions().unique(true)))
 ):
   // No ttl required for this collection - contains assessments created by ourselves which will evolve over time
   override lazy val requiresTtlIndex = false
