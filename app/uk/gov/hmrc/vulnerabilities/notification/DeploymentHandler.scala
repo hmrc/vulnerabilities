@@ -18,12 +18,10 @@ package uk.gov.hmrc.vulnerabilities.notification
 
 import cats.data.EitherT
 import cats.implicits._
-
-import software.amazon.awssdk.services.sqs.model.Message
-
 import org.apache.pekko.actor.ActorSystem
 import play.api.Configuration
 import play.api.libs.json.Json
+import software.amazon.awssdk.services.sqs.model.Message
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.connector.ArtefactProcessorConnector
 import uk.gov.hmrc.vulnerabilities.model.{ServiceName, SlugInfoFlag, Version}

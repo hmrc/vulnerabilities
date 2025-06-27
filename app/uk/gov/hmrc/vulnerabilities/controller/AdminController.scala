@@ -30,11 +30,10 @@ class AdminController @Inject()(
   xrayService: XrayService
 )(using
   ExecutionContext
-)
-  extends BackendController(cc)
-   with Logging:
+) extends BackendController(cc)
+     with Logging:
 
-   def rescan(): Action[AnyContent] =
+  def rescan(): Action[AnyContent] =
     Action:
       request =>
         given RequestHeader = request

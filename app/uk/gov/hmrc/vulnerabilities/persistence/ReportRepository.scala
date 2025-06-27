@@ -16,14 +16,12 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-import play.api.Configuration
-import org.mongodb.scala.ObservableFuture
+import org.mongodb.scala.{ClientSession, ObservableFuture}
 import org.mongodb.scala.bson.{BsonArray, BsonDocument, BsonDateTime}
-import org.mongodb.scala.ClientSession
 import org.mongodb.scala.model.{Aggregates, Field, Filters, IndexModel, IndexOptions, Indexes, ReplaceOptions, Sorts, Projections, Updates, UpdateOptions}
-import uk.gov.hmrc.mongo.transaction.{TransactionConfiguration, Transactions}
-
+import play.api.Configuration
 import uk.gov.hmrc.mongo.MongoComponent
+import uk.gov.hmrc.mongo.transaction.{TransactionConfiguration, Transactions}
 import uk.gov.hmrc.mongo.play.json.{CollectionFactory, PlayMongoRepository}
 import uk.gov.hmrc.vulnerabilities.model.{Report, ServiceName, SlugInfoFlag, TimelineEvent, Version}
 
@@ -37,7 +35,7 @@ class ReportRepository @Inject()(
 , config                  : Configuration
 )(using
   ExecutionContext
-) extends PlayMongoRepository(
+) extends PlayMongoRepository[Report](
   collectionName = "rawReports"
 , mongoComponent = mongoComponent
 , domainFormat   = Report.mongoFormat
