@@ -16,7 +16,6 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-import org.mongodb.scala.ObservableFuture
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model._
 import uk.gov.hmrc.mongo.MongoComponent

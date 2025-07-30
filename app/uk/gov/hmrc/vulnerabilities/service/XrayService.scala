@@ -20,16 +20,18 @@ import org.apache.pekko.actor.ActorSystem
 import cats.implicits.*
 import cats.data.EitherT
 import play.api.{Configuration, Logging}
+import uk.gov.hmrc.crypto.Sensitive.SensitiveString
+import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.vulnerabilities.connector.{ArtefactProcessorConnector, BuildDeployApiConnector, ServiceConfigsConnector, XrayConnector}
 import uk.gov.hmrc.vulnerabilities.model.*
-import uk.gov.hmrc.vulnerabilities.persistence.{ReportRepository, VulnerabilityAgeRepository}
+import uk.gov.hmrc.vulnerabilities.persistence.{ArtifactoryTokenRepository, ReportRepository, VulnerabilityAgeRepository}
 import uk.gov.hmrc.vulnerabilities.util.DependencyGraphParser
-import uk.gov.hmrc.http.HeaderCarrier
 
 import java.time.Instant
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.control.NonFatal
 
 @Singleton
 class XrayService @Inject()(
@@ -40,10 +42,36 @@ class XrayService @Inject()(
   serviceConfigsConnector     : ServiceConfigsConnector,
   system                      : ActorSystem,
   reportRepository            : ReportRepository,
-  vulnerabilityAgeRepository  : VulnerabilityAgeRepository
+  vulnerabilityAgeRepository  : VulnerabilityAgeRepository,
+  artifactoryTokenRepository  : ArtifactoryTokenRepository
 )(using
   ExecutionContext
 ) extends Logging:
+
+  // This token will be become stale and invalid when refreshed.
+  // We don't expect the token to go missing in mongo but if it does update the config with valid tokens to resolve
+  private val fallbackToken = ArtifactoryToken(
+    accessToken  = SensitiveString(configuration.get[String]("xray.fallback.accessToken"))
+  , refreshToken = SensitiveString(configuration.get[String]("xray.fallback.refreshToken"))
+  )
+
+  private def lookupToken(): Future[ArtifactoryToken] =
+    artifactoryTokenRepository.get().map:
+      case Some(token) => token
+      case None        => logger.warn("Can't find token in database: using config value"); fallbackToken
+
+  private def withToken[R](f: ArtifactoryToken => Future[R])(using ec: ExecutionContext): Future[R] =
+    for
+      token  <- lookupToken()
+      result <- f(token)
+    yield result
+
+  def refreshToken()(using HeaderCarrier): Future[Unit] =
+    for
+      oldToken <- lookupToken()
+      newToken <- xrayConnector.refreshToken(oldToken)
+      _        <- artifactoryTokenRepository.put(newToken)
+    yield ()
 
   case class SlugInfo(
     serviceName: ServiceName,
@@ -193,20 +221,19 @@ class XrayService @Inject()(
 
   private def scan(slug: SlugInfo)(using HeaderCarrier): EitherT[Future, XrayStatus, (Instant, Seq[XrayConnector.Vulnerability])] =
     EitherT
-      .liftF(xrayConnector.generateReport(slug.serviceName, slug.version, slug.path))
+      .liftF(withToken(xrayConnector.generateReport(slug.serviceName, slug.version, slug.path)))
       .flatMap: resp =>
         logger.info(s"Began generating report for ${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")}. Report will have id ${resp.reportID}")
         val et =
           for
             status  <- EitherT(checkIfReportReady(slug, resp))
             tuple   <- if   status.numberOfRows > 0
-                       then EitherT.fromOptionF(xrayConnector.downloadAndUnzipReport(resp.reportID, slug.serviceName, slug.version), XrayStatus.Retry)
+                       then EitherT.fromOptionF(withToken(xrayConnector.downloadAndUnzipReport(resp.reportID, slug.serviceName, slug.version)), XrayStatus.Retry)
                        else EitherT.rightT[Future, XrayStatus]((Instant.now(), Seq.empty[XrayConnector.Vulnerability]))
           yield tuple
 
         et.value.onComplete:
-          case _ => xrayConnector
-                      .deleteReportFromXray(resp.reportID)
+          case _ => withToken(xrayConnector.deleteReportFromXray(resp.reportID))
                       .map: _ =>
                         logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - Report ${resp.reportID} has been deleted from the Xray UI")
                       .recover:
@@ -218,8 +245,7 @@ class XrayService @Inject()(
     configuration.get[FiniteDuration]("xray.reports.waitTime").toSeconds
 
   private [service] def checkIfReportReady(slug: SlugInfo, reportResponse: XrayConnector.ReportResponse, counter: Int = 0)(using HeaderCarrier): Future[Either[XrayStatus, XrayConnector.ReportStatus]] =
-    xrayConnector
-      .checkStatus(reportResponse.reportID)
+    withToken(xrayConnector.checkStatus(reportResponse.reportID))
       .flatMap:
         case rs if counter >= waitTimeSeconds =>
           logger.error(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report was not ready in time: last status ${rs.status} for reportID: ${reportResponse.reportID}")
@@ -237,15 +263,13 @@ class XrayService @Inject()(
 
   private [service] def deleteStaleReports()(using HeaderCarrier): Future[Unit] =
     for
-      ids   <- xrayConnector.getStaleReportIds()
+      ids   <- withToken(xrayConnector.getStaleReportIds())
       _     =  logger.info(s"Identified ${ids.size} stale reports to delete")
       count <- ids.foldLeftM[Future, Int](0): (acc, repId) =>
                  for
-                   _ <- xrayConnector
-                          .deleteReportFromXray(repId.id)
-                          .recover {
-                            case ex => logger.error(s"Report ${repId.id} could not be deleted from the Xray UI - this report should be deleted manually", ex)
-                          }
+                   _ <- withToken(xrayConnector.deleteReportFromXray(repId.id))
+                          .recover:
+                            case NonFatal(ex) => logger.error(s"Report ${repId.id} could not be deleted from the Xray UI - this report should be deleted manually", ex)
                    _ =  logger.info(s"Deleted stale report with id: ${repId.id}")
                  yield acc + 1
       _     =  logger.info(s"Deleted $count stale reports")

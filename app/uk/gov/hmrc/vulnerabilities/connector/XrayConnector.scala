@@ -24,7 +24,7 @@ import play.api.libs.json.{Json, Reads, __}
 import play.api.libs.ws.writeableOf_JsValue
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.{HttpClientV2, readEitherSource}
-import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
+import uk.gov.hmrc.vulnerabilities.model.{ArtifactoryToken, ServiceName, Version}
 
 import java.io.InputStream
 import java.time.{Clock, Instant}
@@ -46,24 +46,33 @@ class XrayConnector @Inject() (
   import XrayConnector._
 
   private val xrayBaseUrl         : String         = configuration.get[String]("xray.url")
-  private val xrayToken           : String         = configuration.get[String]("xray.token")
   private val xrayUsername        : String         = configuration.get[String]("xray.username")
   private val xrayReportsRetention: FiniteDuration = configuration.get[FiniteDuration]("xray.reports.retention")
 
   private def toReportName(serviceName: ServiceName, version: Version): String =
     s"AppSec-report-${serviceName.asString}_${version.original.replaceAll("\\.", "_")}"
 
+  import play.api.libs.ws.DefaultBodyWritables.writeableOf_urlEncodedForm
+  def refreshToken(token: ArtifactoryToken)(using HeaderCarrier): Future[ArtifactoryToken] =
+    given Reads[ArtifactoryToken] = ArtifactoryToken.apiReads
+    httpClientV2
+      .post(url"$xrayBaseUrl/access/api/v1/tokens")
+      .setHeader("Authorization" -> s"Bearer ${token.accessToken.decryptedValue}")
+      .setHeader("Content-Type" -> "application/x-www-form-urlencoded")
+      .withBody(Map("grant_type" -> Seq("refresh_token"), "refresh_token" -> Seq(token.refreshToken.decryptedValue)))
+      .execute[ArtifactoryToken]
+
   // https://jfrog.com/help/r/xray-rest-apis/generate-vulnerabilities-report
-  def generateReport(serviceName: ServiceName, version: Version, path: String)(using HeaderCarrier): Future[ReportResponse] =
+  def generateReport(serviceName: ServiceName, version: Version, path: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[ReportResponse] =
     given Reads[ReportResponse] = ReportResponse.reads
     // Search does not work with slug path - just */artefact-name
     // Search is fuzzy when including * in filename e.g. $service_$version*.tgz and returns .tgz.sig files
     // Needs to be full name and include the slug runner version too but start with */
     val artefactName = path.split("/").lastOption.getOrElse(sys.error(s"invalid path for $path"))
     httpClientV2
-      .post(url"${xrayBaseUrl}/vulnerabilities")
+      .post(url"$xrayBaseUrl/xray/api/v1/reports/vulnerabilities")
       .setHeader(
-        "Authorization" -> s"Bearer $xrayToken",
+        "Authorization" -> s"Bearer ${token.accessToken.decryptedValue}",
         "Content-Type"  -> "application/json"
       ).withBody(Json.parse(
         s"""{"name":"${toReportName(serviceName, version)}","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/$artefactName"}}"""
@@ -71,20 +80,20 @@ class XrayConnector @Inject() (
       .execute[ReportResponse]
 
   // https://jfrog.com/help/r/xray-rest-apis/get-report-details-by-id
-  def checkStatus(id: Int)(using HeaderCarrier): Future[ReportStatus] =
+  def checkStatus(id: Int)(token: ArtifactoryToken)(using HeaderCarrier): Future[ReportStatus] =
     given Reads[ReportStatus] = ReportStatus.reads
     httpClientV2
-      .get(url"${xrayBaseUrl}/$id")
+      .get(url"$xrayBaseUrl/xray/api/v1/reports/$id")
       .setHeader(
-        "Authorization" -> s"Bearer $xrayToken",
+        "Authorization" -> s"Bearer ${token.accessToken.decryptedValue}",
         "Content-Type"  -> "application/json"
       )
       .execute[ReportStatus]
 
-  def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(using HeaderCarrier): Future[Option[(Instant, Seq[Vulnerability])]] =
+  def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(token: ArtifactoryToken)(using HeaderCarrier): Future[Option[(Instant, Seq[Vulnerability])]] =
     given Reads[Vulnerability] = Vulnerability.reads
     for
-      zip    <- downloadReport(reportId, serviceName, version)
+      zip    <- downloadReport(reportId, serviceName, version)(token)
       result =  unzipReport(zip)
                   .map(Json.parse)
                   .map: json =>
@@ -104,13 +113,13 @@ class XrayConnector @Inject() (
       zip.close()
 
   // https://jfrog.com/help/r/xray-rest-apis/export
-  private def downloadReport(reportId: Int, serviceName: ServiceName, version: Version)(using HeaderCarrier): Future[InputStream] =
+  private def downloadReport(reportId: Int, serviceName: ServiceName, version: Version)(token: ArtifactoryToken)(using HeaderCarrier): Future[InputStream] =
     val fileName = toReportName(serviceName, version)
-    val url = url"${xrayBaseUrl}/export/$reportId?file_name=${fileName}&format=json"
+    val url = url"$xrayBaseUrl/xray/api/v1/reports/export/$reportId?file_name=${fileName}&format=json"
     httpClientV2
       .get(url)
       .setHeader(
-        "Authorization" -> s"Bearer $xrayToken",
+        "Authorization" -> s"Bearer ${token.accessToken.decryptedValue}",
         "Content-Type"  -> "application/json"
       )
       .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
@@ -124,28 +133,28 @@ class XrayConnector @Inject() (
       }
 
   // https://jfrog.com/help/r/xray-rest-apis/delete
-  def deleteReportFromXray(reportId: Int)(using HeaderCarrier): Future[Unit] =
+  def deleteReportFromXray(reportId: Int)(token: ArtifactoryToken)(using HeaderCarrier): Future[Unit] =
     httpClientV2
-      .delete(url"${xrayBaseUrl}/$reportId")
+      .delete(url"$xrayBaseUrl/xray/api/v1/reports/$reportId")
       .setHeader(
-        "Authorization" -> s"Bearer $xrayToken",
+        "Authorization" -> s"Bearer ${token.accessToken.decryptedValue}",
         "Content-Type"  -> "application/json"
       ).execute[Unit](throwOnFailure(summon[HttpReads[Either[UpstreamErrorResponse, Unit]]]), summon[ExecutionContext])
 
   // https://jfrog.com/help/r/xray-rest-apis/get-reports-list
-  def getStaleReportIds()(using HeaderCarrier): Future[Seq[ReportId]] =
+  def getStaleReportIds()(token: ArtifactoryToken)(using HeaderCarrier): Future[Seq[ReportId]] =
     given Reads[Seq[ReportId]] =
       (__ \ "reports")
         .read(Reads.seq[ReportId](ReportId.reads))
 
     val cutOff = Instant.now(clock).minus(xrayReportsRetention.toMillis, ChronoUnit.MILLIS)
     httpClientV2
-      .post(url"${xrayBaseUrl}?page_num=1&num_of_rows=100")
+      .post(url"$xrayBaseUrl/xray/api/v1/reports?page_num=1&num_of_rows=100")
       .setHeader(
-        "Authorization" -> s"Bearer $xrayToken",
+        "Authorization" -> s"Bearer ${token.accessToken.decryptedValue}",
         "Content-Type"  -> "application/json"
       ).withBody(Json.parse(
-        s"""{"filters":{"author":"${xrayUsername}","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"$cutOff"}}}"""
+        s"""{"filters":{"author":"$xrayUsername","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"$cutOff"}}}"""
       ))
       .execute[Seq[ReportId]]
 
