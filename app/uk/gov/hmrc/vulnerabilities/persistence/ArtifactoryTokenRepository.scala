@@ -16,28 +16,40 @@
 
 package uk.gov.hmrc.vulnerabilities.persistence
 
-import org.mongodb.scala.model.{IndexModel, IndexOptions, Indexes}
+import javax.inject.{Inject, Singleton}
+import org.mongodb.scala.model.{Filters, ReplaceOptions}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
-import uk.gov.hmrc.vulnerabilities.model.Assessment
+import uk.gov.hmrc.vulnerabilities.model.ArtifactoryToken
+import uk.gov.hmrc.vulnerabilities.Crypto
 
-import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class AssessmentsRepository @Inject()(
+class ArtifactoryTokenRepository @Inject()(
   mongoComponent: MongoComponent
 )(using
   ExecutionContext
-) extends PlayMongoRepository[Assessment](
-  collectionName = "assessments",
+, Crypto
+) extends PlayMongoRepository[ArtifactoryToken](
   mongoComponent = mongoComponent,
-  domainFormat   = Assessment.mongoFormat,
-  indexes        = Seq(IndexModel(Indexes.ascending("id"), IndexOptions().unique(true)))
+  collectionName = "artifactoryToken",
+  domainFormat   = ArtifactoryToken.mongoFormat,
+  indexes        = Seq.empty
 ):
-  // No ttl required for this collection - contains assessments created by ourselves which will evolve over time
-  override lazy val requiresTtlIndex = false
+  override lazy val requiresTtlIndex = false // just a single row thats updated, so doesn't rely on ttl indexes
 
-  // Note assessments are inserted into Mongo directly
-  def getAssessments(): Future[Seq[Assessment]] =
-    collection.find().toFuture()
+  def get(): Future[Option[ArtifactoryToken]] =
+    collection
+      .find(Filters.empty)
+      .headOption()
+
+  def put(token: ArtifactoryToken): Future[Unit] =
+    collection
+      .replaceOne(
+        filter      = Filters.empty,
+        replacement = token,
+        options     = ReplaceOptions().upsert(true)
+      )
+      .toFuture()
+      .map(_ => ())
