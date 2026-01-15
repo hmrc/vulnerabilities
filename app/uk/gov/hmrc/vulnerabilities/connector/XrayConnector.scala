@@ -123,14 +123,13 @@ class XrayConnector @Inject() (
         "Content-Type"  -> "application/json"
       )
       .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
-      .flatMap {
+      .flatMap:
         case Right(source) =>
           logger.info(s"Successfully downloaded the zipped report for $fileName with id $reportId from Xray")
           Future.successful(source.runWith(StreamConverters.asInputStream()))
         case Left(error) =>
           logger.error(s"Could not download zip for: $url", error)
           throw error
-      }
 
   // https://jfrog.com/help/r/xray-rest-apis/delete
   def deleteReportFromXray(reportId: Int)(token: ArtifactoryToken)(using HeaderCarrier): Future[Unit] =
@@ -139,7 +138,11 @@ class XrayConnector @Inject() (
       .setHeader(
         "Authorization" -> s"Bearer ${token.accessToken.decryptedValue}",
         "Content-Type"  -> "application/json"
-      ).execute[Unit](throwOnFailure(summon[HttpReads[Either[UpstreamErrorResponse, Unit]]]), summon[ExecutionContext])
+      )
+      .execute[Either[UpstreamErrorResponse, Unit]]
+      .flatMap:
+        case Left(err) => Future.failed(err)
+        case Right(_)  => Future.successful(())
 
   // https://jfrog.com/help/r/xray-rest-apis/get-reports-list
   def getStaleReportIds()(token: ArtifactoryToken)(using HeaderCarrier): Future[Seq[ReportId]] =
