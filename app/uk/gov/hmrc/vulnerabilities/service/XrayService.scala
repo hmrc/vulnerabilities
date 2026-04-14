@@ -201,7 +201,7 @@ class XrayService @Inject()(
       repoName <- toRepoName(slug.serviceName)
       oMeta    <- artefactProcessorConnector.getMetaArtefact(repoName, slug.version)
       deps     =  oMeta.map(_.modules.flatMap(x => DependencyGraphParser.dependencies(x.dependencyDotCompile.getOrElse("")))).getOrElse(Nil)
-      current  <- reportRepository.find(flag = None, serviceNames = Some(Seq(slug.serviceName)), version = Some(slug.version)) // avoids race condition
+      current  <- reportRepository.find(flag = None, serviceNames = Some(Seq(ServiceName(s""""${slug.serviceName.asString}""""))), version = Some(slug.version)) // avoids race condition
     yield Report(
       slug.serviceName
     , slug.version
