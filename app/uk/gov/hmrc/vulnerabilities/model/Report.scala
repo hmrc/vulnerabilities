@@ -63,7 +63,7 @@ object Report:
     cvss3MaxScore        : Option[Double],
     summary              : String,
     severity             : String,
-    severitySource       : String,
+    severitySource       : Option[String],
     vulnerableComponent  : String,
     componentPhysicalPath: String,
     impactedArtefact     : String,
@@ -74,8 +74,8 @@ object Report:
     artefactScanTime     : Instant,
     issueId              : String,
     packageType          : String,
-    provider             : String,
-    description          : String,
+    provider             : Option[String],
+    description          : Option[String],
     references           : Seq[String],
     projectKeys          : Seq[String],
     importedBy           : Option[ImportedBy]
@@ -114,7 +114,7 @@ object Report:
       ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
       ~ (__ \ "summary"                ).format[String]
       ~ (__ \ "severity"               ).format[String]
-      ~ (__ \ "severity_source"        ).format[String]
+      ~ (__ \ "severity_source"        ).formatNullable[String]
       ~ (__ \ "vulnerable_component"   ).format[String]
       ~ (__ \ "component_physical_path").format[String]
       ~ (__ \ "impacted_artifact"      ).format[String]
@@ -125,9 +125,9 @@ object Report:
       ~ (__ \ "artifact_scan_time"     ).format[Instant]
       ~ (__ \ "issue_id"               ).format[String]
       ~ (__ \ "package_type"           ).format[String]
-      ~ (__ \ "provider"               ).format[String]
-      ~ (__ \ "description"            ).format[String]
-      ~ (__ \ "references"             ).format[Seq[String]]
+      ~ (__ \ "provider"               ).formatNullable[String]
+      ~ (__ \ "description"            ).formatNullable[String]
+      ~ (__ \ "references"             ).formatWithDefault[Seq[String]](Nil)
       ~ (__ \ "project_keys"           ).format[Seq[String]]
       ~ (__ \ "importedBy"             ).formatNullable[ImportedBy]
       )(apply, pt => Tuple.fromProductTyped(pt))
@@ -140,7 +140,7 @@ object Report:
       ~ (__ \ "cvss3_max_score"        ).formatNullable[Double]
       ~ (__ \ "summary"                ).format[String]
       ~ (__ \ "severity"               ).format[String]
-      ~ (__ \ "severity_source"        ).format[String]
+      ~ (__ \ "severity_source"        ).formatNullable[String]
       ~ (__ \ "vulnerable_component"   ).format[String]
       ~ (__ \ "component_physical_path").format[String]
       ~ (__ \ "impacted_artifact"      ).format[String]
@@ -151,8 +151,8 @@ object Report:
       ~ (__ \ "artifact_scan_time"     ).format[Instant]
       ~ (__ \ "issue_id"               ).format[String]
       ~ (__ \ "package_type"           ).format[String]
-      ~ (__ \ "provider"               ).format[String]
-      ~ (__ \ "description"            ).format[String]
+      ~ (__ \ "provider"               ).formatNullable[String]
+      ~ (__ \ "description"            ).formatNullable[String]
       ~ (__ \ "references"             ).format[Seq[String]]
       ~ (__ \ "project_keys"           ).format[Seq[String]]
       ~ (__ \ "importedBy"             ).formatNullable[ImportedBy]

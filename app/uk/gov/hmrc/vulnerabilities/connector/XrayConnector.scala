@@ -195,7 +195,7 @@ object XrayConnector:
     cvss3MaxScore        : Option[Double],
     summary              : String,
     severity             : String,
-    severitySource       : String,
+    severitySource       : Option[String],
     vulnerableComponent  : String,
     componentPhysicalPath: String,
     impactedArtefact     : String,
@@ -206,8 +206,8 @@ object XrayConnector:
     artefactScanTime     : Instant,
     issueId              : String,
     packageType          : String,
-    provider             : String,
-    description          : String,
+    provider             : Option[String],
+    description          : Option[String],
     references           : Seq[String],
     projectKeys          : Seq[String],
   )
@@ -219,7 +219,7 @@ object XrayConnector:
       ~ (__ \ "cvss3_max_score"        ).readNullable[Double]
       ~ (__ \ "summary"                ).read[String]
       ~ (__ \ "severity"               ).read[String]
-      ~ (__ \ "severity_source"        ).read[String]
+      ~ (__ \ "severity_source"        ).readNullable[String]
       ~ (__ \ "vulnerable_component"   ).read[String]
       ~ (__ \ "component_physical_path").read[String]
       ~ (__ \ "impacted_artifact"      ).read[String]
@@ -230,8 +230,8 @@ object XrayConnector:
       ~ (__ \ "artifact_scan_time"     ).read[Instant]
       ~ (__ \ "issue_id"               ).read[String]
       ~ (__ \ "package_type"           ).read[String]
-      ~ (__ \ "provider"               ).read[String]
-      ~ (__ \ "description"            ).read[String]
+      ~ (__ \ "provider"               ).readNullable[String]
+      ~ (__ \ "description"            ).readNullable[String]
       ~ (__ \ "references"             ).read[Seq[String]]
       ~ (__ \ "project_keys"           ).read[Seq[String]]
       )(apply)
