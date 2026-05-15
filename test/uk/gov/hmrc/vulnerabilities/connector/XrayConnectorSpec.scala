@@ -24,13 +24,15 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.Configuration
+import play.api.libs.json.{Format, JsResult, JsSuccess, JsError, Json}
 import uk.gov.hmrc.crypto.Sensitive.SensitiveString
 import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
-import uk.gov.hmrc.vulnerabilities.model.{ArtifactoryToken, ServiceName, Version}
+import uk.gov.hmrc.vulnerabilities.model.Report.Vulnerability
+import uk.gov.hmrc.vulnerabilities.model.{ArtifactoryToken, Report, ServiceName, Version}
 
 import java.time.temporal.ChronoUnit
-import java.time.{Clock, LocalDate, ZoneOffset}
+import java.time.{Clock, Instant, LocalDate, ZoneOffset}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class XrayConnectorSpec
@@ -162,3 +164,86 @@ class XrayConnectorSpec
 
       val res = connector.getStaleReportIds()(token).failed.futureValue
       res shouldBe a [UpstreamErrorResponse]
+
+  "X-Ray Model" when:
+    "deserializing XRay JSON for a Vulnerability entry" should:
+      "Accept early version of JFrog API format" in:
+        val jsValue = Json.parse(vulnerabilityEntryV1)
+
+        given Format[Report.Vulnerability] = Report.Vulnerability.apiFormat
+        val result: JsResult[Vulnerability] = jsValue.validate[Vulnerability]
+
+        result match
+          case JsSuccess(value, _) =>
+            value.summary shouldBe "This is an exploit"
+            // optional fields for cross-version compatibility
+            value.description should contain ("This is an exploit description")
+            value.severitySource should contain ("Source")
+            value.references should contain allOf("foo.com", "bar.net")
+
+          case JsError(errors) => fail(s"Unexpected fail to deserialize with errors: $errors")
+      "Accept latest version of JFrog API format" in:
+        val jsValue = Json.parse(vulnerabilityEntryV1_X_missingFields)
+
+        given Format[Report.Vulnerability] = Report.Vulnerability.apiFormat
+        val result: JsResult[Vulnerability] = jsValue.validate[Vulnerability]
+
+        result match
+          case JsSuccess(value, _) =>
+            value.summary shouldBe "This is an exploit"
+            value.description should be (empty)
+            value.severitySource should be (empty)
+            value.references should be (empty)
+          case JsError(errors) => fail(s"Unexpected fail to deserialize with errors: $errors")
+
+  lazy val vulnerabilityEntryV1: String =
+    """{
+      |  "cves" : [ {
+      |    "cve" : "CVE-1",
+      |    "cvss_v3_score" : 8,
+      |    "cvss_v3_vector" : "test"
+      |  } ],
+      |  "cvss3_max_score" : 8,
+      |  "summary" : "This is an exploit",
+      |  "severity" : "High",
+      |  "severity_source" : "Source",
+      |  "vulnerable_component" : "gav://com.testxml.test.core:test-bind:1.5.9",
+      |  "component_physical_path" : "service1-1.0.4/some/physical/path",
+      |  "impacted_artifact" : "fooBar",
+      |  "impact_path" : [ "hello", "world" ],
+      |  "path" : "test/slugs/service1/service1_1.0.4_0.0.1.tgz",
+      |  "fixed_versions" : [ "1.6.0" ],
+      |  "published" : "2022-12-01T00:00:00Z",
+      |  "artifact_scan_time" : "2022-12-13T00:00:00Z",
+      |  "issue_id" : "XRAY-000003",
+      |  "package_type" : "maven",
+      |  "provider" : "test",
+      |  "description" : "This is an exploit description",
+      |  "references" : [ "foo.com", "bar.net" ],
+      |  "project_keys" : [ ]
+      |}
+      |""".stripMargin
+
+  lazy val vulnerabilityEntryV1_X_missingFields: String =
+    """{
+      |  "cves" : [ {
+      |    "cve" : "CVE-1",
+      |    "cvss_v3_score" : 8,
+      |    "cvss_v3_vector" : "test"
+      |  } ],
+      |  "cvss3_max_score" : 8,
+      |  "summary" : "This is an exploit",
+      |  "severity" : "High",
+      |  "vulnerable_component" : "gav://com.testxml.test.core:test-bind:1.5.9",
+      |  "component_physical_path" : "service1-1.0.4/some/physical/path",
+      |  "impacted_artifact" : "fooBar",
+      |  "impact_path" : [ "hello", "world" ],
+      |  "path" : "test/slugs/service1/service1_1.0.4_0.0.1.tgz",
+      |  "fixed_versions" : [ "1.6.0" ],
+      |  "published" : "2022-12-01T00:00:00Z",
+      |  "artifact_scan_time" : "2022-12-13T00:00:00Z",
+      |  "issue_id" : "XRAY-000003",
+      |  "package_type" : "maven",
+      |  "project_keys" : [ ]
+      |}
+      |""".stripMargin
