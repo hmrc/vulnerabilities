@@ -19,11 +19,11 @@ package uk.gov.hmrc.vulnerabilities.connector
 import org.apache.pekko.stream.Materializer
 import org.apache.pekko.stream.scaladsl.{Source, StreamConverters}
 import org.apache.pekko.util.ByteString
-import play.api.{Configuration, Logging}
-import play.api.libs.json.{Json, Reads, __}
+import play.api.libs.json.{JsValue, Json, Reads, __}
 import play.api.libs.ws.writeableOf_JsValue
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
+import play.api.{Configuration, Logging}
 import uk.gov.hmrc.http.client.{HttpClientV2, readEitherSource}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.vulnerabilities.model.{ArtifactoryToken, ServiceName, Version}
 
 import java.io.InputStream
@@ -41,7 +41,8 @@ class XrayConnector @Inject() (
 )(using
   ExecutionContext,
   Materializer
-) extends Logging:
+) extends VulnerabilityReportSource
+  with Logging:
   import HttpReads.Implicits._
   import XrayConnector._
 
@@ -91,16 +92,27 @@ class XrayConnector @Inject() (
       .execute[ReportStatus]
 
   def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(token: ArtifactoryToken)(using HeaderCarrier): Future[Option[(Instant, Seq[Vulnerability])]] =
-    given Reads[Vulnerability] = Vulnerability.reads
     for
-      zip    <- downloadReport(reportId, serviceName, version)(token)
-      result =  unzipReport(zip)
+      rawJson <- getRawReportAsString(reportId, serviceName, version)(token)
+      result  =  rawJson
                   .map(Json.parse)
                   .map: json =>
                     val date = (json \ "generatedDate").asOpt[Instant].getOrElse(Instant.now())
-                    val rows = (json \ "rows"         ).as[Seq[Vulnerability]]
+                    val rows = deserializeRows(json)
                     (date, rows)
     yield result
+
+  override protected def getRawReportAsString(reportId: Int, serviceName: ServiceName, version: Version)
+                                             (using HeaderCarrier)
+                                             (token: ArtifactoryToken): Future[Option[String]] =
+    for
+      zip <- downloadReport(reportId, serviceName, version)(token)
+      result = unzipReport(zip)
+    yield result
+
+  private def deserializeRows(jsValue: JsValue): Seq[Vulnerability] =
+      given Reads[Vulnerability] = Vulnerability.reads
+      (jsValue \ "rows").as[Seq[Vulnerability]]
 
   private def unzipReport(inputStream: InputStream): Option[String] =
     val zip = java.util.zip.ZipInputStream(inputStream)
@@ -232,7 +244,7 @@ object XrayConnector:
       ~ (__ \ "package_type"           ).read[String]
       ~ (__ \ "provider"               ).readNullable[String]
       ~ (__ \ "description"            ).readNullable[String]
-      ~ (__ \ "references"             ).read[Seq[String]]
+      ~ (__ \ "references"             ).readWithDefault[Seq[String]](Nil)
       ~ (__ \ "project_keys"           ).read[Seq[String]]
       )(apply)
 
