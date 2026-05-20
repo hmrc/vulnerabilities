@@ -170,7 +170,7 @@ class XrayConnectorSpec
       res shouldBe a [UpstreamErrorResponse]
 
 
-  import XRayTestData._
+  import uk.gov.hmrc.vulnerabilities.model.TestData.XRayModel._
   "Retrieving JFrog Vulnerability Report" when :
     val xRayReportJsonBaseVersion: String = s"""
          |{

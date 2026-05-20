@@ -153,7 +153,7 @@ object Report:
       ~ (__ \ "package_type"           ).format[String]
       ~ (__ \ "provider"               ).formatNullable[String]
       ~ (__ \ "description"            ).formatNullable[String]
-      ~ (__ \ "references"             ).format[Seq[String]]
+      ~ (__ \ "references"             ).formatWithDefault[Seq[String]](Nil)
       ~ (__ \ "project_keys"           ).format[Seq[String]]
       ~ (__ \ "importedBy"             ).formatNullable[ImportedBy]
       )(apply, pt => Tuple.fromProductTyped(pt))
