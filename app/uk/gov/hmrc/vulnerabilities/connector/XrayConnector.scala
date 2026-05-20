@@ -103,11 +103,11 @@ class XrayConnector @Inject() (
     yield result
 
   override protected def getRawReportAsString(reportId: Int, serviceName: ServiceName, version: Version)
-                                             (using HeaderCarrier)
-                                             (token: ArtifactoryToken): Future[Option[String]] =
+    (using HeaderCarrier)
+    (token: ArtifactoryToken): Future[Option[String]] =
     for
-      zip    <- downloadReport(reportId, serviceName, version)(token)
-      result =  unzipReport(zip)
+      zip <- downloadReport(reportId, serviceName, version)(token)
+      result = unzipReport(zip)
     yield result
 
   private def deserializeRows(jsValue: JsValue): Seq[Vulnerability] =

@@ -238,9 +238,9 @@ class XrayConnectorSpec
       ) with VulnerabilityReportSource:
 
       override protected def getRawReportAsString(
-                                                   reportId: Int,
-                                                   serviceName: ServiceName,
-                                                   version: Version
-                                                 )(using HeaderCarrier)(token: ArtifactoryToken): Future[Option[String]] =
+        reportId: Int,
+        serviceName: ServiceName,
+        version: Version
+      )(using HeaderCarrier)(token: ArtifactoryToken): Future[Option[String]] =
         Future.successful(Some(xRayReportJson))
 
