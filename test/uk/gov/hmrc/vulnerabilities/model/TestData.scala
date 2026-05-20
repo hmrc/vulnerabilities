@@ -198,7 +198,7 @@ object TestData:
         |}
         |""".stripMargin
 
-  object MongoModel {
+  object MongoModel:
     lazy val vulnerabilityEntryV1Mongo: String =
       """
         |   {
@@ -274,8 +274,7 @@ object TestData:
         |      },
         |      "issue_id": "XRAY-000003",
         |      "package_type": "maven",
-        |      "provider": "test",      
+        |      "provider": "test",
         |      "project_keys": []
         |    }""".stripMargin
 
-  }

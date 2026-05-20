@@ -228,7 +228,7 @@ class XrayConnectorSpec
           vuln2.description should be(empty)
           vuln2.severitySource should be(empty)
           vuln2.references should be(empty)
-  
+
 
   private def xrayConnectorWithMockJsonReport(xRayReportJson: String) = {
     new XrayConnector(

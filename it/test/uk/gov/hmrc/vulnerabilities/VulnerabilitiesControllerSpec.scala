@@ -66,26 +66,26 @@ class VulnerabilitiesControllerSpec
 
       val startOfYear = java.time.Instant.parse("2022-01-01T00:00:00.000Z")
       val v1Vulnerability = Report.Vulnerability(
-        cves = Seq(Report.CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
-        cvss3MaxScore = Some(8.0),
-        summary = "summary",
-        severity = "High",
-        severitySource = Some("Source"),
-        vulnerableComponent = "gav://com.testxml.test.core:test-bind:1.5.9",
+        cves                  = Seq(Report.CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test"))),
+        cvss3MaxScore         = Some(8.0),
+        summary               = "summary",
+        severity              = "High",
+        severitySource        = Some("Source"),
+        vulnerableComponent   = "gav://com.testxml.test.core:test-bind:1.5.9",
         componentPhysicalPath = "service1-0.835.0/some/physical/path",
-        impactedArtefact = "fooBar",
-        impactPath = Seq("hello", "world"),
-        path = "test/slugs/service1/service1_0.835.0_0.0.1.tgz",
-        fixedVersions = Seq("1.6.0"),
-        published = startOfYear,
-        artefactScanTime = startOfYear,
-        issueId = "XRAY-000005",
-        packageType = "maven",
-        provider = Some("test"),
-        description = Some("This is an exploit"),
-        references = Seq("foo.com", "bar.net"),
-        projectKeys = Seq(),
-        importedBy = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.1.0")))
+        impactedArtefact      = "fooBar",
+        impactPath            = Seq("hello", "world"),
+        path                  = "test/slugs/service1/service1_0.835.0_0.0.1.tgz",
+        fixedVersions         = Seq("1.6.0"),
+        published             = startOfYear,
+        artefactScanTime      = startOfYear,
+        issueId               = "XRAY-000005",
+        packageType           = "maven",
+        provider              = Some("test"),
+        description           = Some("This is an exploit"),
+        references            = Seq("foo.com", "bar.net"),
+        projectKeys           = Seq(),
+        importedBy            = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.1.0")))
       )
 
       val v2Vulnerability = v1Vulnerability.copy(
@@ -98,20 +98,20 @@ class VulnerabilitiesControllerSpec
 
 
       val distinctVulnerabilityV1AllInfo = DistinctVulnerability(
-        vulnerableComponentName = "gav://com.testxml.test.core:test-bind",
+        vulnerableComponentName    = "gav://com.testxml.test.core:test-bind",
         vulnerableComponentVersion = "1.5.9",
-        vulnerableComponents = Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind", "1.5.9")),
-        id = "CVE-2022-12345",
-        score = Some(8.0),
-        summary = "summary",
-        description = Some("This is an exploit"),
-        fixedVersions = Some(Seq("1.6.0")),
-        references = Seq("foo.com", "bar.net"),
-        publishedDate = startOfYear,
-        firstDetected = None,
-        assessment = None,
-        curationStatus = CurationStatus.Uncurated,
-        ticket = None
+        vulnerableComponents       = Seq(VulnerableComponent("gav://com.testxml.test.core:test-bind", "1.5.9")),
+        id                         = "CVE-2022-12345",
+        score                      = Some(8.0),
+        summary                    = "summary",
+        description                = Some("This is an exploit"),
+        fixedVersions              = Some(Seq("1.6.0")),
+        references                 = Seq("foo.com", "bar.net"),
+        publishedDate              = startOfYear,
+        firstDetected              = None,
+        assessment                 = None,
+        curationStatus             = CurationStatus.Uncurated,
+        ticket                     = None
       )
       val distinctVulnerabilityV2 = distinctVulnerabilityV1AllInfo.copy(
         description = None,
@@ -142,21 +142,19 @@ class VulnerabilitiesControllerSpec
 
             reportCollection.put:
               Report(
-                serviceName = ServiceName("service1"),
+                serviceName    = ServiceName("service1"),
                 serviceVersion = Version("0.835.0"),
-                slugUri = "https://artifactory/webstore/service1_0.8.35.0.tgz",
-                rows = Seq(
-                  vulnModel
-                ),
-                generatedDate = startOfYear,
-                latest = false,
-                production = true,
-                staging = true,
-                externalTest = false,
-                qa = false,
-                development = false,
-                integration = false,
-                scanned = true
+                slugUri        = "https://artifactory/webstore/service1_0.8.35.0.tgz",
+                rows           = Seq(vulnModel),
+                generatedDate  = startOfYear,
+                latest         = false,
+                production     = true,
+                staging        = true,
+                externalTest   = false,
+                qa             = false,
+                development    = false,
+                integration    = false,
+                scanned        = true
               )
 
             eventually:
@@ -171,18 +169,18 @@ class VulnerabilitiesControllerSpec
               result.length shouldBe 1
               result shouldBe Seq(
                 VulnerabilitySummary(
-                  distinctVulnerability = expectedDistinctVulnerability,
-                  occurrences = Seq(VulnerabilityOccurrence(
-                    service = "service1",
-                    serviceVersion = "0.835.0",
-                    componentPathInSlug = "service1-0.835.0/some/physical/path",
-                    teams = Seq(TeamName("Team1"), TeamName("Team2")),
-                    envs = Seq("staging", "production"),
-                    vulnerableComponentName = "gav://com.testxml.test.core:test-bind",
+                    distinctVulnerability      = expectedDistinctVulnerability,
+                    occurrences                = Seq(VulnerabilityOccurrence(
+                    service                    = "service1",
+                    serviceVersion             = "0.835.0",
+                    componentPathInSlug        = "service1-0.835.0/some/physical/path",
+                    teams                      = Seq(TeamName("Team1"), TeamName("Team2")),
+                    envs                       = Seq("staging", "production"),
+                    vulnerableComponentName    = "gav://com.testxml.test.core:test-bind",
                     vulnerableComponentVersion = "1.5.9",
-                    importedBy = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.1.0")))
+                    importedBy                 = Some(ImportedBy(group = "some-group", artefact = "some-artefact", Version("0.1.0")))
                   )),
-                  teams = List(TeamName("Team1"), TeamName("Team2")),
+                  teams         = List(TeamName("Team1"), TeamName("Team2")),
                   generatedDate = startOfYear
                 )
               )

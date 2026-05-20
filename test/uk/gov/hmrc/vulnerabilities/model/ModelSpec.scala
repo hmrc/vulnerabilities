@@ -23,9 +23,10 @@ import play.api.libs.json.*
 import uk.gov.hmrc.vulnerabilities.model.Report
 import uk.gov.hmrc.vulnerabilities.model.Report.Vulnerability
 
-class ModelSpec extends AnyWordSpec
-with Matchers
-with OptionValues{
+class ModelSpec
+  extends AnyWordSpec
+    with Matchers
+    with OptionValues:
 
   import TestData.XRayModel._
   "X-Ray Model" when :
@@ -94,5 +95,3 @@ with OptionValues{
             value.references shouldBe empty
 
           case JsError(errors) => fail(s"Unexpected fail to deserialize with errors: $errors")
-  
-}
