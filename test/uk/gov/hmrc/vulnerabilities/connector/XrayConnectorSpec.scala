@@ -230,10 +230,17 @@ class XrayConnectorSpec
           vuln2.references should be(empty)
 
 
-  private def xrayConnectorWithMockJsonReport(xRayReportJson: String) = {
+  private def xrayConnectorWithMockJsonReport(xRayReportJson: String): XrayConnector =
     new XrayConnector(
-      config, httpClientV2 = httpClientV2, Clock.fixed(now, ZoneOffset.UTC)
-    ) with VulnerabilityReportSource:
-      override protected def getRawReportAsString(reportId: Int, serviceName: ServiceName, version: Version)(using HeaderCarrier)(token: ArtifactoryToken): Future[Option[String]] =
+      config,
+      httpClientV2,
+      Clock.fixed(now, ZoneOffset.UTC)
+      ) with VulnerabilityReportSource:
+
+      override protected def getRawReportAsString(
+                                                   reportId: Int,
+                                                   serviceName: ServiceName,
+                                                   version: Version
+                                                 )(using HeaderCarrier)(token: ArtifactoryToken): Future[Option[String]] =
         Future.successful(Some(xRayReportJson))
-  }
+
