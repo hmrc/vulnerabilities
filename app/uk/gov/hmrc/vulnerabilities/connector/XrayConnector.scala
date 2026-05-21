@@ -19,11 +19,11 @@ package uk.gov.hmrc.vulnerabilities.connector
 import org.apache.pekko.stream.Materializer
 import org.apache.pekko.stream.scaladsl.{Source, StreamConverters}
 import org.apache.pekko.util.ByteString
-import play.api.{Configuration, Logging}
-import play.api.libs.json.{Json, Reads, __}
+import play.api.libs.json.{JsValue, Json, Reads, __}
 import play.api.libs.ws.writeableOf_JsValue
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
+import play.api.{Configuration, Logging}
 import uk.gov.hmrc.http.client.{HttpClientV2, readEitherSource}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.vulnerabilities.model.{ArtifactoryToken, ServiceName, Version}
 
 import java.io.InputStream
@@ -41,7 +41,8 @@ class XrayConnector @Inject() (
 )(using
   ExecutionContext,
   Materializer
-) extends Logging:
+) extends VulnerabilityReportSource
+  with Logging:
   import HttpReads.Implicits._
   import XrayConnector._
 
@@ -91,16 +92,27 @@ class XrayConnector @Inject() (
       .execute[ReportStatus]
 
   def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(token: ArtifactoryToken)(using HeaderCarrier): Future[Option[(Instant, Seq[Vulnerability])]] =
-    given Reads[Vulnerability] = Vulnerability.reads
     for
-      zip    <- downloadReport(reportId, serviceName, version)(token)
-      result =  unzipReport(zip)
+      rawJson <- getRawReportAsString(reportId, serviceName, version)(token)
+      result  =  rawJson
                   .map(Json.parse)
                   .map: json =>
                     val date = (json \ "generatedDate").asOpt[Instant].getOrElse(Instant.now())
-                    val rows = (json \ "rows"         ).as[Seq[Vulnerability]]
+                    val rows = deserializeRows(json)
                     (date, rows)
     yield result
+
+  override protected def getRawReportAsString(reportId: Int, serviceName: ServiceName, version: Version)
+    (using HeaderCarrier)
+    (token: ArtifactoryToken): Future[Option[String]] =
+    for
+      zip <- downloadReport(reportId, serviceName, version)(token)
+      result = unzipReport(zip)
+    yield result
+
+  private def deserializeRows(jsValue: JsValue): Seq[Vulnerability] =
+      given Reads[Vulnerability] = Vulnerability.reads
+      (jsValue \ "rows").as[Seq[Vulnerability]]
 
   private def unzipReport(inputStream: InputStream): Option[String] =
     val zip = java.util.zip.ZipInputStream(inputStream)
@@ -195,7 +207,7 @@ object XrayConnector:
     cvss3MaxScore        : Option[Double],
     summary              : String,
     severity             : String,
-    severitySource       : String,
+    severitySource       : Option[String],
     vulnerableComponent  : String,
     componentPhysicalPath: String,
     impactedArtefact     : String,
@@ -206,8 +218,8 @@ object XrayConnector:
     artefactScanTime     : Instant,
     issueId              : String,
     packageType          : String,
-    provider             : String,
-    description          : String,
+    provider             : Option[String],
+    description          : Option[String],
     references           : Seq[String],
     projectKeys          : Seq[String],
   )
@@ -219,7 +231,7 @@ object XrayConnector:
       ~ (__ \ "cvss3_max_score"        ).readNullable[Double]
       ~ (__ \ "summary"                ).read[String]
       ~ (__ \ "severity"               ).read[String]
-      ~ (__ \ "severity_source"        ).read[String]
+      ~ (__ \ "severity_source"        ).readNullable[String]
       ~ (__ \ "vulnerable_component"   ).read[String]
       ~ (__ \ "component_physical_path").read[String]
       ~ (__ \ "impacted_artifact"      ).read[String]
@@ -230,9 +242,9 @@ object XrayConnector:
       ~ (__ \ "artifact_scan_time"     ).read[Instant]
       ~ (__ \ "issue_id"               ).read[String]
       ~ (__ \ "package_type"           ).read[String]
-      ~ (__ \ "provider"               ).read[String]
-      ~ (__ \ "description"            ).read[String]
-      ~ (__ \ "references"             ).read[Seq[String]]
+      ~ (__ \ "provider"               ).readNullable[String]
+      ~ (__ \ "description"            ).readNullable[String]
+      ~ (__ \ "references"             ).readWithDefault[Seq[String]](Nil)
       ~ (__ \ "project_keys"           ).read[Seq[String]]
       )(apply)
 

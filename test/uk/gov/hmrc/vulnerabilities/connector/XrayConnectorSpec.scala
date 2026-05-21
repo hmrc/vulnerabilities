@@ -19,23 +19,29 @@ package uk.gov.hmrc.vulnerabilities.connector
 import org.apache.pekko.stream.Materializer
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, containing, equalToJson, postRequestedFor, stubFor, urlEqualTo, urlMatching}
+import org.scalatest.OptionValues
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.Configuration
+import play.api.libs.json.{Format, JsError, JsResult, JsSuccess, JsValue, Json}
 import uk.gov.hmrc.crypto.Sensitive.SensitiveString
 import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
-import uk.gov.hmrc.vulnerabilities.model.{ArtifactoryToken, ServiceName, Version}
+import uk.gov.hmrc.vulnerabilities.model.Report.Vulnerability
+import uk.gov.hmrc.vulnerabilities.model.{ArtifactoryToken, ImportedBy, Report, ServiceName, Version}
 
 import java.time.temporal.ChronoUnit
-import java.time.{Clock, LocalDate, ZoneOffset}
+import java.time.{Clock, Instant, LocalDate, ZoneOffset}
+import scala.collection.immutable.Seq
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 class XrayConnectorSpec
   extends AnyWordSpec
      with Matchers
+     with OptionValues
      with ScalaFutures
      with IntegrationPatience
      with HttpClientV2Support
@@ -162,3 +168,79 @@ class XrayConnectorSpec
 
       val res = connector.getStaleReportIds()(token).failed.futureValue
       res shouldBe a [UpstreamErrorResponse]
+
+
+  import uk.gov.hmrc.vulnerabilities.model.TestData.XRayModel._
+  "Retrieving JFrog Vulnerability Report" when :
+    val xRayReportJsonBaseVersion: String = s"""
+         |{
+         |  "total_reports": 2,
+         |  "rows": [ $vuln1JsonV1, $vuln2JsonV1]
+         |}""".stripMargin
+    val xRayReportJsonV1MissingOptionalFields: String =
+      s"""
+         |{
+         |  "total_reports": 2,
+         |  "rows": [ $vuln1JsonV1xMissingFields, $vuln2JsonV1xMissingFields]
+         |}""".stripMargin
+
+
+    "downloadAndUnzipReport" when:
+      "Retrieving an Xray V1 report" should:
+        val xRayConnectorMockSource = xrayConnectorWithMockJsonReport(xRayReportJsonBaseVersion)
+        "Deserialize the report JSON into a List[Vulnerability]" in:
+          val result: Option[(Instant, Seq[XrayConnector.Vulnerability])] = xRayConnectorMockSource.downloadAndUnzipReport(1, ServiceName("service1"), Version("1.0.0"))(token).futureValue
+          val retrievedVulnerabilityList = result.value._2.toList
+          retrievedVulnerabilityList should have size 2
+
+          val vuln1 = retrievedVulnerabilityList.find(_.issueId == "XRAY-000002").value
+
+          vuln1.cves should contain (XrayConnector.CVE(cveId = Some("CVE-2021-99999"), cveV3Score = Some(7.0), cveV3Vector = Some("test1")))
+          vuln1.summary shouldBe "This is a lower severity exploit"
+          vuln1.description should contain ("This is the first exploit")
+          vuln1.references should contain allOf("foo.com", "bar.net")
+
+          val vuln2 = retrievedVulnerabilityList.find(_.issueId == "XRAY-000003").value
+          vuln2.cves should contain (XrayConnector.CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test2")))
+          vuln2.summary shouldBe "This is a higher severity exploit"
+          vuln2.description should contain ("This is the second exploit")
+          vuln2.references should contain allOf("buzz.com", "fizz.net")
+      "Retrieving an Xray V1_x report with missing fields" should:
+        val xRayConnectorMockSource = xrayConnectorWithMockJsonReport(xRayReportJsonV1MissingOptionalFields)
+
+        "Deserialize the report JSON into a List[Vulnerability] with missing fields set to None" in:
+
+          val result: Option[(Instant, Seq[XrayConnector.Vulnerability])] = xRayConnectorMockSource.downloadAndUnzipReport(1, ServiceName("service1"), Version("1.0.0"))(token).futureValue
+          val retrievedVulnerabilityList = result.value._2.toList
+          retrievedVulnerabilityList should have size 2
+
+          val vuln1 = retrievedVulnerabilityList.find(_.issueId == "XRAY-000002").value
+
+          vuln1.cves should contain (XrayConnector.CVE(cveId = Some("CVE-2021-99999"), cveV3Score = Some(7.0), cveV3Vector = Some("test1")))
+          vuln1.summary shouldBe "This is a lower severity exploit"
+          vuln1.description should be (empty)
+          vuln1.severitySource should be (empty)
+          vuln1.references should be (empty)
+
+          val vuln2 = retrievedVulnerabilityList.find(_.issueId == "XRAY-000003").value
+          vuln2.cves should contain(XrayConnector.CVE(cveId = Some("CVE-2022-12345"), cveV3Score = Some(8.0), cveV3Vector = Some("test2")))
+          vuln2.summary shouldBe "This is a higher severity exploit"
+          vuln2.description should be(empty)
+          vuln2.severitySource should be(empty)
+          vuln2.references should be(empty)
+
+
+  private def xrayConnectorWithMockJsonReport(xRayReportJson: String): XrayConnector =
+    new XrayConnector(
+      config,
+      httpClientV2,
+      Clock.fixed(now, ZoneOffset.UTC)
+      ) with VulnerabilityReportSource:
+
+      override protected def getRawReportAsString(
+        reportId: Int,
+        serviceName: ServiceName,
+        version: Version
+      )(using HeaderCarrier)(token: ArtifactoryToken): Future[Option[String]] =
+        Future.successful(Some(xRayReportJson))
+
