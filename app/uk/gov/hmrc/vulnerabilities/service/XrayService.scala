@@ -138,6 +138,7 @@ class XrayService @Inject()(
 
 
   private val enabled = configuration.get[Boolean]("xray.enabled")
+  private val warnOnly = configuration.get[Seq[String]]("xray.warnOnly")
 
   private val maxRetries = 3
   private def processReports(slugs: Seq[SlugInfo])(using HeaderCarrier): Future[Unit] =
@@ -152,7 +153,12 @@ class XrayService @Inject()(
                                             _ <- buildAndDeployConnector
                                                   .triggerXrayScanNow(slug.path)
                                                   .recover:
-                                                    case ex => logger.error(s"Error calling B&D API ${ex.getMessage}", ex)
+                                                    case ex => 
+                                                      val msg = ex.getMessage
+                                                      if (warnOnly.exists(s => msg.contains(s"webstore-local/slugs/$s/$s")))
+                                                        logger.warn(s"Error calling B&D API $msg", ex)
+                                                      else
+                                                        logger.error(s"Error calling B&D API $msg", ex)
                                             _ <- org.apache.pekko.pattern.after(1000.millis, system.scheduler) { go(count + 1) }
                                           yield ()
               case Left(XrayStatus.Retry)
