@@ -16,10 +16,7 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
-import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
-import play.api.Configuration
-import uk.gov.hmrc.mongo.MongoComponent
-import uk.gov.hmrc.vulnerabilities.model.{Report, ServiceName, SlugInfoFlag, TimelineEvent, Version}
+import uk.gov.hmrc.vulnerabilities.model.*
 import uk.gov.hmrc.vulnerabilities.persistence.ReportRepository
 
 import java.time.Instant
@@ -30,7 +27,7 @@ import scala.language.postfixOps
 
 object XrayServiceTestSupport:
 
-  object FakeReportRepository {
+  object FakeReportRepository:
     def apply(
       report: Report,
       initialTestVulnerabiltiies: Seq[Report.Vulnerability] = Seq.empty,
@@ -41,34 +38,27 @@ object XrayServiceTestSupport:
       reportList: Seq[Report]
     ): ReportRepository with TestRepo =
       new FakeReportRepository (reportList, Nil)
-  }
 
-  trait TestRepo {
+  trait TestRepo:
     def getTestStore: Map[String, Report]
-  }
 
   class FakeReportRepository(
     reportList: Seq[Report], 
     testVulnerabilityRows: Seq[Report.Vulnerability]
   )
-    extends ReportRepository(
-      mongoComponent = MongoComponent("mongodb://localhost/dummyname", 0 seconds), // TODO: Prob replace with dummy
-      config = Configuration("regex.exclusion" -> "DUMMY_EXCLUSION_REGEX"))
+    extends ReportRepository
       with TestRepo:
     
     val store = mutable.Map.from(reportList.map(r => toKey(r) -> r.copy(rows = testVulnerabilityRows)))
-//    val store = mutable.Map.from(Seq(toKey(report) -> report.copy(rows = testVulnerabilityRows))) // todo: remove when we have the apply method that takes a list of reports
 
     def toKey(report: Report): String = toKeyFromServiceNameAndVersion(report.serviceName, report.serviceVersion)
 
-    private def toKeyFromServiceNameAndVersion(serviceName: ServiceName, serviceVersion: Version) = {
+    private def toKeyFromServiceNameAndVersion(serviceName: ServiceName, serviceVersion: Version): String =
       s"${serviceName}:${serviceVersion}"
-    }
 
     override def getTestStore: Map[String, Report] = store.toMap
 
     override def put(report: Report): Future[Unit] =
-      println("*** Storing report in FakeReportRepository: " + report.serviceName + " " + report.serviceVersion + " generated at " + report.generatedDate)
       store += toKey(report) -> report
       Future.unit
 
@@ -84,7 +74,7 @@ object XrayServiceTestSupport:
     override def find(slugInfoFlag: Option[SlugInfoFlag], serviceNames: Option[Seq[ServiceName]], version: Option[Version]): Future[Seq[Report]] =
       Future.successful(
         store.values.toSeq.filter(r => serviceNames.forall(_.contains(r.serviceName)) && version.forall(_ == r.serviceVersion))
-        )
+      )
 
     override def exists(serviceName: ServiceName, version: Version): Future[Boolean] =
       Future.successful(store.values.exists(r => r.serviceName == serviceName && r.serviceVersion == version))

@@ -43,7 +43,7 @@ class ReportRepositorySpec
     "regex.exclusion" -> "^(?!.*ehcache.*/rest-management-private-classpath/META-INF/maven/.*).*"
   )
 
-  override val repository: ReportRepository = ReportRepository(mongoComponent, configuration)
+  override val repository: MongoReportRepository = MongoReportRepository(mongoComponent, configuration)
 
   private val now = Instant.now.truncatedTo(java.time.temporal.ChronoUnit.MILLIS)
 

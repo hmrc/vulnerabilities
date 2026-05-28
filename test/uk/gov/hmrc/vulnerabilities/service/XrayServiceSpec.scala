@@ -113,7 +113,7 @@ class XrayServiceSpec
           artifactoryTokenRepository = tokenRepository
         )
 
-        val preStore = fakeReportRepo.getTestStore.values.toSeq
+        val preStore = fakeReportRepo.getTestStore.values
         // precondition checks
         preStore should have size 1
         // currently no vulnerability reports should exist
@@ -124,7 +124,7 @@ class XrayServiceSpec
         service.rescanStaleReports(reportsBefore = now.minusSeconds(1800)).futureValue
 
         // post report run tests
-        val store = fakeReportRepo.getTestStore.values.toSeq
+        val store = fakeReportRepo.getTestStore.values
         store.size shouldBe 1
         val updatedReport = store.last
         updatedReport.generatedDate shouldBe generatedDateFromXray
@@ -161,6 +161,135 @@ class XrayServiceSpec
       "xray.username"               -> "xray-user",
       "xray.reports.retention"      -> "1 day"
     ))
+
+  private def storedReport(
+    serviceVersion: Version = Version("0.230.0"),
+    slugUri: String = "https://repo/webstore-local/slugs/platops-example-backend-microservice/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+    generatedDate: Instant,
+    scanned: Boolean,
+    latest: Boolean = false,
+    production: Boolean = false,
+    qa: Boolean = false,
+    staging: Boolean = false,
+    development: Boolean = false,
+    integration: Boolean = false,
+    externalTest: Boolean = false
+  ): Report =
+    Report(
+      serviceName = ServiceName("platops-example-backend-microservice"),
+      serviceVersion = serviceVersion,
+      slugUri = slugUri,
+      rows = Seq.empty,
+      generatedDate = generatedDate,
+      scanned = scanned,
+      latest = latest,
+      production = production,
+      qa = qa,
+      staging = staging,
+      development = development,
+      externalTest = externalTest,
+      integration = integration
+      )
+
+  private lazy val xrayVulnerabilityRows: Seq[XrayConnector.Vulnerability] =
+    Seq(
+      XrayConnector.Vulnerability(
+        cves = Seq(XrayConnector.CVE(cveId = Some("CVE-2025-52999"), cveV3Score = None, cveV3Vector = None)),
+        cvss3MaxScore = None,
+        summary = "jackson-core has deeply nested input parsing risk leading to StackOverflowError.",
+        severity = "High",
+        severitySource = None,
+        vulnerableComponent = "gav://com.fasterxml.jackson.core:jackson-core:2.14.3",
+        componentPhysicalPath = "platops-example-backend-microservice-0.230.0/lib/com.fasterxml.jackson.core.jackson-core-2.14.3.jar",
+        impactedArtefact = "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+        impactPath = Seq(
+          "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+          "gav://com.fasterxml.jackson.core:jackson-core:2.14.3"
+          ),
+        path = "webstore-local/slugs/platops-example-backend-microservice/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+        fixedVersions = Seq("2.15.0"),
+        published = Instant.parse("2025-06-27T16:18:39Z"),
+        artefactScanTime = Instant.parse("2024-11-07T15:57:37Z"),
+        issueId = "XRAY-707194",
+        packageType = "maven",
+        provider = None,
+        description = None,
+        references = Seq.empty,
+        projectKeys = Seq.empty
+        ),
+      XrayConnector.Vulnerability(
+        cves = Seq(XrayConnector.CVE(cveId = Some("CVE-2025-12183"), cveV3Score = None, cveV3Vector = None)),
+        cvss3MaxScore = None,
+        summary = "Out-of-bounds operations in lz4-java 1.8.0 and earlier.",
+        severity = "High",
+        severitySource = None,
+        vulnerableComponent = "gav://org.lz4:lz4-java:1.8.0",
+        componentPhysicalPath = "platops-example-backend-microservice-0.230.0/lib/org.lz4.lz4-java-1.8.0.jar",
+        impactedArtefact = "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+        impactPath = Seq(
+          "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+          "gav://org.lz4:lz4-java:1.8.0"
+          ),
+        path = "webstore-local/slugs/platops-example-backend-microservice/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+        fixedVersions = Seq("1.8.1"),
+        published = Instant.parse("2025-12-03T16:20:21Z"),
+        artefactScanTime = Instant.parse("2024-11-07T15:57:37Z"),
+        issueId = "XRAY-900382",
+        packageType = "maven",
+        provider = None,
+        description = None,
+        references = Seq.empty,
+        projectKeys = Seq.empty
+        ),
+      XrayConnector.Vulnerability(
+        cves = Seq(XrayConnector.CVE(cveId = Some("CVE-2025-66566"), cveV3Score = None, cveV3Vector = None)),
+        cvss3MaxScore = None,
+        summary = "Insufficient clearing of output buffers in lz4-java decompressors.",
+        severity = "High",
+        severitySource = None,
+        vulnerableComponent = "gav://org.lz4:lz4-java:1.8.0",
+        componentPhysicalPath = "platops-example-backend-microservice-0.230.0/lib/org.lz4.lz4-java-1.8.0.jar",
+        impactedArtefact = "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+        impactPath = Seq(
+          "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+          "gav://org.lz4:lz4-java:1.8.0"
+          ),
+        path = "webstore-local/slugs/platops-example-backend-microservice/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+        fixedVersions = Seq.empty,
+        published = Instant.parse("2025-12-05T20:17:54Z"),
+        artefactScanTime = Instant.parse("2024-11-07T15:57:37Z"),
+        issueId = "XRAY-901520",
+        packageType = "maven",
+        provider = None,
+        description = None,
+        references = Seq.empty,
+        projectKeys = Seq.empty
+        ),
+      XrayConnector.Vulnerability(
+        cves = Seq(XrayConnector.CVE(cveId = Some("CVE-2025-48924"), cveV3Score = Some(6.5), cveV3Vector = Some("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"))),
+        cvss3MaxScore = Some(6.5),
+        summary = "Uncontrolled recursion in Apache Commons Lang before 3.18.0.",
+        severity = "Medium",
+        severitySource = None,
+        vulnerableComponent = "gav://org.apache.commons:commons-lang3:3.14.0",
+        componentPhysicalPath = "platops-example-backend-microservice-0.230.0/lib/org.apache.commons.commons-lang3-3.14.0.jar",
+        impactedArtefact = "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+        impactPath = Seq(
+          "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+          "gav://org.apache.commons:commons-lang3:3.14.0"
+          ),
+        path = "webstore-local/slugs/platops-example-backend-microservice/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
+        fixedVersions = Seq("3.18.0"),
+        published = Instant.parse("2025-07-12T02:13:52Z"),
+        artefactScanTime = Instant.parse("2024-11-07T15:57:37Z"),
+        issueId = "XRAY-710140",
+        packageType = "maven",
+        provider = None,
+        description = None,
+        references = Seq.empty,
+        projectKeys = Seq.empty
+        )
+      )
 
 
   private class FakeXrayConnector(
@@ -212,132 +341,4 @@ class XrayServiceSpec
       Future.successful(metaByVersion.getOrElse((repoName, version), None))
 
 
-  private def storedReport(
-    serviceVersion: Version = Version("0.230.0"),
-    slugUri       : String = "https://repo/webstore-local/slugs/platops-example-backend-microservice/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-    generatedDate : Instant,
-    scanned       : Boolean,
-    latest        : Boolean = false,
-    production    : Boolean = false,
-    qa            : Boolean = false,
-    staging       : Boolean = false,
-    development   : Boolean = false,
-    integration   : Boolean = false,
-    externalTest  : Boolean = false
-  ): Report =
-    Report(
-      serviceName    = ServiceName("platops-example-backend-microservice"),
-      serviceVersion = serviceVersion,
-      slugUri        = slugUri,
-      rows           = Seq.empty,
-      generatedDate  = generatedDate,
-      scanned        = scanned,
-      latest         = latest,
-      production     = production,
-      qa             = qa,
-      staging        = staging,
-      development    = development,
-      externalTest   = externalTest,
-      integration    = integration
-    )
-
-  private lazy val xrayVulnerabilityRows: Seq[XrayConnector.Vulnerability] =
-    Seq(
-      XrayConnector.Vulnerability(
-        cves                  = Seq(XrayConnector.CVE(cveId = Some("CVE-2025-52999"), cveV3Score = None, cveV3Vector = None)),
-        cvss3MaxScore         = None,
-        summary               = "jackson-core has deeply nested input parsing risk leading to StackOverflowError.",
-        severity              = "High",
-        severitySource        = None,
-        vulnerableComponent   = "gav://com.fasterxml.jackson.core:jackson-core:2.14.3",
-        componentPhysicalPath = "platops-example-backend-microservice-0.230.0/lib/com.fasterxml.jackson.core.jackson-core-2.14.3.jar",
-        impactedArtefact      = "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-        impactPath            = Seq(
-          "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-          "gav://com.fasterxml.jackson.core:jackson-core:2.14.3"
-        ),
-        path                  = "webstore-local/slugs/platops-example-backend-microservice/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-        fixedVersions         = Seq("2.15.0"),
-        published             = Instant.parse("2025-06-27T16:18:39Z"),
-        artefactScanTime      = Instant.parse("2024-11-07T15:57:37Z"),
-        issueId               = "XRAY-707194",
-        packageType           = "maven",
-        provider              = None,
-        description           = None,
-        references            = Seq.empty,
-        projectKeys           = Seq.empty
-      ),
-      XrayConnector.Vulnerability(
-        cves                  = Seq(XrayConnector.CVE(cveId = Some("CVE-2025-12183"), cveV3Score = None, cveV3Vector = None)),
-        cvss3MaxScore         = None,
-        summary               = "Out-of-bounds operations in lz4-java 1.8.0 and earlier.",
-        severity              = "High",
-        severitySource        = None,
-        vulnerableComponent   = "gav://org.lz4:lz4-java:1.8.0",
-        componentPhysicalPath = "platops-example-backend-microservice-0.230.0/lib/org.lz4.lz4-java-1.8.0.jar",
-        impactedArtefact      = "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-        impactPath            = Seq(
-          "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-          "gav://org.lz4:lz4-java:1.8.0"
-        ),
-        path                  = "webstore-local/slugs/platops-example-backend-microservice/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-        fixedVersions         = Seq("1.8.1"),
-        published             = Instant.parse("2025-12-03T16:20:21Z"),
-        artefactScanTime      = Instant.parse("2024-11-07T15:57:37Z"),
-        issueId               = "XRAY-900382",
-        packageType           = "maven",
-        provider              = None,
-        description           = None,
-        references            = Seq.empty,
-        projectKeys           = Seq.empty
-      ),
-      XrayConnector.Vulnerability(
-        cves                  = Seq(XrayConnector.CVE(cveId = Some("CVE-2025-66566"), cveV3Score = None, cveV3Vector = None)),
-        cvss3MaxScore         = None,
-        summary               = "Insufficient clearing of output buffers in lz4-java decompressors.",
-        severity              = "High",
-        severitySource        = None,
-        vulnerableComponent   = "gav://org.lz4:lz4-java:1.8.0",
-        componentPhysicalPath = "platops-example-backend-microservice-0.230.0/lib/org.lz4.lz4-java-1.8.0.jar",
-        impactedArtefact      = "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-        impactPath            = Seq(
-          "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-          "gav://org.lz4:lz4-java:1.8.0"
-        ),
-        path                  = "webstore-local/slugs/platops-example-backend-microservice/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-        fixedVersions         = Seq.empty,
-        published             = Instant.parse("2025-12-05T20:17:54Z"),
-        artefactScanTime      = Instant.parse("2024-11-07T15:57:37Z"),
-        issueId               = "XRAY-901520",
-        packageType           = "maven",
-        provider              = None,
-        description           = None,
-        references            = Seq.empty,
-        projectKeys           = Seq.empty
-      ),
-      XrayConnector.Vulnerability(
-        cves                  = Seq(XrayConnector.CVE(cveId = Some("CVE-2025-48924"), cveV3Score = Some(6.5), cveV3Vector = Some("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"))),
-        cvss3MaxScore         = Some(6.5),
-        summary               = "Uncontrolled recursion in Apache Commons Lang before 3.18.0.",
-        severity              = "Medium",
-        severitySource        = None,
-        vulnerableComponent   = "gav://org.apache.commons:commons-lang3:3.14.0",
-        componentPhysicalPath = "platops-example-backend-microservice-0.230.0/lib/org.apache.commons.commons-lang3-3.14.0.jar",
-        impactedArtefact      = "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-        impactPath            = Seq(
-          "generic://sha256:4e8a41cc125be3aa57dec94d45e338798d6d78c3e53fe5ae7e02f8b5d3841f30/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-          "gav://org.apache.commons:commons-lang3:3.14.0"
-        ),
-        path                  = "webstore-local/slugs/platops-example-backend-microservice/platops-example-backend-microservice_0.230.0_0.5.2.tgz",
-        fixedVersions         = Seq("3.18.0"),
-        published             = Instant.parse("2025-07-12T02:13:52Z"),
-        artefactScanTime      = Instant.parse("2024-11-07T15:57:37Z"),
-        issueId               = "XRAY-710140",
-        packageType           = "maven",
-        provider              = None,
-        description           = None,
-        references            = Seq.empty,
-        projectKeys           = Seq.empty
-      )
-    )
 
