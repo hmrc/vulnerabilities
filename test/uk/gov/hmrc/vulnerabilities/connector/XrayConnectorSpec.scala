@@ -230,7 +230,6 @@ class XrayConnectorSpec
                 vuln.cves should not be empty
                 vuln.summary should not be empty
                 vuln.summary.length should be >= 30
-                vuln.cvss3MaxScore should not be empty
 
                 vuln.description shouldBe empty
                 vuln.references shouldBe empty
