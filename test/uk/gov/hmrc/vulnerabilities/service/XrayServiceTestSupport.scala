@@ -16,10 +16,16 @@
 
 package uk.gov.hmrc.vulnerabilities.service
 
+import org.apache.pekko.actor.ActorSystem
+import org.scalatestplus.mockito.MockitoSugar.mock
+import play.api.Configuration
+import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.http.client.HttpClientV2
+import uk.gov.hmrc.vulnerabilities.connector.XrayConnector
 import uk.gov.hmrc.vulnerabilities.model.*
 import uk.gov.hmrc.vulnerabilities.persistence.ReportRepository
 
-import java.time.Instant
+import java.time.{Clock, Instant, ZoneOffset}
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -54,7 +60,7 @@ object XrayServiceTestSupport:
     def toKey(report: Report): String = toKeyFromServiceNameAndVersion(report.serviceName, report.serviceVersion)
 
     private def toKeyFromServiceNameAndVersion(serviceName: ServiceName, serviceVersion: Version): String =
-      s"${serviceName}:${serviceVersion}"
+      s"$serviceName:$serviceVersion"
 
     override def getTestStore: Map[String, Report] = store.toMap
 
@@ -95,6 +101,42 @@ object XrayServiceTestSupport:
 
     override def getTimelineData(weekBeginning: Instant): Future[Seq[TimelineEvent]] =
       Future.successful(Seq.empty)
+
+  class FakeXrayConnector(
+    config: Configuration,
+    rowsToReturn: Seq[XrayConnector.Vulnerability],
+    generatedAt: Instant,
+    expectedReportId: Int
+  )(using ActorSystem)
+    extends XrayConnector(
+      configuration = config,
+      httpClientV2 = mock[HttpClientV2],
+      clock = Clock.fixed(generatedAt, ZoneOffset.UTC)
+      ):
+
+    val downloadAndUnzipReportRequests: mutable.Buffer[(Int, ServiceName, Version)]    = mutable.Buffer.empty
+    val generateReportRequests        : mutable.Buffer[(ServiceName, Version, String)] = mutable.Buffer.empty
+    val deletedReportIds              : mutable.Buffer[Int]                            = mutable.Buffer.empty
+
+    override def generateReport(serviceName: ServiceName, version: Version, path: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayConnector.ReportResponse] =
+      generateReportRequests.addOne((serviceName, version, path))
+      Future.successful(XrayConnector.ReportResponse(reportID = expectedReportId, status = "pending"))
+
+    override def checkStatus(id: Int)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayConnector.ReportStatus] =
+      Future.successful(XrayConnector.ReportStatus(status = "completed", numberOfRows = rowsToReturn.size, totalArtefacts = 1))
+
+    override def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(token: ArtifactoryToken)(using HeaderCarrier): Future[Option[(Instant, Seq[XrayConnector.Vulnerability])]] =
+      downloadAndUnzipReportRequests.addOne((reportId, serviceName, version))
+      Future.successful(Some((generatedAt, rowsToReturn)))
+
+    override def deleteReportFromXray(reportId: Int)(token: ArtifactoryToken)(using HeaderCarrier): Future[Unit] =
+      deletedReportIds += reportId
+      Future.unit
+
+    override def getStaleReportIds()(token: ArtifactoryToken)(using HeaderCarrier): Future[Seq[XrayConnector.ReportId]] =
+      Future.successful(Seq.empty)
+      
+  
 
 
 

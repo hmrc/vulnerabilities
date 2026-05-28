@@ -49,12 +49,12 @@ class XrayServiceSpec
   given HeaderCarrier    = HeaderCarrier()
 
   implicit val defaultPatience: PatienceConfig =
-    PatienceConfig(timeout = Span(60, Seconds), interval = Span(5, Millis))
+    PatienceConfig(timeout = Span(5, Seconds), interval = Span(5, Millis))
 
-  private val actorSystem = ActorSystem("xray-service-test")
-  private given Materializer = SystemMaterializer(actorSystem).materializer
+  given ActorSystem = ActorSystem("xray-service-test")
+
   override def afterAll(): Unit =
-    actorSystem.terminate()
+    ActorSystem("xray-service-test").terminate()
     super.afterAll()
 
   // ---- In-memory fake ArtefactProcessorConnector ----
@@ -107,11 +107,11 @@ class XrayServiceSpec
           artefactProcessorConnector = artefactProcessorConnector,
           xrayConnector              = fakeXrayConnector,
           serviceConfigsConnector    = serviceConfigsConnector,
-          system                     = actorSystem,
+          system                     = ActorSystem("xray-service-test"),
           reportRepository           = fakeReportRepo,
           vulnerabilityAgeRepository = vulnerabilityAgeRepository,
           artifactoryTokenRepository = tokenRepository
-        )
+          )
 
         val preStore = fakeReportRepo.getTestStore.values
         // precondition checks
@@ -290,41 +290,6 @@ class XrayServiceSpec
         projectKeys = Seq.empty
         )
       )
-
-
-  private class FakeXrayConnector(
-    config      : Configuration,
-    rowsToReturn: Seq[XrayConnector.Vulnerability],
-    generatedAt : Instant,
-    expectedReportId: Int
-  ) extends XrayConnector(
-        configuration = config,
-        httpClientV2  = mock[HttpClientV2],
-        clock         = Clock.fixed(generatedAt, ZoneOffset.UTC)
-      ):
-
-    val downloadAndUnzipReportRequests: mutable.Buffer[(Int, ServiceName, Version)]    = mutable.Buffer.empty
-    val generateReportRequests        : mutable.Buffer[(ServiceName, Version, String)] = mutable.Buffer.empty
-    val deletedReportIds      : mutable.Buffer[Int]                            = mutable.Buffer.empty
-
-    override def generateReport(serviceName: ServiceName, version: Version, path: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayConnector.ReportResponse] =
-      generateReportRequests.addOne((serviceName, version, path))
-      Future.successful(XrayConnector.ReportResponse(reportID = expectedReportId, status = "pending"))
-
-    override def checkStatus(id: Int)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayConnector.ReportStatus] =
-      Future.successful(XrayConnector.ReportStatus(status = "completed", numberOfRows = rowsToReturn.size, totalArtefacts = 1))
-
-    override def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(token: ArtifactoryToken)(using HeaderCarrier): Future[Option[(Instant, Seq[XrayConnector.Vulnerability])]] = {
-      downloadAndUnzipReportRequests.addOne((reportId, serviceName, version))
-      Future.successful(Some((generatedAt, rowsToReturn)))
-    }
-
-    override def deleteReportFromXray(reportId: Int)(token: ArtifactoryToken)(using HeaderCarrier): Future[Unit] =
-      deletedReportIds += reportId
-      Future.unit
-
-    override def getStaleReportIds()(token: ArtifactoryToken)(using HeaderCarrier): Future[Seq[XrayConnector.ReportId]] =
-      Future.successful(Seq.empty)
 
   private class FakeArtefactProcessorConnector
     extends ArtefactProcessorConnector(
