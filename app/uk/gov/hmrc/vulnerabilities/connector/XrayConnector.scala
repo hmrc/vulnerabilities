@@ -97,7 +97,7 @@ class XrayConnector @Inject() (
       result  =  rawJson
                   .map(Json.parse)
                   .map: json =>
-                    val date = (json \ "generatedDate").asOpt[Instant].getOrElse(Instant.now())
+                    val date = (json \ "generatedDate").asOpt[Instant].getOrElse(Instant.now(clock))
                     val rows = deserializeRows(json)
                     (date, rows)
     yield result

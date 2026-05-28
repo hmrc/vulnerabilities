@@ -16,9 +16,10 @@
 
 package uk.gov.hmrc.vulnerabilities.connector
 
-import org.apache.pekko.stream.Materializer
+import org.apache.pekko.stream.{Materializer, SystemMaterializer}
 import com.github.tomakehurst.wiremock.client.WireMock
-import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, containing, equalToJson, postRequestedFor, stubFor, urlEqualTo, urlMatching}
+import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, containing, equalToJson, getRequestedFor, ok, postRequestedFor, stubFor, urlEqualTo, urlMatching}
+import org.apache.pekko.actor.ActorSystem
 import org.scalatest.OptionValues
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
@@ -57,11 +58,16 @@ class XrayConnectorSpec
     "xray.reports.retention" -> "1 day"
   ))
 
-  private given Materializer = mock[Materializer]
+  private val actorSystem = ActorSystem("xray-connector-spec")
+  private given Materializer = SystemMaterializer(actorSystem).materializer
 
-  private val now       = LocalDate.now().atStartOfDay(ZoneOffset.UTC).toInstant
-  private val connector = XrayConnector(config, httpClientV2, clock = Clock.fixed(now, ZoneOffset.UTC))
-  private val token     = ArtifactoryToken(
+  override def afterAll(): Unit =
+    actorSystem.terminate()
+    super.afterAll()
+
+  private val startOfToday = LocalDate.now().atStartOfDay(ZoneOffset.UTC).toInstant
+  private val connector    = XrayConnector(config, httpClientV2, clock = Clock.fixed(startOfToday, ZoneOffset.UTC))
+  private val token        = ArtifactoryToken(
     accessToken  = SensitiveString("some-access-token")
   , refreshToken = SensitiveString("some-refresh-token")
   )
@@ -139,7 +145,7 @@ class XrayConnectorSpec
 
       wireMockServer
         .verify(postRequestedFor(urlMatching("/xray/api/v1/reports\\?page_num=1&num_of_rows=100"))
-          .withRequestBody(equalToJson(s"""{"filters":{"author":"user1","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"${now.minus(1, ChronoUnit.DAYS)}"}}}""")))
+          .withRequestBody(equalToJson(s"""{"filters":{"author":"user1","start_time_range":{"start":"2023-06-01T00:00:00Z","end":"${startOfToday.minus(1, ChronoUnit.DAYS)}"}}}""")))
 
     "return a Sequence of ReportIDs" in:
       stubFor(WireMock.post(urlMatching("/xray/api/v1/reports\\?page_num=1&num_of_rows=100")).willReturn(
@@ -186,6 +192,57 @@ class XrayConnectorSpec
 
 
     "downloadAndUnzipReport" when:
+
+      "Retrieving a generated report zip file from X-Ray API for V1_x" should:
+        val testServiceName    = ServiceName("platops-example-backend-microservice")
+        val version            = Version("0.230.0")
+        val expectedRawVersion = "0_230_0"
+        val reportName         = s"AppSec-report-${testServiceName.asString}_$expectedRawVersion"
+
+        val testReportId = 1234
+
+        val zipBytes =
+          Option(getClass.getResourceAsStream("/xray_report_v1_x-no_descriptions.zip"))
+            .getOrElse(fail("Missing zip file from test resources: xray_report_v1_x-no_descriptions.zip"))
+            .readAllBytes()
+
+        "Download the report and unzip it and deserialize the JSON content into a List[Vulnerability]" in:
+          val expectedUrl = s"/xray/api/v1/reports/export/$testReportId" +
+                    s"?file_name=$reportName" +
+                    s"&format=json"
+          stubFor(WireMock.get(expectedUrl)
+                          .willReturn(ok()
+                            .withHeader("Content-Type", "application/zip")
+                            .withBody(zipBytes)
+                          )
+                  )
+
+          val vulnList = connector.downloadAndUnzipReport(testReportId, testServiceName, version)(token).futureValue
+          wireMockServer.verify(1, getRequestedFor(urlEqualTo(expectedUrl)))
+
+          vulnList match
+            case Some((retrievedInstant, vulnerabilities)) =>
+              retrievedInstant shouldBe startOfToday
+              vulnerabilities should have size 11
+
+              vulnerabilities.foreach { vuln =>
+                vuln.issueId should startWith ("XRAY")
+                vuln.cves should not be empty
+                vuln.summary should not be empty
+                vuln.summary.length should be >= 30
+
+                vuln.description shouldBe empty
+                vuln.references shouldBe empty
+              }
+
+              val testIssues = vulnerabilities.filter(_.issueId == "XRAY-522015")
+              testIssues should have size 1
+              testIssues.flatMap(_.cves) should contain (XrayConnector.CVE(cveId = Some("CVE-2023-35116"), cveV3Score = Some(4.7), cveV3Vector = Some("CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:N/I:N/A:H")))
+              testIssues.head.severity shouldBe "Medium"
+              testIssues.head.cvss3MaxScore should contain(4.7)
+
+            case None => fail("Expected to retrieve a report containing List[Vulnerability] and created timestamp, but got None")
+
       "Retrieving an Xray V1 report" should:
         val xRayConnectorMockSource = xrayConnectorWithMockJsonReport(xRayReportJsonBaseVersion)
         "Deserialize the report JSON into a List[Vulnerability]" in:
@@ -234,7 +291,7 @@ class XrayConnectorSpec
     new XrayConnector(
       config,
       httpClientV2,
-      Clock.fixed(now, ZoneOffset.UTC)
+      Clock.fixed(startOfToday, ZoneOffset.UTC)
       ) with VulnerabilityReportSource:
 
       override protected def getRawReportAsString(

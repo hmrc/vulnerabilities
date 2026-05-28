@@ -29,8 +29,21 @@ import java.time.Instant
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
+trait ReportRepository:
+  def exists(serviceName: ServiceName, version: Version): Future[Boolean]
+  def find(flag: Option[SlugInfoFlag], serviceNames: Option[Seq[ServiceName]], version: Option[Version]): Future[Seq[Report]]
+  def findDeployed(serviceName: ServiceName): Future[Seq[Report]]
+  def findFlagged(): Future[Seq[Report]]
+  def put(report: Report): Future[Unit]
+  def delete(serviceName: ServiceName, version: Version): Future[Unit]
+  def setFlag(flag: SlugInfoFlag, serviceName: ServiceName, version: Version): Future[Unit]
+  def clearFlag(flag: SlugInfoFlag, serviceName: ServiceName): Future[Unit]
+  def findGeneratedBefore(before: Instant): Future[Seq[Report]]
+  def findNotScanned(): Future[Seq[Report]]
+  def getTimelineData(weekBeginning: Instant): Future[Seq[TimelineEvent]]
+
 @Singleton
-class ReportRepository @Inject()(
+class MongoReportRepository @Inject()(
   final val mongoComponent: MongoComponent
 , config                  : Configuration
 )(using
@@ -43,7 +56,8 @@ class ReportRepository @Inject()(
                    IndexModel(Indexes.hashed("scanned"))                                                       ::
                    SlugInfoFlag.values.toList.map(f => IndexModel(Indexes.hashed(f.asString)))
 , replaceIndexes = true
-) with Transactions:
+) with Transactions
+  with ReportRepository:
 
   // No ttl required for this collection - managed by SQS
   override lazy val requiresTtlIndex = false
@@ -64,7 +78,7 @@ class ReportRepository @Inject()(
       case xs                          => Filters.in(   "serviceName", xs.map(_.asString): _*)
 
   // Like find but service name defaults to an exact match - otherwise we'd have to add quotes
-  def exists(
+  override def exists(
     serviceName: ServiceName
   , version    : Version
   ): Future[Boolean] =
@@ -76,7 +90,7 @@ class ReportRepository @Inject()(
       .headOption()
       .map(_.isDefined)
 
-  def find(
+  override def find(
     flag        : Option[SlugInfoFlag]
   , serviceNames: Option[Seq[ServiceName]]
   , version     : Option[Version]
@@ -90,7 +104,7 @@ class ReportRepository @Inject()(
       .toFuture()
       .map(_.map(report => report.copy(rows = report.rows.filter(row => exclusionRegex.r.matches(row.componentPhysicalPath)))))
 
-  def findDeployed(serviceName: ServiceName): Future[Seq[Report]] =
+  override def findDeployed(serviceName: ServiceName): Future[Seq[Report]] =
     collection
       .find(Filters.and(
         Filters.equal("serviceName", serviceName.asString)
@@ -99,14 +113,14 @@ class ReportRepository @Inject()(
       .toFuture()
       .map(_.map(report => report.copy(rows = report.rows.filter(row => exclusionRegex.r.matches(row.componentPhysicalPath)))))
 
-  def findFlagged(): Future[Seq[Report]] =
+  override def findFlagged(): Future[Seq[Report]] =
     collection
       .find(Filters.or(SlugInfoFlag.values.map(f => Filters.equal(f.asString, true)): _*))
       .sort(Sorts.ascending("serviceName"))
       .toFuture()
       .map(_.map(report => report.copy(rows = report.rows.filter(row => exclusionRegex.r.matches(row.componentPhysicalPath)))))
 
-  def put(report: Report): Future[Unit] =
+  override def put(report: Report): Future[Unit] =
     withSessionAndTransaction: session =>
       for
         latest <- getMaxVersion(report.serviceName, session).map(_.fold(true)(_ <= report.serviceVersion))
@@ -131,7 +145,7 @@ class ReportRepository @Inject()(
                     .map(_ => ())
       yield ()
 
-  def delete(serviceName: ServiceName, version: Version): Future[Unit] =
+  override def delete(serviceName: ServiceName, version: Version): Future[Unit] =
     withSessionAndTransaction: session =>
       for
         _    <- collection
@@ -161,7 +175,7 @@ class ReportRepository @Inject()(
       .map(_.map(b => Version(b.getString("serviceVersion").getValue)))
       .map(vs => if (vs.nonEmpty) Some(vs.max) else None)
 
-  def setFlag(flag: SlugInfoFlag, serviceName: ServiceName, version: Version): Future[Unit] =
+  override def setFlag(flag: SlugInfoFlag, serviceName: ServiceName, version: Version): Future[Unit] =
     withSessionAndTransaction: session =>
       setFlag(flag, serviceName, version, session)
 
@@ -181,7 +195,7 @@ class ReportRepository @Inject()(
               .toFuture()
     yield ()
 
-  def clearFlag(flag: SlugInfoFlag, serviceName: ServiceName): Future[Unit] =
+  override def clearFlag(flag: SlugInfoFlag, serviceName: ServiceName): Future[Unit] =
     withSessionAndTransaction: session =>
       clearFlag(flag, serviceName, session)
 
@@ -198,7 +212,7 @@ class ReportRepository @Inject()(
       .toFuture()
       .map(_ => ())
 
-  def findGeneratedBefore(before: Instant): Future[Seq[Report]] =
+  override def findGeneratedBefore(before: Instant): Future[Seq[Report]] =
     collection
       .find(Filters.and(
         Filters.or((deployedSlugsInfoFlags :+ SlugInfoFlag.Latest).map(f => Filters.equal(f.asString, true)): _*)
@@ -206,12 +220,12 @@ class ReportRepository @Inject()(
       ))
       .toFuture()
 
-  def findNotScanned(): Future[Seq[Report]] =
+  override def findNotScanned(): Future[Seq[Report]] =
     collection
       .find(Filters.equal("scanned", false))
       .toFuture()
 
-  def getTimelineData(weekBeginning: Instant): Future[Seq[TimelineEvent]] =
+  override def getTimelineData(weekBeginning: Instant): Future[Seq[TimelineEvent]] =
     //Ensure that any changes made to this query are reflected in the comment above.
     CollectionFactory
       .collection(mongoComponent.database, "rawReports", TimelineEvent.mongoFormat)
