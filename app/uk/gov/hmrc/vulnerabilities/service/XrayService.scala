@@ -22,7 +22,7 @@ import cats.data.EitherT
 import play.api.{Configuration, Logging}
 import uk.gov.hmrc.crypto.Sensitive.SensitiveString
 import uk.gov.hmrc.http.HeaderCarrier
-import uk.gov.hmrc.vulnerabilities.connector.{ArtefactProcessorConnector, BuildDeployApiConnector, ServiceConfigsConnector, XrayConnector}
+import uk.gov.hmrc.vulnerabilities.connector.{ArtefactProcessorConnector, ServiceConfigsConnector, XrayConnector}
 import uk.gov.hmrc.vulnerabilities.model.*
 import uk.gov.hmrc.vulnerabilities.persistence.{ArtifactoryTokenRepository, ReportRepository, VulnerabilityAgeRepository}
 import uk.gov.hmrc.vulnerabilities.util.DependencyGraphParser
@@ -36,7 +36,6 @@ import scala.util.control.NonFatal
 @Singleton
 class XrayService @Inject()(
   configuration               : Configuration,
-  buildAndDeployConnector     : BuildDeployApiConnector,
   artefactProcessorConnector  : ArtefactProcessorConnector,
   xrayConnector               : XrayConnector,
   serviceConfigsConnector     : ServiceConfigsConnector,
@@ -122,14 +121,16 @@ class XrayService @Inject()(
     for
       _       <- deleteStaleReports()
       reports <- reportRepository.findGeneratedBefore(reportsBefore)
+      _               = logger.info(s"Scheduler Data Reloader - identified ${reports.size} to re-scan")
       _       <- processReports(reports.map(SlugInfo.fromReport))
     yield ()
 
   def fixNotScanned()(using HeaderCarrier): Future[Unit] =
     for
-      _       <- deleteStaleReports()
-      reports <- reportRepository.findNotScanned()
-      _       <- processReports(reports.map(SlugInfo.fromReport))
+      _               <- deleteStaleReports()
+      reports         <- reportRepository.findFlagged() // re-scan only latest and/or deployed
+      _               = logger.info(s"Scheduler FixNotScanned - identified ${reports.size} to re-scan")
+      _               <- processReports(reports.map(SlugInfo.fromReport))
     yield ()
 
   enum XrayStatus:
@@ -138,44 +139,34 @@ class XrayService @Inject()(
 
 
   private val enabled = configuration.get[Boolean]("xray.enabled")
-  private val warnOnly = configuration.get[Seq[String]]("xray.warnOnly")
+  private val ignoreList = configuration.get[Seq[String]]("xray.ignoreList")
 
   private val maxRetries = 3
   private def processReports(slugs: Seq[SlugInfo])(using HeaderCarrier): Future[Unit] =
     if enabled then
       slugs
         .foldLeftM(()): (_, slug) =>
-          def go(count: Int): Future[Unit] =
-            scan(slug).value.flatMap:
-              case Left(XrayStatus.ArtefactNotFound)
-                if count < maxRetries  =>
-                                          for
-                                            _ <- buildAndDeployConnector
-                                                  .triggerXrayScanNow(slug.path)
-                                                  .recover:
-                                                    case ex => 
-                                                      val msg = ex.getMessage
-                                                      if (warnOnly.exists(s => msg.contains(s"webstore-local/slugs/$s/$s")))
-                                                        logger.warn(s"Error calling B&D API $msg", ex)
-                                                      else
-                                                        logger.error(s"Error calling B&D API $msg", ex)
-                                            _ <- org.apache.pekko.pattern.after(1000.millis, system.scheduler) { go(count + 1) }
-                                          yield ()
-              case Left(XrayStatus.Retry)
-                if count < maxRetries  => go(count + 1)
-              case Left(_)             => logger.warn(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
-                                          for
-                                            r <- toReport(slug, generatedDate = Instant.now(), rows = Nil, scanned = false)
-                                            _ <- reportRepository.put(report = r)
-                                          yield ()
-              case Right((date, rows)) => for
-                                            r <- toReport(slug, generatedDate = date, rows = rows, scanned = true)
-                                            _ <- vulnerabilityAgeRepository.insertNonExisting(report = r)
-                                            _ <- reportRepository.put(report = r)
-                                          yield ()
+          if ignoreList.contains(slug.serviceName.asString) then
+            logger.info(s"Skipping ignored service: ${slug.serviceName.asString}")
+            Future.unit 
+          else
+            def go(count: Int): Future[Unit] =
+              scan(slug).value.flatMap:
+                case Left(XrayStatus.Retry)
+                  if count < maxRetries  => go(count + 1)
+                case Left(_)             => logger.warn(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
+                                            for
+                                              r <- toReport(slug, generatedDate = Instant.now(), rows = Nil, scanned = false)
+                                              _ <- reportRepository.put(report = r)
+                                            yield ()
+                case Right((date, rows)) => for
+                                              r <- toReport(slug, generatedDate = date, rows = rows, scanned = true)
+                                              _ <- vulnerabilityAgeRepository.insertNonExisting(report = r)
+                                              _ <- reportRepository.put(report = r)
+                                            yield ()
 
-          go(1)
-        .map(x => logger.info(s"Finished processing ${slugs.size} reports."))
+            go(1)
+          .map(x => logger.info(s"Finished processing ${slugs.size} reports."))
     else
       slugs
         .foldLeftM(()): (_, slug) =>
@@ -256,10 +247,7 @@ class XrayService @Inject()(
         case rs if counter >= waitTimeSeconds =>
           logger.error(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report was not ready in time: last status ${rs.status} for reportID: ${reportResponse.reportID}")
           Future.successful(Left(XrayStatus.Retry))
-        case rs if rs.status == "completed" && rs.totalArtefacts == 0 =>
-          logger.warn(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - no artefact scanned for reportID: ${reportResponse.reportID}")
-          Future.successful(Left(XrayStatus.ArtefactNotFound))
-        case rs if rs.status == "completed" =>
+        case rs if rs.status == "completed" && rs.totalArtefacts > 0 =>
           logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status ${rs.status} number of rows ${rs.numberOfRows} total artefacts scanned ${rs.totalArtefacts} for reportID: ${reportResponse.reportID}")
           Future.successful(Right(rs))
         case rs =>
