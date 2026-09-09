@@ -159,7 +159,7 @@ class XrayService @Inject()(
                                                         logger.warn(s"Error calling B&D API $msg", ex)
                                                       else
                                                         logger.error(s"Error calling B&D API $msg", ex)
-                                            _ <- org.apache.pekko.pattern.after(1000.millis, system.scheduler) { go(count + 1) }
+                                            _ <- org.apache.pekko.pattern.after(20000.millis, system.scheduler) { go(count + 1) }
                                           yield ()
               case Left(XrayStatus.Retry)
                 if count < maxRetries  => go(count + 1)
