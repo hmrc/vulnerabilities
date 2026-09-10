@@ -121,16 +121,16 @@ class XrayService @Inject()(
     for
       _       <- deleteStaleReports()
       reports <- reportRepository.findGeneratedBefore(reportsBefore)
-      _               = logger.info(s"Scheduler Data Reloader - identified ${reports.size} to re-scan")
+      _       =  logger.info(s"Scheduler Data Reloader - identified ${reports.size} to re-scan")
       _       <- processReports(reports.map(SlugInfo.fromReport))
     yield ()
 
   def fixNotScanned()(using HeaderCarrier): Future[Unit] =
     for
-      _               <- deleteStaleReports()
-      reports         <- reportRepository.findFlagged().map(_.filterNot(_.scanned)) // re-scan only latest and/or deployed
-      _               = logger.info(s"Scheduler FixNotScanned - identified ${reports.size} to re-scan")
-      _               <- processReports(reports.map(SlugInfo.fromReport))
+      _       <- deleteStaleReports()
+      reports <- reportRepository.findFlagged().map(_.filterNot(_.scanned)) // re-scan only latest and/or deployed
+      _       =  logger.info(s"Scheduler FixNotScanned - identified ${reports.size} to re-scan")
+      _       <- processReports(reports.map(SlugInfo.fromReport))
     yield ()
 
   enum XrayStatus:
@@ -142,6 +142,7 @@ class XrayService @Inject()(
   private val ignoreList = configuration.get[Seq[String]]("xray.ignoreList")
 
   private val maxRetries = 3
+  private val artefactNotFoundDelayMilliseconds = 10000
   private def processReports(slugs: Seq[SlugInfo])(using HeaderCarrier): Future[Unit] =
     if enabled then
       slugs
@@ -152,6 +153,9 @@ class XrayService @Inject()(
           else
             def go(count: Int): Future[Unit] =
               scan(slug).value.flatMap:
+                case Left(XrayStatus.ArtefactNotFound)
+                  if count < maxRetries  => 
+                    org.apache.pekko.pattern.after(artefactNotFoundDelayMilliseconds.millis, system.scheduler) { go(count + 1) }
                 case Left(XrayStatus.Retry)
                   if count < maxRetries  => go(count + 1)
                 case Left(_)             => logger.warn(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
@@ -245,14 +249,17 @@ class XrayService @Inject()(
     withToken(xrayConnector.checkStatus(reportResponse.reportID))
       .flatMap:
         case rs if counter >= waitTimeSeconds =>
-          logger.error(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report was not ready in time: last status ${rs.status} for reportID: ${reportResponse.reportID}")
+          logger.warn(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report was not ready in time (${waitTimeSeconds}s). Last status was ${rs.status.capitalize} for reportID: ${reportResponse.reportID}")
           Future.successful(Left(XrayStatus.Retry))
-        case rs if rs.status == "completed" && rs.totalArtefacts > 0 =>
-          logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status ${rs.status} number of rows ${rs.numberOfRows} total artefacts scanned ${rs.totalArtefacts} for reportID: ${reportResponse.reportID}")
+        case rs if rs.status == "completed" && rs.totalArtefacts == 0 =>
+          logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status is showing Completed with zero artefacts scanned, running a new scan in 10s")
+          Future.successful(Left(XrayStatus.ArtefactNotFound))
+        case rs if rs.status == "completed" =>
+          logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status ${rs.status.capitalize} number of rows ${rs.numberOfRows} total artefacts scanned ${rs.totalArtefacts} for reportID: ${reportResponse.reportID}")
           Future.successful(Right(rs))
         case rs =>
+          logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status is ${rs.status.capitalize} - rerunning for reportID: ${reportResponse.reportID}")
           org.apache.pekko.pattern.after(1000.millis, system.scheduler):
-            logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status is ${rs.status} - rerunning for reportID: ${reportResponse.reportID}")
             checkIfReportReady(slug, reportResponse, counter + 1)
 
   private [service] def deleteStaleReports()(using HeaderCarrier): Future[Unit] =
