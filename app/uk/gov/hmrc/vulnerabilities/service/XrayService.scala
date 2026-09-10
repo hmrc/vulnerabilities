@@ -128,7 +128,7 @@ class XrayService @Inject()(
   def fixNotScanned()(using HeaderCarrier): Future[Unit] =
     for
       _               <- deleteStaleReports()
-      reports         <- reportRepository.findFlagged() // re-scan only latest and/or deployed
+      reports         <- reportRepository.findFlagged().map(_.filterNot(_.scanned)) // re-scan only latest and/or deployed
       _               = logger.info(s"Scheduler FixNotScanned - identified ${reports.size} to re-scan")
       _               <- processReports(reports.map(SlugInfo.fromReport))
     yield ()
