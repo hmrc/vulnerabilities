@@ -142,7 +142,6 @@ class XrayService @Inject()(
   private val ignoreList = configuration.get[Seq[String]]("xray.ignoreList")
 
   private val maxRetries = 3
-  private val artefactNotFoundDelayMilliseconds = 10000
   private def processReports(slugs: Seq[SlugInfo])(using HeaderCarrier): Future[Unit] =
     if enabled then
       slugs
@@ -153,9 +152,6 @@ class XrayService @Inject()(
           else
             def go(count: Int): Future[Unit] =
               scan(slug).value.flatMap:
-                case Left(XrayStatus.ArtefactNotFound)
-                  if count < maxRetries  => 
-                    org.apache.pekko.pattern.after(artefactNotFoundDelayMilliseconds.millis, system.scheduler) { go(count + 1) }
                 case Left(XrayStatus.Retry)
                   if count < maxRetries  => go(count + 1)
                 case Left(_)             => logger.warn(s"Tried to scan ${slug.serviceName.asString}:${slug.version.original} $count times.")
@@ -249,16 +245,15 @@ class XrayService @Inject()(
     withToken(xrayConnector.checkStatus(reportResponse.reportID))
       .flatMap:
         case rs if counter >= waitTimeSeconds =>
-          logger.warn(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report was not ready in time (${waitTimeSeconds}s). Last status was ${rs.status.capitalize} for reportID: ${reportResponse.reportID}")
+          if (rs.status == "completed" && rs.totalArtefacts == 0) then
+            logger.warn(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report was not ready in time (${waitTimeSeconds}s). Last status for reportID: ${reportResponse.reportID} was Completed with zero artefacts scanned")
+          else
+            logger.warn(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report was not ready in time (${waitTimeSeconds}s). Last status was ${rs.status.capitalize} for reportID: ${reportResponse.reportID}")
           Future.successful(Left(XrayStatus.Retry))
-        case rs if rs.status == "completed" && rs.totalArtefacts == 0 =>
-          logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status is showing Completed with zero artefacts scanned, running a new scan in 10s")
-          Future.successful(Left(XrayStatus.ArtefactNotFound))
-        case rs if rs.status == "completed" =>
+        case rs if rs.status == "completed" && rs.totalArtefacts > 0 =>
           logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status ${rs.status.capitalize} number of rows ${rs.numberOfRows} total artefacts scanned ${rs.totalArtefacts} for reportID: ${reportResponse.reportID}")
           Future.successful(Right(rs))
         case rs =>
-          logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status is ${rs.status.capitalize} - rerunning for reportID: ${reportResponse.reportID}")
           org.apache.pekko.pattern.after(1000.millis, system.scheduler):
             checkIfReportReady(slug, reportResponse, counter + 1)
 
