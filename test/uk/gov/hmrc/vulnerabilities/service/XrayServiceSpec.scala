@@ -103,7 +103,6 @@ class XrayServiceSpec
 
         val service = new XrayService(
           configuration              = config,
-          buildAndDeployConnector    = buildAndDeployConnector,
           artefactProcessorConnector = artefactProcessorConnector,
           xrayConnector              = fakeXrayConnector,
           serviceConfigsConnector    = serviceConfigsConnector,
@@ -156,7 +155,7 @@ class XrayServiceSpec
       "xray.reports.waitTime"       -> "1 second",
       "xray.fallback.accessToken"   -> "fallback-access",
       "xray.fallback.refreshToken"  -> "fallback-refresh",
-      "xray.warnOnly"               -> Seq.empty,
+      "xray.ignoreList"             -> Seq.empty,
       "xray.url"                    -> "http://xray-unused",
       "xray.username"               -> "xray-user",
       "xray.reports.retention"      -> "1 day"
