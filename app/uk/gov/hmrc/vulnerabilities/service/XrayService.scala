@@ -170,7 +170,7 @@ class XrayService @Inject()(
                                             yield ()
 
             go(1)
-          .map(x => logger.info(s"Finished processing ${slugs.size} reports."))
+      .map(x => logger.info(s"Finished processing ${slugs.size} reports."))
     else
       slugs
         .foldLeftM(()): (_, slug) =>
