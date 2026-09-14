@@ -142,7 +142,7 @@ class XrayService @Inject()(
   private val ignoreList = configuration.get[Seq[String]]("xray.ignoreList")
 
   private val maxRetries = 3
-  private val artefactNotFoundDelayMilliseconds = 10000
+  private val artefactNotFoundDelayMilliseconds = 60000
   private def processReports(slugs: Seq[SlugInfo])(using HeaderCarrier): Future[Unit] =
     if enabled then
       slugs
@@ -170,7 +170,7 @@ class XrayService @Inject()(
                                             yield ()
 
             go(1)
-          .map(x => logger.info(s"Finished processing ${slugs.size} reports."))
+      .map(x => logger.info(s"Finished processing ${slugs.size} reports."))
     else
       slugs
         .foldLeftM(()): (_, slug) =>
@@ -252,7 +252,7 @@ class XrayService @Inject()(
           logger.warn(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report was not ready in time (${waitTimeSeconds}s). Last status was ${rs.status.capitalize} for reportID: ${reportResponse.reportID}")
           Future.successful(Left(XrayStatus.Retry))
         case rs if rs.status == "completed" && rs.totalArtefacts == 0 =>
-          logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status is showing Completed with zero artefacts scanned, running a new scan in 10s")
+          logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status is showing Completed with zero artefacts scanned, running a new scan in 60s")
           Future.successful(Left(XrayStatus.ArtefactNotFound))
         case rs if rs.status == "completed" =>
           logger.info(s"${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")} - report status ${rs.status.capitalize} number of rows ${rs.numberOfRows} total artefacts scanned ${rs.totalArtefacts} for reportID: ${reportResponse.reportID}")
