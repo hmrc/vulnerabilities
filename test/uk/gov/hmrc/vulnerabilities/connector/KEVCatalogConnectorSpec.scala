@@ -20,10 +20,11 @@ import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, getRequestedFor, stubFor, urlEqualTo}
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
+import org.scalatest.prop.TableDrivenPropertyChecks._
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.Configuration
-import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 
 import java.time.{Instant, LocalDate}
@@ -124,4 +125,46 @@ class KEVCatalogConnectorSpec
         1,
         getRequestedFor(urlEqualTo("/kev.json"))
       )
+
+    val httpErrorStatusCases = Table(
+      ("status", "description"),
+      (400, "bad request"),
+      (401, "unauthorized"),
+      (403, "forbidden"),
+      (404, "not found"),
+      (429, "rate limited"),
+      (500, "server error"),
+      (503, "service unavailable")
+    )
+    forAll(httpErrorStatusCases): (status, description) =>
+      s"return HTTP $status $description error" in:
+        stubFor:
+          WireMock.get(urlEqualTo("/kev.json"))
+            .willReturn:
+              aResponse().withStatus(status)
+
+        val result = connector.downloadLatestReport().failed.futureValue
+        result shouldBe a [UpstreamErrorResponse]
+
+    "fail when the response contains malformed JSON" in:
+      stubFor:
+        WireMock.get(urlEqualTo("/kev.json"))
+          .willReturn:
+            aResponse()
+              .withStatus(200)
+              .withHeader("Content-Type", "application/json")
+              .withBody("{not valid json")
+
+      connector.downloadLatestReport().failed.futureValue should not be null
+
+    "fail when the response is missing required catalog fields" in:
+      stubFor:
+        WireMock.get(urlEqualTo("/kev.json"))
+          .willReturn:
+            aResponse()
+              .withStatus(200)
+              .withHeader("Content-Type", "application/json")
+              .withBody("""{"title":"incomplete catalog"}""")
+
+      connector.downloadLatestReport().failed.futureValue should not be null
 

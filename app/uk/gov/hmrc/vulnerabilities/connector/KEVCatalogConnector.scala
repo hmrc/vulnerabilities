@@ -16,9 +16,9 @@
 
 package uk.gov.hmrc.vulnerabilities.connector
 
-import play.api.Configuration
+import play.api.{Configuration, Logging}
 import play.api.libs.json.{Json, Reads}
-import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.HttpClientV2
 
 import javax.inject.{Inject, Singleton}
@@ -29,7 +29,8 @@ import scala.concurrent.{ExecutionContext, Future}
 class KEVCatalogConnector(
   @Inject() configuration: Configuration,
   httpClientV2: HttpClientV2
-)(using ExecutionContext):
+)(using ExecutionContext)
+  extends Logging:
 
   import HttpReads.Implicits.*
 
@@ -41,6 +42,14 @@ class KEVCatalogConnector(
       .get(url"$kevJsonDownloadUrl")
       .withProxy
       .execute[KEVReport]
+      .recoverWith {
+        case error: UpstreamErrorResponse =>
+          logger.error(s"Upstream error downloading KEV catalog: ${error.message}")
+          Future.failed(error)
+        case error: Throwable =>
+          logger.error(s"Error downloading or deserializing KEV catalog: ${error.getMessage}", error)
+          Future.failed(error)
+      }
 
 case class KEVReport(
   title: String,
