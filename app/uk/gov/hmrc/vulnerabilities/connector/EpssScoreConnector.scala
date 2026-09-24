@@ -28,8 +28,8 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class EpssScoreConnector(
-  @Inject() configuration: Configuration,
+class EpssScoreConnector @Inject() (
+  configuration: Configuration,
   httpClientV2: HttpClientV2
 )(using ExecutionContext, Materializer)
   extends Logging:

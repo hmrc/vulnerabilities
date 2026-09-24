@@ -26,8 +26,8 @@ import java.time.{Instant, LocalDate}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class KEVCatalogConnector(
-  @Inject() configuration: Configuration,
+class KEVCatalogConnector @Inject() (
+  configuration: Configuration,
   httpClientV2: HttpClientV2
 )(using ExecutionContext)
   extends Logging:
