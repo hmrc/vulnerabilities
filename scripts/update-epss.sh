@@ -1,5 +1,7 @@
 #!/usr/bin/env zsh
 
+# Convenience script for working with latest EPSS data locally - downloads and extracts to CSV
+
 set -euo pipefail
 
 usage() {

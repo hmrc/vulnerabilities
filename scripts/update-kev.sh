@@ -1,5 +1,8 @@
 #!/usr/bin/env zsh
 
+# Convenience script for working with latest KEV data locally - downloads a JSON file
+# KEV Github repo: https://github.com/cisagov/kev-data
+
 set -euo pipefail
 
 SCRIPT_DIR=$(
