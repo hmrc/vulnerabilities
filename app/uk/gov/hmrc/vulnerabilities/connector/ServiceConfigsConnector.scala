@@ -16,13 +16,14 @@
 
 package uk.gov.hmrc.vulnerabilities.connector
 
-import play.api.libs.functional.syntax._
-import play.api.libs.json.{Reads, __}
+import play.api.libs.functional.syntax.*
+import play.api.libs.json.{Json, Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, RepoName}
 
+import java.net.URL
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -43,6 +44,13 @@ class ServiceConfigsConnector @Inject()(
       .get(url"$url/service-configs/service-repo-names")
       .execute[Seq[ArtefactToRepo]]
 
+  def deploymentConfigForService(serviceName: String)(using HeaderCarrier) =
+    given Reads[DeploymentConfig] = DeploymentConfig.reads
+    
+    httpClientV2
+      .get(url"$url/service-configs/deployment-configs?applied=true&serviceName=$serviceName")
+      .execute[Seq[DeploymentConfig]]
+
 case class ArtefactToRepo(
   artefactName: ArtefactName,
   repoName    : RepoName
@@ -53,3 +61,14 @@ object ArtefactToRepo:
     ( (__ \ "artefactName").read[ArtefactName]
     ~ (__ \ "repoName"    ).read[RepoName]
     )(apply)
+
+
+case class DeploymentConfig(
+  name: String,
+  environment: String,
+  zone: String,
+  `type`: String
+)
+
+object DeploymentConfig:
+  val reads: Reads[DeploymentConfig] = Json.reads[DeploymentConfig]

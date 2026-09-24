@@ -20,7 +20,7 @@ import play.api.inject.Binding
 import play.api.{Configuration, Environment, Logger}
 import uk.gov.hmrc.vulnerabilities.notification.{DeploymentHandler, SlugInfoHandler}
 import uk.gov.hmrc.vulnerabilities.persistence.{ReportRepository, MongoReportRepository}
-import uk.gov.hmrc.vulnerabilities.scheduler.{RefreshArtifactoryTokenScheduler, ReloadScheduler, TimelineScheduler, FixNotScannedScheduler}
+import uk.gov.hmrc.vulnerabilities.scheduler.{EpssKevUpdateScheduler, RefreshArtifactoryTokenScheduler, ReloadScheduler, TimelineScheduler, FixNotScannedScheduler}
 
 import java.time.Clock
 
@@ -47,6 +47,7 @@ class Module extends play.api.inject.Module:
     , bind[TimelineScheduler               ].toSelf.eagerly()
     , bind[FixNotScannedScheduler          ].toSelf.eagerly()
     , bind[RefreshArtifactoryTokenScheduler].toSelf.eagerly()
+    , bind[EpssKevUpdateScheduler          ].toSelf.eagerly()
     , bind[Clock                           ].toInstance(Clock.systemUTC())
     , bind[Crypto                          ].toSelf.eagerly()
     ) ++
