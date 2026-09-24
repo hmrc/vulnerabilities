@@ -44,7 +44,7 @@ class ServiceConfigsConnector @Inject()(
       .get(url"$url/service-configs/service-repo-names")
       .execute[Seq[ArtefactToRepo]]
 
-  def deploymentConfigForService(serviceName: String)(using HeaderCarrier) =
+  def deploymentConfigForService(serviceName: String)(using HeaderCarrier): Future[Seq[DeploymentConfig]] =
     given Reads[DeploymentConfig] = DeploymentConfig.reads
     
     httpClientV2
