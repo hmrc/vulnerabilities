@@ -24,3 +24,5 @@ lazy val it =
     .enablePlugins(PlayScala)
     .dependsOn(microservice % "test->test")
     .settings(DefaultBuildSettings.itSettings())
+
+addCommandAlias("runLocalTestOnly", "; set javaOptions += \"-Dapplication.router=testOnlyDoNotUseInAppConf.Routes\" ; run")
