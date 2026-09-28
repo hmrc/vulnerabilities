@@ -32,7 +32,7 @@ class FakeDB {
       summary = summary,
       kev = kev,
       epssProbability = epss,
-      epssPercentile = epss,
+      epssPercentile = epssPercentile,
       references = List.empty,
       cvssScore = None,
       vulnComponent = "some-component",

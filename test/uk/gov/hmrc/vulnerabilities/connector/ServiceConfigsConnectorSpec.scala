@@ -27,7 +27,7 @@ import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, RepoName}
+import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, DeploymentEnvironment, RepoName}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -78,7 +78,14 @@ class ServiceConfigsConnectorSpec
 
       val result: Seq[DeploymentConfig] = connector.deploymentConfigForService("example-frontend").futureValue
 
-      result.map(_.environment).toSet should contain only ("development", "qa", "staging", "externaltest", "production")
+      result.map(_.environment).toSet should contain allOf(
+        DeploymentEnvironment.Development,
+        DeploymentEnvironment.Integration,
+        DeploymentEnvironment.QA,
+        DeploymentEnvironment.Staging,
+        DeploymentEnvironment.ExternalTest,
+        DeploymentEnvironment.Production
+      )
 
       forAll(result.filter(_.name.endsWith("frontend")))( item =>
                                                             item.name shouldBe "example-frontend"

@@ -37,6 +37,19 @@ trait TestModel:
       |  },
       |  {
       |    "name": "example-frontend",
+      |    "environment": "integration",
+      |    "zone": "public",
+      |    "type": "frontend",
+      |    "slots": 3,
+      |    "instances": 1,
+      |    "envVars": {},
+      |    "jvm": {
+      |      "X:MaxRAMPercentage=": "40",
+      |      "X:+UseParallelGC": ""
+      |    }
+      |  },
+      |  {
+      |    "name": "example-frontend",
       |    "environment": "externaltest",
       |    "zone": "public",
       |    "type": "frontend",
@@ -152,5 +165,19 @@ trait TestModel:
       |      "X:+UseParallelGC": ""
       |    }
       |  }
+      |,
+      | {
+      |   "name": "example-backend",
+      |   "environment": "integration",
+      |   "zone": "public",
+      |   "type": "backend",
+      |   "slots": 4,
+      |   "instances": 1,
+      |   "envVars": {},
+      |   "jvm": {
+      |     "X:MaxRAMPercentage=": "40.0",
+      |     "X:+UseParallelGC": ""
+      |   }
+      | }
       |]
       |""".stripMargin

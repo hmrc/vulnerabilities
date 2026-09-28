@@ -21,7 +21,7 @@ import play.api.libs.json.{Json, Reads, __}
 import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, StringContextOps}
 import uk.gov.hmrc.http.client.HttpClientV2
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, RepoName}
+import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, DeploymentEnvironment, RepoName}
 
 import java.net.URL
 import javax.inject.{Inject, Singleton}
@@ -65,7 +65,7 @@ object ArtefactToRepo:
 
 case class DeploymentConfig(
   name: String,
-  environment: String,
+  environment: DeploymentEnvironment,
   zone: String,
   `type`: String
 )

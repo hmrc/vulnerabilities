@@ -24,7 +24,7 @@ import org.apache.pekko.stream.SystemMaterializer
 import org.scalatest.OptionValues
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.prop.TableDrivenPropertyChecks._
+import org.scalatest.prop.TableDrivenPropertyChecks.*
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 import play.api.Configuration
@@ -68,10 +68,7 @@ class EpssScoreConnectorSpec
 
       response.gzip shouldBe true
       compressedByteCount should be > 0L
-      wireMockServer.verify(
-        1,
-        getRequestedFor(urlPathMatching("/epss_scores-.*\\.csv\\.gz"))
-      )
+      wireMockServer.verify(1, getRequestedFor(urlPathMatching("/epss_scores-.*\\.csv\\.gz")))
 
     "return a response with gzip flag set to true" in:
       stubEpssReportSuccess()
@@ -114,7 +111,12 @@ class EpssScoreConnectorSpec
     "return a list containing all the CVEs and EPSS scores - Happy Path" in:
       stubEpssReportSuccess()
 
-      val epssList: Seq[EpssScore] = connector.getLatestReportEpssScores().futureValue.scores
+      val report = connector.getLatestReportEpssScores().futureValue
+
+      report.errorCount shouldBe 0
+      report.errors shouldBe empty
+
+      val epssList: Seq[EpssScore] = report.scores
       epssList.size shouldBe 228
       epssList should contain allOf(
         EpssScore("CVE-1999-1324", 0.03094, 0.87153),
@@ -122,6 +124,7 @@ class EpssScoreConnectorSpec
         EpssScore("CVE-2024-51319", 0.00455, 0.38826),
         EpssScore("CVE-2026-89838", 0.00157, 0.05282)
       )
+
       wireMockServer.verify(1, getRequestedFor(urlPathMatching("/epss_scores-.*\\.csv\\.gz")))
 
     "validate individual EpssScore fields have correct types and ranges" in:
@@ -181,8 +184,9 @@ class EpssScoreConnectorSpec
               .withStatus(200)
               .withBody(invalidGzipData)
 
-      val result = connector.getLatestReportEpssScores().failed.futureValue
-      result should not be null  // Should throw exception during decompression
+      val ex = connector.getLatestReportEpssScores().failed.futureValue
+      ex shouldBe a [java.util.zip.ZipException]
+      ex.getMessage should include ("Truncated GZIP")
 
     "handle empty gzipped CSV file" in:
       val emptyGzipCsv = gzip("".getBytes)
@@ -222,8 +226,10 @@ class EpssScoreConnectorSpec
 
       val report = connector.getLatestReportEpssScores().futureValue
       report.scores shouldBe empty
-      report.errorCount shouldBe 1
-      report.errors should have size 1
+      report.errorCount shouldBe 2
+      report.errors should have size 2
+
+      report.errors.map(_.message).toSet should contain ("Malformed EPSS CSV Row: Expected 3 fields, found 2")
 
     "handle CSV with invalid score values (non-numeric)" in:
       val invalidScoreCsv = gzip("cve,epss,percentile\nCVE-2024-1234,invalid,0.5\n".getBytes)

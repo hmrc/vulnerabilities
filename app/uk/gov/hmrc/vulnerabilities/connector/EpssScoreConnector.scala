@@ -73,7 +73,7 @@ class EpssScoreConnector @Inject() (
                               .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 4096, allowTruncation = true))
                               .map(_.utf8String.trim)
                               .filterNot(_.isEmpty)
-                              .drop(1) // drop header row
+                              .dropWhile(_.trim.startsWith("#")) // drop comment rows until we reach header/data row
                               .map(_.split(",", 3).toList)
                               .map(EpssScore.fromCsvRow)
                               .runFold(EpssReport(Vector.empty, 0, Vector.empty)) {
@@ -126,15 +126,21 @@ case class SkippedEpssRow(message: String, cause: Exception)
 
 object EpssScore:
 
+  def isHeaderRow(fields: List[String]): Boolean =
+    fields.map(_.trim.toLowerCase) == List("cve", "epss", "percentile")
+
   def fromCsvRow(fields: List[String]): Either[SkippedEpssRow, Option[EpssScore]] =
     fields match {
+      case _            if isHeaderRow(fields)          => Right(None)
       case initial :: _ if initial.trim.startsWith("#") => Right(None)
-      case cveId :: epssStr :: percentileStr :: Nil =>
+      case cveId :: epssStr :: percentileStr :: Nil     =>
         try {
           Right(Some(EpssScore(cveId, epssStr.toDouble, percentileStr.toDouble)))
         } catch {
           case err: NumberFormatException =>
             Left(SkippedEpssRow("Unexpected number format in row import", err))
+          case err: Exception =>
+            Left(SkippedEpssRow("Unexpected error in row import", err))
         }
       case fields =>
         Left(SkippedEpssRow(
