@@ -61,7 +61,7 @@ class EpssKevUpdateScheduler @Inject()(
       schedulerInterval = schedulerConfigs.interval
       )
 
-  schedule("EPSS score refresh", schedulerConfig):
+  scheduleWithLock("EPSS score refresh", schedulerConfig, lock): 
     exploitInfoService.refreshExploitInfo()
 
 object EpssKevUpdateScheduler:

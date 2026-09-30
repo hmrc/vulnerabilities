@@ -48,7 +48,7 @@ class EpssScoreConnector @Inject() (
       .get(url"$recentEpssUrl")
       .withProxy
       .stream[Either[UpstreamErrorResponse, Source[ByteString, _]]]
-      .flatMap {
+      .flatMap:
         case Left(error: UpstreamErrorResponse) => 
           logger.error(s"Upstream error downloading EPSS CSV: ${error.message}")
           Future.failed(error)
@@ -58,61 +58,49 @@ class EpssScoreConnector @Inject() (
         case Right(source) =>
           // the response doesn't include headers to indicate gzip so we need to assume it is
           Future.successful(GzippedDownloadResponse(source, gzip = true))
-      }
 
   def getLatestReportEpssScores()(using hc: HeaderCarrier): Future[EpssReport] =
     downloadLatestReport().filter(_.gzip)
                           .map(_.source)
-                          .flatMap {
+                          .flatMap:
                             _
                               .via(Compression.gunzip())
-                              .map { bytes =>
+                              .map: bytes =>
                                 // Replace all Windows '\r' bytes with empty elements on the fly
                                 bytes.filterNot(_ == '\r'.toByte)
-                              }
                               .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 4096, allowTruncation = true))
                               .map(_.utf8String.trim)
                               .filterNot(_.isEmpty)
                               .dropWhile(_.trim.startsWith("#")) // drop comment rows until we reach header/data row
                               .map(_.split(",", 3).toList)
                               .map(EpssScore.fromCsvRow)
-                              .runFold(EpssReport(Vector.empty, 0, Vector.empty)) {
-                                case (report, Right(Some(epssScore))) =>
-                                  report.copy(scores = report.scores :+ epssScore)
-                                case (report, Right(None)) =>
-                                  report
-                                case (report, Left(error)) =>
-                                  report.copy(
-                                    errorCount = report.errorCount + 1,
-                                    errors = report.errors :+ error
-                                  )
-                              }
-                          }
-                          .map { report =>
-                            report.errors.groupBy(_.message).foreach { case (message, errors) =>
-                              logger.warn(s"$message: ${errors.size} occurrences")
-                            }
+                              .runFold(EpssReport(Vector.empty, 0, Vector.empty)):
+                                case (report, Some(Right(epssScore)))  => report.copy(scores = report.scores :+ epssScore)
+                                case (report, Some(Left(error)))       => report.copy(
+                                                                            errorCount  = report.errorCount + 1,
+                                                                            errors      = report.errors :+ error
+                                                                          )
+                                case (report, None)                    => report
+
+                          .map: report =>
+                            report.errors.groupBy(_.message).foreach:
+                              case (message, errors) => logger.warn(s"$message: ${errors.size} occurrences")
                             logger.info(
                               s"Imported EPSS report: ${report.scores.size} successful rows, ${report.errorCount} errors"
                             )
                             report
-                          }
-
 
 case class GzippedDownloadResponse(
   source: Source[ByteString, _],
   gzip: Boolean
-) {
+):
 
-  def readLines(using Materializer): Future[Seq[String]] = {
-
+  def readLines(using Materializer): Future[Seq[String]] =
     source
       .via(Compression.gunzip())
       .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 4096, allowTruncation = true))
       .map(_.utf8String)
       .runFold(Seq.empty[String])(_ :+ _)
-  }
-}
 
 case class EpssReport(
   scores: Vector[EpssScore],
@@ -121,30 +109,29 @@ case class EpssReport(
 )
 
 case class EpssScore(cveId: String, score: Double, percentile: Double)
-
-case class SkippedEpssRow(message: String, cause: Exception)
+case class SkippedEpssRow(message: String, cause: Option[Exception] = None)
 
 object EpssScore:
 
   def isHeaderRow(fields: List[String]): Boolean =
     fields.map(_.trim.toLowerCase) == List("cve", "epss", "percentile")
 
-  def fromCsvRow(fields: List[String]): Either[SkippedEpssRow, Option[EpssScore]] =
-    fields match {
-      case _            if isHeaderRow(fields)          => Right(None)
-      case initial :: _ if initial.trim.startsWith("#") => Right(None)
-      case cveId :: epssStr :: percentileStr :: Nil     =>
+  def fromCsvRow(fields: List[String]): Option[Either[SkippedEpssRow, EpssScore]] =
+    fields.map(_.trim) match {
+      case _ if isHeaderRow(fields)                 => None  // Skip header
+      case initial :: _ if initial.startsWith("#")  => None  // Skip comments
+      case cveId :: epssStr :: percentileStr :: Nil =>
         try {
-          Right(Some(EpssScore(cveId, epssStr.toDouble, percentileStr.toDouble)))
+          Some(Right(EpssScore(cveId, epssStr.toDouble, percentileStr.toDouble)))
         } catch {
           case err: NumberFormatException =>
-            Left(SkippedEpssRow("Unexpected number format in row import", err))
+            Some(Left(SkippedEpssRow("Unexpected number format in row import", Some(err))))
           case err: Exception =>
-            Left(SkippedEpssRow("Unexpected error in row import", err))
+            Some(Left(SkippedEpssRow("Unexpected error in row import", Some(err))))
         }
       case fields =>
-        Left(SkippedEpssRow(
-          s"Malformed EPSS CSV Row: Expected 3 fields, found ${fields.size}",
-          IllegalArgumentException(s"Malformed EPSS CSV Row: $fields")
-        ))
+        Some(
+          Left(
+            SkippedEpssRow(s"Malformed EPSS CSV Row: Expected 3 fields, found ${fields.size}"))
+          )
     }

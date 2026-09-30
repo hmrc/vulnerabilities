@@ -32,7 +32,7 @@ import uk.gov.hmrc.http.{HeaderCarrier, UpstreamErrorResponse}
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 
 import java.io.ByteArrayOutputStream
-import java.util.zip.GZIPOutputStream
+import java.util.zip.{GZIPOutputStream, ZipException}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class EpssScoreConnectorSpec
@@ -58,7 +58,7 @@ class EpssScoreConnectorSpec
     super.afterAll()
 
   "downloadLatestReport" should:
-    "download the gzipped EPSS report - Happy Path" in:
+    "successfully download the gzipped EPSS report" in:
       stubEpssReportSuccess()
 
       val response = connector.downloadLatestReport().futureValue
@@ -108,7 +108,7 @@ class EpssScoreConnectorSpec
         result shouldBe a [UpstreamErrorResponse]
 
   "getLatestReportEpssScores" should:
-    "return a list containing all the CVEs and EPSS scores - Happy Path" in:
+    "successfully return a list containing all the CVEs and EPSS scores" in:
       stubEpssReportSuccess()
 
       val report = connector.getLatestReportEpssScores().futureValue
@@ -184,9 +184,9 @@ class EpssScoreConnectorSpec
               .withStatus(200)
               .withBody(invalidGzipData)
 
-      val ex = connector.getLatestReportEpssScores().failed.futureValue
-      ex shouldBe a [java.util.zip.ZipException]
-      ex.getMessage should include ("Truncated GZIP")
+      val exception = connector.getLatestReportEpssScores().failed.futureValue
+      exception shouldBe a [java.util.zip.ZipException]
+      exception.getMessage should include ("Truncated GZIP")
 
     "handle empty gzipped CSV file" in:
       val emptyGzipCsv = gzip("".getBytes)
