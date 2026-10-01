@@ -18,6 +18,7 @@ package uk.gov.hmrc.vulnerabilities.connector
 
 import com.github.tomakehurst.wiremock.client.WireMock
 import com.github.tomakehurst.wiremock.client.WireMock.{aResponse, stubFor, urlMatching}
+import org.scalatest.Inspectors.forAll
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -26,7 +27,7 @@ import play.api.Configuration
 import uk.gov.hmrc.http.HeaderCarrier
 import uk.gov.hmrc.http.test.{HttpClientV2Support, WireMockSupport}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
-import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, RepoName}
+import uk.gov.hmrc.vulnerabilities.model.{ArtefactName, DeploymentEnvironment, RepoName}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -37,7 +38,8 @@ class ServiceConfigsConnectorSpec
      with IntegrationPatience
      with HttpClientV2Support
      with MockitoSugar
-     with WireMockSupport:
+     with WireMockSupport
+     with TestModel:
 
   private given HeaderCarrier = HeaderCarrier()
 
@@ -65,3 +67,32 @@ class ServiceConfigsConnectorSpec
         ArtefactToRepo(ArtefactName("artefact1"), RepoName("repo1")),
         ArtefactToRepo(ArtefactName("artefact2"), RepoName("repo2"))
       )
+
+
+
+  "deploymentConfigForService" should:
+    "succesfully return and deserialize the deployment config for a service" in:
+      stubFor:
+        WireMock.get(urlMatching("/service-configs/deployment-configs\\?applied=true&serviceName=example-frontend"))
+          .willReturn(aResponse().withBody(deploymentInfoForAllEnvironmentsResponse))
+
+      val result: Seq[DeploymentConfig] = connector.deploymentConfigForService("example-frontend").futureValue
+
+      result.map(_.environment).toSet should contain allOf(
+        DeploymentEnvironment.Development,
+        DeploymentEnvironment.Integration,
+        DeploymentEnvironment.QA,
+        DeploymentEnvironment.Staging,
+        DeploymentEnvironment.ExternalTest,
+        DeploymentEnvironment.Production
+      )
+
+      forAll(result.filter(_.name.endsWith("frontend")))( item =>
+                                                            item.name shouldBe "example-frontend"
+                                                            item.`type` shouldBe "frontend"
+      )
+
+      forAll(result.filter(_.name.endsWith("backend")))(item =>
+                                                           item.name shouldBe "example-backend"
+                                                           item.`type` shouldBe "backend"
+                                                         )

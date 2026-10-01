@@ -35,6 +35,18 @@ A re-scan scheduler runs every `scheduler.rescan.interval`. Processing a stale r
 
 A re-scan of all services that are `latest` or deployed in an environment can be manually triggered via the `POST   /vulnerabilities/admin/rescan` endpoint.
 
+## Testing
+
+# Test external source - EPSS and KEV
+The EPSS is scores for vulnerabilities that are used to determine the likelihood of exploitation. The KEV is a list of known exploited vulnerabilities.
+To test the services download of these external sources a test-only endpoint can be used locally.
+```
+GET localhost:8057/test-only/vuln-updates?limit=100&offset=0
+```
+This will give a summary with a sample of the updated likelihood score / percentile from EPSS and whether the vulnerability is in the KEV list.
+Limit and offset can be used to page through the results, if not specified the default is 100 and 0 respectively.
+
+
 ### License
 
 This code is open source software licensed under the [Apache 2.0 License]("http://www.apache.org/licenses/LICENSE-2.0.html").

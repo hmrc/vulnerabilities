@@ -24,4 +24,7 @@ DELETE     /test-only/vulnerabilityAges uk.gov.hmrc.vulnerabilities.testonly.Int
 POST       /test-only/timelineEvents    uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.postTimelineEvents()
 DELETE     /test-only/timelineEvents    uk.gov.hmrc.vulnerabilities.testonly.IntegrationTestController.deleteTimelineEvents()
 
+GET        /test-only/vuln-updates            uk.gov.hmrc.vulnerabilities.testonly.VulnerabilityScoreTestController.exploitUpdates(limit: Option[Int], offset: Option[Int])
+GET        /test-only/vuln-updates-comparison uk.gov.hmrc.vulnerabilities.testonly.VulnerabilityScoreTestController.exploitUpdatesComparison()
+
 ->         /                                   prod.Routes
