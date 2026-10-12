@@ -10,3 +10,6 @@ GET        /api/services/:service/deployed-report-count   uk.gov.hmrc.vulnerabil
 GET        /api/reports/timeline            uk.gov.hmrc.vulnerabilities.controller.VulnerabilitiesTimelineController.getTimelineCounts(service: Option[ServiceName], team: Option[TeamName], vulnerability: Option[String], curationStatus: Option[CurationStatus], from: java.time.Instant, to: java.time.Instant)
 
 POST       /admin/rescan                    uk.gov.hmrc.vulnerabilities.controller.AdminController.rescan()
+
+# v2 endpoints
+GET        /v2/team                         uk.gov.hmrc.vulnerabilities.controller.v2.VulnerabilitiesController.teamSummary(team: String)
