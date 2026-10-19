@@ -13,3 +13,4 @@ POST       /admin/rescan                    uk.gov.hmrc.vulnerabilities.controll
 
 # v2 endpoints
 GET        /v2/team                         uk.gov.hmrc.vulnerabilities.controller.v2.VulnerabilitiesController.teamSummary(team: String)
+GET        /api/v2/services/:serviceName/app-versions/:appVersion/occurrences   uk.gov.hmrc.vulnerabilities.controller.v2.VulnerabilitiesController.deploymentOccurrences(serviceName: ServiceName, appVersion: Version)
