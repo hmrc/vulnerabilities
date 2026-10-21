@@ -21,34 +21,36 @@ import play.api.Configuration
 import uk.gov.hmrc.vulnerabilities.model.v2.deployment.V2ResourceLimit
 import scala.concurrent.{ExecutionContext, Future}
 
-/** Read-only, current-data join. No policy execution, upstream calls or transactional scan publication. */
+/** All parts of the deployment join share one committed snapshot. */
 @Singleton
 class DeploymentStoreV2 @Inject()(
   details: VulnerabilityRepositoryV2,
   evidence: VulnerabilityOccurrenceRepositoryV2,
   workflow: ServiceOccurrenceRepositoryV2,
   scans: ScanRecordRepositoryV2,
+  transactions: MongoTransactionsV2,
   config: Configuration
 )(using ExecutionContext):
   private val maximum = config.get[Int]("v2.read.max-findings")
   require(maximum > 0 && maximum < Int.MaxValue, "v2.read.max-findings must be positive and less than Int.MaxValue")
 
   def read(service: String, version: String): Future[Option[DeploymentRecordsV2]] =
-    scans.findDeployment(service, version).flatMap:
-      case None => Future.successful(None)
-      case Some(scan) =>
-        evidence.findDeployment(service, version, maximum).flatMap: occurrences =>
-          checkBound(occurrences.size)
-          if occurrences.isEmpty then Future.successful(Some(DeploymentRecordsV2(scan, Seq.empty, Seq.empty, Seq.empty)))
-          else
-            val ids = occurrences.map(_.vuln_id)
-            for
-              vulnerabilities <- details.findByIds(ids, maximum)
-              workflows <- workflow.findByIds(service, ids, maximum)
-            yield
-              checkBound(vulnerabilities.size)
-              checkBound(workflows.size)
-              Some(DeploymentRecordsV2(scan, occurrences, vulnerabilities, workflows))
+    transactions.snapshot: session =>
+      scans.findDeployment(service, version, Some(session)).flatMap:
+        case None => Future.successful(None)
+        case Some(scan) =>
+          evidence.findDeployment(service, version, maximum, Some(session)).flatMap: occurrences =>
+            checkBound(occurrences.size)
+            if occurrences.isEmpty then Future.successful(Some(DeploymentRecordsV2(scan, Seq.empty, Seq.empty, Seq.empty)))
+            else
+              val ids = occurrences.map(_.vuln_id)
+              for
+                vulnerabilities <- details.findByIds(ids, maximum, Some(session))
+                workflows <- workflow.findByIds(service, ids, maximum, Some(session))
+              yield
+                checkBound(vulnerabilities.size)
+                checkBound(workflows.size)
+                Some(DeploymentRecordsV2(scan, occurrences, vulnerabilities, workflows))
 
   private def checkBound(size: Int): Unit =
     if size > maximum then throw V2ResourceLimit("V2 deployment exceeds configured read resource limit; no partial results returned")
