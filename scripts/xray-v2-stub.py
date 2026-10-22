@@ -3,15 +3,20 @@
 
 import argparse
 import io
+import itertools
 import json
 import re
+import threading
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 
-def report_document(empty):
-    return {
+DEFAULT_ARTEFACT = "webstore-local/example-service/example-service_1.8.0_0.5.2.tgz"
+
+
+def report_document(empty, artefact=DEFAULT_ARTEFACT, scenario="populated"):
+    document = {
         "generatedDate": "2026-09-11T10:00:00Z",
         "rows": [] if empty else [{
             "cves": [{"cve": "CVE-2026-0001", "cvss_v3_score": 8.1}],
@@ -20,9 +25,9 @@ def report_document(empty):
             "severity": "High",
             "vulnerable_component": "gav://uk.gov.hmrc:example-lib:2.4.0",
             "component_physical_path": "lib/example-lib-2.4.0.jar",
-            "impacted_artifact": "example-service_1.8.0_0.5.2.tgz",
+            "impacted_artifact": artefact.rsplit("/", 1)[-1],
             "impact_path": ["example-service", "example-lib"],
-            "path": "webstore-local/example-service/example-service_1.8.0_0.5.2.tgz",
+            "path": artefact,
             "fixed_versions": ["2.4.1"],
             "published": "2026-09-01T10:00:00Z",
             "artifact_scan_time": "2026-09-11T10:00:00Z",
@@ -31,10 +36,26 @@ def report_document(empty):
             "project_keys": [],
         }],
     }
+    if document["rows"]:
+        row = document["rows"][0]
+        if scenario == "multiple-cves":
+            row["cves"].append({"cve": "CVE-2026-0002"})
+        elif scenario == "unsupported-id":
+            row["cves"][0]["cve"] = "XRAY-UNSUPPORTED"
+        elif scenario == "unsupported-package":
+            row["package_type"] = "npm"
+        elif scenario == "conflicting":
+            other = dict(row, vulnerable_component="gav://other:library:1.0")
+            document["rows"].append(other)
+        elif scenario == "wrong-row-artefact":
+            row["path"] = "webstore-local/wrong/other.tgz"
+    return document
 
 
-def handler_for(scenario):
+def handler_for(scenario, artefact=DEFAULT_ARTEFACT):
     reports = {}
+    ids = itertools.count(1234)
+    lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         def send_body(self, status, body=b"", content_type="application/json"):
@@ -78,19 +99,40 @@ def handler_for(scenario):
                 return
             name = body.get("name")
             filters = body.get("filters")
-            artefact = filters.get("impacted_artifact") if isinstance(filters, dict) else None
+            requested_artefact = filters.get("impacted_artifact") if isinstance(filters, dict) else None
             if (not isinstance(name, str) or not name.startswith("AppSec-v2-report-")
                     or body.get("resources") != {"repositories": [{"name": "webstore-local"}]}
-                    or not isinstance(artefact, str) or not artefact.startswith("*/")
-                    or not artefact[2:] or "/" in artefact[2:]
-                    or "*" in artefact[2:] or "?" in artefact[2:]):
+                    or not isinstance(requested_artefact, str) or not requested_artefact.startswith("*/")
+                    or not requested_artefact[2:] or "/" in requested_artefact[2:]
+                    or "*" in requested_artefact[2:] or "?" in requested_artefact[2:]):
                 self.send_json(400, {"error": "Expected the V2 report name and exact artefact filter"})
                 return
-            reports[1234] = {"name": name, "polls": 0}
-            print("Synthetic report created: " + name, flush=True)
-            self.send_json(200, {"report_id": 1234, "status": "pending"})
+            if requested_artefact != "*/" + artefact.rsplit("/", 1)[-1]:
+                self.send_json(400, {"error": "Request does not match the configured synthetic artefact"})
+                return
+            with lock:
+                report_id = next(ids)
+                reports[report_id] = {"name": name, "polls": 0, "artefact": artefact}
+            print(f"Synthetic report created: id={report_id} name={name}", flush=True)
+            self.send_json(200, {"report_id": report_id, "status": "pending"})
 
         def do_GET(self):
+            coverage_match = re.fullmatch(r"/__synthetic__/reports/([1-9][0-9]*)/coverage", self.path)
+            if coverage_match:
+                with lock:
+                    report = reports.get(int(coverage_match[1]))
+                if report is None or scenario == "missing-coverage":
+                    self.send_json(404, {"error": "No synthetic coverage evidence"})
+                    return
+                document = report_document(scenario == "empty", report["artefact"], scenario)
+                self.send_json(200, {
+                    "synthetic_contract": "xray-v2-local-v1",
+                    "report_id": int(coverage_match[1]),
+                    "scanned_artifacts": (["webstore-local/wrong/other.tgz"]
+                                          if scenario == "wrong-coverage" else [report["artefact"]]),
+                    "number_of_rows": len(document["rows"]),
+                })
+                return
             if not self.authenticated():
                 return
             url = urlsplit(self.path)
@@ -105,13 +147,16 @@ def handler_for(scenario):
                 if scenario == "unavailable":
                     self.send_json(503, {"error": "Synthetic upstream outage"})
                     return
-                report["polls"] += 1
+                with lock:
+                    report["polls"] += 1
                 status = ("failed" if scenario == "failed"
-                          else "pending" if report["polls"] == 1 else "completed")
+                          else "unknown-fixture-status" if scenario == "unknown-status"
+                          else "pending" if scenario == "pending" or report["polls"] == 1 else "completed")
+                rows = len(report_document(scenario == "empty", report["artefact"], scenario)["rows"])
                 self.send_json(200, {
                     "status": status,
-                    "number_of_rows": 0 if scenario == "empty" or status != "completed" else 1,
-                    "total_artifacts": 0 if status != "completed" else 1,
+                    "number_of_rows": 0 if status != "completed" else rows + (1 if scenario == "wrong-count" else 0),
+                    "total_artifacts": 0 if status != "completed" or scenario == "zero-artefacts" else 1,
                 })
                 return
             if parse_qs(url.query) != {"file_name": [report["name"]], "format": ["json"]}:
@@ -121,7 +166,7 @@ def handler_for(scenario):
                 self.send_body(200, b"not a ZIP archive", "application/zip")
                 return
             text = ("not JSON" if scenario == "malformed-json"
-                    else json.dumps(report_document(scenario == "empty")))
+                    else json.dumps(report_document(scenario == "empty", report["artefact"], scenario)))
             output = io.BytesIO()
             with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
                 archive.writestr("report.json", text)
@@ -131,7 +176,12 @@ def handler_for(scenario):
             if not self.authenticated():
                 return
             match = re.fullmatch(r"/xray/api/v1/reports/([1-9][0-9]*)", self.path)
-            if match and reports.pop(int(match[1]), None) is not None:
+            if scenario == "cleanup-failed":
+                self.send_json(503, {"error": "Synthetic cleanup failure"})
+                return
+            with lock:
+                removed = reports.pop(int(match[1]), None) if match else None
+            if removed is not None:
                 self.send_body(204)
             else:
                 self.send_json(404, {"error": "No such synthetic report"})
@@ -145,11 +195,20 @@ def main():
     parser.add_argument("--scenario", choices=[
         "populated", "empty", "unauthorised", "failed", "unavailable",
         "malformed-json", "malformed-zip",
+        "multiple-cves", "unsupported-id", "unsupported-package", "conflicting",
+        "wrong-row-artefact", "wrong-coverage", "missing-coverage", "wrong-count",
+        "zero-artefacts", "pending", "unknown-status", "cleanup-failed",
     ], default="populated")
+    parser.add_argument("--artefact", default=DEFAULT_ARTEFACT,
+                        help="Exact synthetic fixture path; generation must request its basename")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("--port must be between 1 and 65535")
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), handler_for(args.scenario))
+    if (not args.artefact.startswith("webstore-local/")
+            or any(part in ("", ".", "..") for part in args.artefact.split("/"))
+            or any(c.isspace() or c in "*?#\\" for c in args.artefact)):
+        parser.error("--artefact must be an exact webstore-local path")
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), handler_for(args.scenario, args.artefact))
     print(f"SYNTHETIC Xray stub: http://127.0.0.1:{args.port} ({args.scenario})", flush=True)
     try:
         server.serve_forever()

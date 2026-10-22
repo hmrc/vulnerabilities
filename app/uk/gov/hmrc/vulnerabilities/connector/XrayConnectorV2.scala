@@ -35,6 +35,9 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Try, Using}
 
+/** Retains UpstreamErrorResponse compatibility while distinguishing invalid data from an upstream HTTP 502. */
+final class InvalidXrayResponseV2(message: String) extends UpstreamErrorResponse(message, 502, 502, Map.empty)
+
 @Singleton
 class XrayConnectorV2 @Inject() (
   servicesConfig: ServicesConfig,
@@ -49,7 +52,7 @@ class XrayConnectorV2 @Inject() (
     configured.toInt
 
   private def invalidResponse(message: String): UpstreamErrorResponse =
-    UpstreamErrorResponse(s"Invalid Xray v2 response: $message", 502)
+    InvalidXrayResponseV2(s"Invalid Xray v2 response: $message")
 
   private def upstreamFailure(status: Int): UpstreamErrorResponse =
     UpstreamErrorResponse(s"Xray v2 returned HTTP $status", status)
