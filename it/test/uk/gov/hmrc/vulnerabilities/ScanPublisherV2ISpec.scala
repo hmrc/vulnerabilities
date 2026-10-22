@@ -37,6 +37,9 @@ import uk.gov.hmrc.vulnerabilities.model.v2.deployment.OccurrenceState
 import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.*
 import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.ScanPublicationErrorV2.*
 import uk.gov.hmrc.vulnerabilities.persistence.v2.*
+import uk.gov.hmrc.vulnerabilities.service.v2.UnavailableInitialWorkflowPolicyV2
+import uk.gov.hmrc.vulnerabilities.support.FixtureInitialWorkflowPolicyV2
+import uk.gov.hmrc.vulnerabilities.support.HistoricalPublicationV1
 import scala.concurrent.{Future, Promise}
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -83,15 +86,15 @@ class ScanPublisherV2ISpec
     clock: Clock = fixedClock, tx: MongoTransactionsV2 = transactions, scanRepository: ScanRecordRepositoryV2 = scans
   ): ScanPublisherV2 =
     ScanPublisherV2(details, evidence, workflows, scanRepository, attempts, vulnerabilityHistory, occurrenceHistory, tx, clock,
-      Configuration("v2.write.synthetic-workflow-enabled" -> synthetic,
-        "v2.write.max-findings" -> maxFindings, "v2.write.max-observations" -> maxObservations))
+      if synthetic then FixtureInitialWorkflowPolicyV2 else UnavailableInitialWorkflowPolicyV2(),
+      Configuration("v2.write.max-findings" -> maxFindings, "v2.write.max-observations" -> maxObservations))
 
   private def request(
     c: ScanContextV2 = context, rows: Seq[ScannerFindingV2] = Seq(finding),
     generated: Option[Instant] = Some(sourceTime)
   ): PublishScanV2 =
     PublishScanV2(UUID.randomUUID().toString, ScannerFindingsV2(c, generated, rows), ScanCompletionV2(true, true),
-      rows.map(_.vulnerabilityId -> Seq.empty[ImportedDependencyV2]).toMap, WorkflowInitialisationV2.SyntheticSeed)
+      rows.map(_.vulnerabilityId -> Seq.empty[ImportedDependencyV2]).toMap, WorkflowInitialisationV2.UsePolicy)
 
   private def admit(input: PublishScanV2, p: ScanPublisherV2 = publisher()): ScanAdmissionV2 =
     p.admit(input.runId, input.findings.context).futureValue.value
@@ -132,6 +135,68 @@ class ScanPublisherV2ISpec
       super.afterAll()
 
   "ScanPublisherV2" should:
+    "replay a historical unversioned committed receipt with the frozen old fingerprint and unchanged provenance" in:
+      val input = request()
+      val receipt = publish(input)
+      val workflow = current().workflows.head
+      val history = raw("occurrence_history_v2")
+      // Representative old record: identical old fields, no newly added version discriminator.
+      attempts.collection.updateOne(Filters.equal("run_id", input.runId), Updates.combine(
+        Updates.set("digest", HistoricalPublicationV1.fingerprint(input)), Updates.unset("fingerprint_version")))
+        .toFuture().futureValue
+      attempts.collection.find().headOption().futureValue.value.fingerprint_version shouldBe None
+      publisher(synthetic = false).publish(input).futureValue.value shouldBe receipt
+      val changed = input.copy(findings = input.findings.copy(findings = Seq(finding.copy(summary = "Different"))))
+      publisher(synthetic = false).publish(changed).futureValue.left.value shouldBe RunIdentityConflict(input.runId)
+      current().workflows.head shouldBe workflow
+      raw("occurrence_history_v2") shouldBe history
+      count("occurrence_history_v2") shouldBe 1
+      raw("scan_attempts_v2").containsKey("fingerprint_version") shouldBe false
+      val existingOnly = request(rows = Seq.empty).copy(workflowInitialisation = WorkflowInitialisationV2.ExistingOnly)
+      val emptyReceipt = publish(existingOnly, publisher(synthetic = false))
+      attempts.collection.updateOne(Filters.equal("run_id", existingOnly.runId), Updates.combine(
+        Updates.set("digest", HistoricalPublicationV1.fingerprint(existingOnly)), Updates.unset("fingerprint_version")))
+        .toFuture().futureValue
+      publisher(synthetic = false).publish(existingOnly).futureValue.value shouldBe emptyReceipt
+      count("occurrence_history_v2") shouldBe 1
+
+    "store a versioned digest for new receipts and reject unsupported future formats" in:
+      val input = request()
+      val receipt = publish(input)
+      val record = attempts.collection.find().headOption().futureValue.value
+      record.fingerprint_version shouldBe Some(2)
+      record.digest shouldBe Some(ScanPublicationFingerprintV2.current(input))
+      publisher(synthetic = false).publish(input).futureValue.value shouldBe receipt
+      attempts.collection.updateOne(Filters.equal("run_id", input.runId), Updates.set("fingerprint_version", 99)).toFuture().futureValue
+      publisher().publish(input).futureValue.left.value shouldBe UnsupportedFingerprintVersion(99)
+
+    "avoid policy evaluation for existing workflows even when caller permits policy use" in:
+      publish(request())
+      val original = current().workflows.head
+      publish(request(), publisher(synthetic = false))
+      current().workflows.head shouldBe original
+      count("occurrence_history_v2") shouldBe 1
+
+    "keep observation time and occurrence UUID stable across an aborted transaction retry" in:
+      val input = request()
+      admit(input)
+      val first = AtomicBoolean(true)
+      val observed = new java.util.concurrent.ConcurrentLinkedQueue[ServiceOccurrenceRecordV2]()
+      val retrying = new MongoTransactionsV2(mongo):
+        override def writing[A](operation: ClientSession => Future[A]): Future[A] =
+          super.writing: session =>
+            operation(session).flatMap: value =>
+              workflows.collection.find(session).headOption().map: workflow =>
+                workflow.foreach(observed.add)
+                if first.compareAndSet(true, false) then throw new MongoException(11000, "forced retry before commit")
+                value
+      val receipt = publisher(tx = retrying).publish(input).futureValue.value
+      import scala.jdk.CollectionConverters.*
+      observed.asScala.toSeq should have size 2
+      observed.asScala.map(_.occurrence_id).toSet should have size 1
+      observed.asScala.map(_.first_detected).toSet shouldBe Set(receipt.publishedAt)
+      count("occurrence_history_v2") shouldBe 1
+
     "publish technical findings, explicit dependency metadata, timestamps and an atomic receipt" in:
       val input = request().copy(importedBy = Map(id -> Seq(ImportedDependencyV2("upstream", "parent", "3.0"))))
       val admission = admit(input)
@@ -177,7 +242,7 @@ class ScanPublisherV2ISpec
       publisher().publish(changed).futureValue.left.value shouldBe RunIdentityConflict(input.runId)
       publisher().publish(input).futureValue.value shouldBe first
 
-    "replay a committed receipt even if synthetic initialisation is subsequently disabled" in:
+    "replay a committed receipt even if workflow policy is subsequently unavailable" in:
       val input = request()
       val receipt = publish(input)
       publisher(synthetic = false).publish(input).futureValue.value shouldBe receipt
@@ -365,15 +430,15 @@ class ScanPublisherV2ISpec
       current().evidence shouldBe empty
       count("service_occurrences_v2") shouldBe 0
 
-    "keep synthetic initialisation disabled by default and require explicit caller intent" in:
+    "keep production policy unavailable and require explicit caller intent even with a fixture provider" in:
       val input = request()
       admit(input)
-      app.injector.instanceOf[ScanPublisherV2].publish(input).futureValue.left.value shouldBe SyntheticInitialisationDisabled
+      app.injector.instanceOf[ScanPublisherV2].publish(input).futureValue.left.value shouldBe WorkflowPolicyUnavailable(id)
       val existingOnly = input.copy(workflowInitialisation = WorkflowInitialisationV2.ExistingOnly)
       publisher().publish(existingOnly).futureValue.left.value shouldBe InitialisationRequired(id)
       count("vulnerabilities_v2") shouldBe 0
 
-    "preserve existing workflows without requiring synthetic or production initialisation" in:
+    "preserve existing workflows without requiring any initial policy" in:
       publish(request())
       val input = request(c = context.copy(appVersion = Version("2.0.0")))
         .copy(workflowInitialisation = WorkflowInitialisationV2.ExistingOnly)

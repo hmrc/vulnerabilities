@@ -5,6 +5,12 @@ This service provides information about the Vulnerabilities that affect services
 
 It only provides information for services deployed in the following environments: Production, ExternalTest, Staging and QA.
 
+## V2 ingestion development
+
+See [the V2 ingestion handover](v2-ingestion-handover.md) for the implemented flow, exact test/demo commands and outstanding production blockers. Production coverage verification, initial workflow policy and dependency evidence deliberately fail closed; no V2 trigger is connected. The test-classpath demonstration starts its own WireMock server and requires isolated transaction-capable local Mongo.
+
+**Existing exception:** `/v2/team` remains sample-backed. Its behaviour is unchanged and is not evidence of Mongo ingestion or production policy.
+
 # How the data gets updated
 
 ## Collections

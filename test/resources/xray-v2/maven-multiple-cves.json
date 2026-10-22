@@ -1,0 +1,21 @@
+{
+  "rows": [{
+    "cves": [
+      {"cve": "CVE-2026-0001", "cvss_v3_score": 8.1},
+      {"cve": "CVE-2026-0002"}
+    ],
+    "summary": "Controlled Maven multi-CVE fixture",
+    "severity": "High",
+    "vulnerable_component": "gav://uk.gov.hmrc:example-lib:2.4.0",
+    "component_physical_path": "lib/example-lib.jar",
+    "impacted_artifact": "example-service_1.8.0_0.5.2.tgz",
+    "impact_path": [],
+    "path": "webstore-local/example-service/example-service_1.8.0_0.5.2.tgz",
+    "fixed_versions": ["2.4.1"],
+    "published": "2026-09-01T10:00:00Z",
+    "artifact_scan_time": "2026-10-21T12:00:00Z",
+    "issue_id": "XRAY-CONTROLLED-FIXTURE",
+    "package_type": "maven",
+    "project_keys": []
+  }]
+}

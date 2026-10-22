@@ -17,13 +17,24 @@
 package uk.gov.hmrc.vulnerabilities.model.v2.ingestion
 
 import java.time.Instant
+import uk.gov.hmrc.vulnerabilities.model.v2.deployment.{DeploymentSla, OccurrenceState, Priority}
 
 /** Assertions from a trusted caller, not facts that mapping alone can establish. */
 final case class ScanCompletionV2(reportSucceeded: Boolean, artefactCoverageVerified: Boolean)
 final case class ImportedDependencyV2(group: String, artefact: String, version: String)
 
 enum WorkflowInitialisationV2:
-  case ExistingOnly, SyntheticSeed
+  case ExistingOnly, UsePolicy
+
+/** These are already shared persisted value types, not the Catalogue response envelope. */
+final case class InitialWorkflowValuesV2(
+  priority: Priority,
+  state: OccurrenceState,
+  sla: DeploymentSla,
+  synthetic: Boolean = false
+)
+
+final case class InitialWorkflowContextV2(context: ScanContextV2, finding: ScannerFindingV2, observedAt: Instant)
 
 final case class PublishScanV2(
   runId: String,
@@ -51,7 +62,8 @@ enum ScanPublicationErrorV2:
   case AdoptionRequired(vulnerabilityId: String)
   case ScannerConflict(vulnerabilityId: String, fields: Seq[String], deployments: Seq[ScanContextV2])
   case InitialisationRequired(vulnerabilityId: String)
-  case SyntheticInitialisationDisabled
+  case WorkflowPolicyUnavailable(vulnerabilityId: String)
+  case UnsupportedFingerprintVersion(version: Int)
   case MissingImportedBy(vulnerabilityId: String)
   case ResourceLimit(reason: String)
   /** Retry/reconcile with the same run ID. A database error is not proof that commit rolled back. */

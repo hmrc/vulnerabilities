@@ -17,7 +17,6 @@
 package uk.gov.hmrc.vulnerabilities.persistence.v2
 
 import java.nio.charset.StandardCharsets.UTF_8
-import java.security.MessageDigest
 import java.time.{Clock, Instant}
 import java.time.temporal.ChronoUnit.MILLIS
 import java.util.UUID
@@ -29,9 +28,11 @@ import org.mongodb.scala.bson.conversions.Bson
 import play.api.{Configuration, Logger}
 import play.api.libs.json.*
 import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
-import uk.gov.hmrc.vulnerabilities.model.v2.deployment.{DeploymentSla, ImportedBy, OccurrenceState, Priority}
+import uk.gov.hmrc.vulnerabilities.model.v2.deployment.ImportedBy
 import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.*
 import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.ScanPublicationErrorV2.*
+import uk.gov.hmrc.vulnerabilities.service.v2.InitialWorkflowPolicyV2
+import ScanPublicationFingerprintV2.observation
 import scala.concurrent.{ExecutionContext, Future}
 
 /** Private persistence boundary. No connector, trigger, policy engine or automatic adoption. */
@@ -46,12 +47,12 @@ class ScanPublisherV2 @Inject()(
   occurrenceHistory: OccurrenceHistoryRepositoryV2,
   transactions: MongoTransactionsV2,
   clock: Clock,
+  policy: InitialWorkflowPolicyV2,
   config: Configuration
 )(using ExecutionContext):
   private val logger = Logger(getClass)
   private val maximum = config.get[Int]("v2.write.max-findings")
   private val maximumObservations = config.get[Int]("v2.write.max-observations")
-  private val syntheticEnabled = config.get[Boolean]("v2.write.synthetic-workflow-enabled")
   require(maximum > 0 && maximum < Int.MaxValue / 2, "v2.write.max-findings must be positive and less than Int.MaxValue / 2")
   require(maximumObservations > 0 && maximumObservations < Int.MaxValue,
     "v2.write.max-observations must be positive and less than Int.MaxValue")
@@ -97,11 +98,12 @@ class ScanPublisherV2 @Inject()(
                   .toFuture().map(_ => ScanAdmissionV2(runId, context, generation))
 
   def publish(input: PublishScanV2): Future[Either[ScanPublicationErrorV2, ScanPublicationReceiptV2]] =
-    val publication = result:
+    result:
       validate(input)
-      val digest = fingerprint(input)
+      val digest = ScanPublicationFingerprintV2.current(input)
       // Fixed for the whole operation, including transaction retries; not the exact commit instant.
       val publishedAt = clock.instant().truncatedTo(MILLIS)
+      val occurrenceIds = input.findings.findings.map(f => f.vulnerabilityId -> UUID.randomUUID().toString).toMap
       transactions.writing: session =>
         attempts.collection.find(session, Filters.equal("run_id", input.runId)).headOption().flatMap:
           case None => reject(UnknownRun(input.runId))
@@ -109,13 +111,13 @@ class ScanPublisherV2 @Inject()(
             if contextOf(attempt) != input.findings.context then reject(RunIdentityConflict(input.runId))
             attempt.receipt match
               case Some(receipt) =>
-                if !attempt.digest.contains(digest) then reject(RunIdentityConflict(input.runId))
+                val expected = attempt.fingerprint_version match
+                  case None => ScanPublicationFingerprintV2.legacy(input)
+                  case Some(ScanPublicationFingerprintV2.currentVersion) => digest
+                  case Some(version) => reject(UnsupportedFingerprintVersion(version))
+                if !attempt.digest.contains(expected) then reject(RunIdentityConflict(input.runId))
                 Future.successful(receipt)
-              case None => publishTransaction(session, input, attempt, digest, publishedAt)
-    publication.map: result =>
-      if result.isRight && input.workflowInitialisation == WorkflowInitialisationV2.SyntheticSeed then
-        logger.warn("V2 publication receipt uses explicitly selected synthetic workflow input; this is not production policy")
-      result
+              case None => publishTransaction(session, input, attempt, digest, publishedAt, occurrenceIds)
 
   private def validateIdentity(runId: String, context: ScanContextV2): Unit =
     if runId.isBlank || context.serviceName.asString.isBlank || context.appVersion.original.isBlank then
@@ -137,26 +139,6 @@ class ScanPublisherV2 @Inject()(
         finding.cvss.exists(s => !s.isFinite || s < 0 || s > 10)
       then reject(InvalidInput("Publication requires validated CVE, Maven coordinates and optional CVSS"))
 
-  private def observation(input: PublishScanV2, finding: ScannerFindingV2): ScannerObservationV2 =
-    ScannerObservationV2(input.runId, finding.summary, finding.component.identity, finding.fixedVersions,
-      finding.cvss, finding.references, finding.sources, input.findings.generatedDate)
-
-  private def fingerprint(input: PublishScanV2): String =
-    val json = Json.obj(
-      "run" -> input.runId,
-      "service" -> input.findings.context.serviceName.asString,
-      "version" -> input.findings.context.appVersion.original,
-      "initialisation" -> input.workflowInitialisation.toString,
-      "findings" -> input.findings.findings.sortBy(_.vulnerabilityId).map { finding =>
-        Json.obj("id" -> finding.vulnerabilityId, "installed" -> finding.component.installedVersion,
-          "observation" -> observation(input, finding),
-          "importedBy" -> input.importedBy.get(finding.vulnerabilityId).map(_.map(d =>
-            Json.obj("group" -> d.group, "artefact" -> d.artefact, "version" -> d.version))))
-      },
-      "generated" -> input.findings.generatedDate
-    )
-    MessageDigest.getInstance("SHA-256").digest(Json.stringify(json).getBytes(UTF_8)).map(b => f"${b & 0xff}%02x").mkString
-
   private case class Plan(
     before: Map[String, VulnerabilityRecordV2],
     after: Map[String, VulnerabilityRecordV2],
@@ -166,10 +148,9 @@ class ScanPublisherV2 @Inject()(
   )
 
   private def publishTransaction(
-    session: ClientSession, input: PublishScanV2, attempt: ScanAttemptRecordV2, digest: String, publishedAt: Instant
+    session: ClientSession, input: PublishScanV2, attempt: ScanAttemptRecordV2, digest: String, publishedAt: Instant,
+    occurrenceIds: Map[String, String]
   ): Future[ScanPublicationReceiptV2] =
-    if input.workflowInitialisation == WorkflowInitialisationV2.SyntheticSeed && !syntheticEnabled then
-      reject(SyntheticInitialisationDisabled)
     val context = input.findings.context
     for
       scan <- scans.findDeployment(context.serviceName.asString, context.appVersion.original, Some(session))
@@ -185,7 +166,7 @@ class ScanPublisherV2 @Inject()(
       _ = bound(retained.size, maximumObservations, "Global compatibility evidence exceeds the observation limit")
       existingWorkflows <- if ids.isEmpty then Future.successful(Seq.empty[ServiceOccurrenceRecordV2])
         else workflows.findByIds(context.serviceName.asString, ids, maximum * 2, Some(session))
-      plan = prepare(input, global, previous, retained, existingWorkflows, publishedAt)
+      plan = prepare(input, global, previous, retained, existingWorkflows, publishedAt, occurrenceIds)
       _ <- writeDetails(session, input, attempt, plan, publishedAt)
       _ <- writeWorkflows(session, input, attempt, plan, publishedAt)
       _ <- writeEvidence(session, context, plan)
@@ -197,7 +178,8 @@ class ScanPublisherV2 @Inject()(
         UpdateOptions().upsert(true)).toFuture()
       receipt = ScanPublicationReceiptV2(input.runId, attempt.generation, publishedAt, plan.changes)
       _ <- attempts.collection.updateOne(session, Filters.equal("run_id", input.runId),
-        set(Json.obj("digest" -> digest, "receipt" -> ScanAttemptRecordV2.receiptFormat.writes(receipt))))
+        set(Json.obj("digest" -> digest, "fingerprint_version" -> ScanPublicationFingerprintV2.currentVersion,
+          "receipt" -> ScanAttemptRecordV2.receiptFormat.writes(receipt))))
         .toFuture()
     yield receipt
 
@@ -207,7 +189,8 @@ class ScanPublisherV2 @Inject()(
     previous: Seq[SlugOccurrenceRecordV2],
     retained: Seq[SlugOccurrenceRecordV2],
     existingWorkflows: Seq[ServiceOccurrenceRecordV2],
-    publishedAt: Instant
+    publishedAt: Instant,
+    occurrenceIds: Map[String, String]
   ): Plan =
     val context = input.findings.context
     val before = global.map(v => v.vuln_id -> v).toMap
@@ -242,8 +225,11 @@ class ScanPublisherV2 @Inject()(
       id -> SlugOccurrenceRecordV2(id, context.serviceName.asString, context.appVersion.original,
         importedBy, Some(finding.component.installedVersion), Some(observation(input, finding)))
     val newWorkflows = input.findings.findings.filterNot(f => existingWorkflows.exists(_.vuln_id == f.vulnerabilityId)).map: finding =>
-      if input.workflowInitialisation != WorkflowInitialisationV2.SyntheticSeed then reject(InitialisationRequired(finding.vulnerabilityId))
-      syntheticWorkflow(finding.vulnerabilityId, context.serviceName.asString, publishedAt)
+      if input.workflowInitialisation != WorkflowInitialisationV2.UsePolicy then reject(InitialisationRequired(finding.vulnerabilityId))
+      val values = policy.initialValues(InitialWorkflowContextV2(context, finding, publishedAt)).fold(reject, identity)
+      ServiceOccurrenceRecordV2(finding.vulnerabilityId, context.serviceName.asString,
+        occurrenceIds(finding.vulnerabilityId), publishedAt, values.priority, values.state, values.sla,
+        synthetic_initialisation = Some(values.synthetic))
     val next = newEvidence.toMap
     val added = next.keySet -- oldEvidence.keySet
     val removed = oldEvidence.keySet -- next.keySet
@@ -253,12 +239,6 @@ class ScanPublisherV2 @Inject()(
       old.copy(scanner_observation = old.scanner_observation.map(_.copy(run_id = input.runId))) != current
     Plan(before, after.toMap, next, newWorkflows,
       EvidenceChangesV2(added.toSeq.sorted, changed.toSeq.sorted, removed.toSeq.sorted))
-
-  private def syntheticWorkflow(id: String, service: String, now: Instant): ServiceOccurrenceRecordV2 =
-    ServiceOccurrenceRecordV2(id, service, UUID.randomUUID().toString, now, Priority.immediate, OccurrenceState.actionable,
-      DeploymentSla(deadline = Some(Instant.parse("2026-09-15T10:00:00Z")), breached = true, nearBreach = true,
-        status = Some("running"), clockStartedAt = Some(Instant.parse("2026-09-01T10:00:00Z")),
-        breachedAt = Some(Instant.parse("2026-09-15T10:00:00Z"))), synthetic_initialisation = Some(true))
 
   private def scannerFields(v: VulnerabilityRecordV2): JsObject =
     Json.obj("vuln_id" -> v.vuln_id, "summary" -> v.summary, "vuln_component" -> v.vuln_component,
@@ -291,7 +271,8 @@ class ScanPublisherV2 @Inject()(
           case Some(v) if old.isEmpty || old.exists(o => scannerFields(o) != scannerFields(v)) =>
             val eventType = if old.isEmpty then "vulnerability_created" else "details_updated"
             vulnerabilityHistory.collection.insertOne(session, history(input, attempt, id, None, eventType, now,
-              Json.obj("before" -> old.map(scannerFields), "after" -> scannerFields(v)))).toFuture().map(_ => ())
+              Json.obj("before" -> old.map(scannerFields), "after" -> scannerFields(v)),
+              plan.newWorkflows.exists(_.synthetic_initialisation.contains(true)))).toFuture().map(_ => ())
           case _ => Future.unit
 
   private def writeWorkflows(
@@ -302,7 +283,9 @@ class ScanPublisherV2 @Inject()(
         _ <- workflows.collection.insertOne(session, workflow).toFuture()
         _ <- occurrenceHistory.collection.insertOne(session, history(input, attempt, workflow.vuln_id,
           Some(workflow.service), "occurrence_created", now,
-          Json.obj("after" -> ServiceOccurrenceRecordV2.mongoFormat.writes(workflow), "synthetic" -> true))).toFuture()
+          Json.obj("after" -> ServiceOccurrenceRecordV2.mongoFormat.writes(workflow),
+            "synthetic" -> workflow.synthetic_initialisation.contains(true)),
+          workflow.synthetic_initialisation.contains(true))).toFuture()
       yield ()
 
   private def writeEvidence(session: ClientSession, context: ScanContextV2, plan: Plan): Future[Unit] =
@@ -317,10 +300,10 @@ class ScanPublisherV2 @Inject()(
 
   private def history(
     input: PublishScanV2, attempt: ScanAttemptRecordV2, id: String, service: Option[String],
-    eventType: String, now: Instant, changes: JsObject
+    eventType: String, now: Instant, changes: JsObject, syntheticInitialisation: Boolean
   ): HistoryRecordV2 =
     val identity = Json.stringify(Json.arr(input.runId, id, service, eventType))
     HistoryRecordV2(UUID.nameUUIDFromBytes(identity.getBytes(UTF_8)).toString, id, service, eventType,
       now, HistoryActorV2("system", "xray-v2-publication"), changes, "Validated V2 scan publication",
       Seq(Json.obj("run_id" -> input.runId, "generation" -> attempt.generation,
-        "synthetic_initialisation" -> (input.workflowInitialisation == WorkflowInitialisationV2.SyntheticSeed))))
+        "synthetic_initialisation" -> syntheticInitialisation)))
