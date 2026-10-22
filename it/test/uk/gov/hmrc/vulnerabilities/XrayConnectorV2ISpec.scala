@@ -125,6 +125,51 @@ class XrayConnectorV2ISpec
       case other => fail(s"Expected UpstreamErrorResponse with status $status", other)
 
   "XrayConnectorV2" should:
+    "decode documented artefact status with exact repository-relative path and caller token, not coverage" in:
+      stubFor(post(urlEqualTo("/xray/api/v1/artifact/status"))
+        .willReturn(okJson("""{"overall":{"status":"DONE","time":"2026-09-11T10:00:00Z"},"details":{"sca":{"status":"DONE"}}}""")))
+      val result = connector().checkArtifactStatus("webstore-local", "service1/service1.tgz")(token).futureValue
+      result.overall.status shouldBe "DONE"
+      result.overall.time shouldBe Some(generated)
+      result.details.flatMap(_.sca).map(_.time) shouldBe Some(None)
+      wireMockServer.verify(1, postRequestedFor(urlEqualTo("/xray/api/v1/artifact/status"))
+        .withHeader("Authorization", equalTo("Bearer dummy-v2-access-token"))
+        .withRequestBody(equalToJson("""{"repo":"webstore-local","path":"service1/service1.tgz"}""")))
+
+    Seq("PENDING", "SCANNING", "DONE", "PARTIAL", "FAILED", "NOT_SUPPORTED", "NOT_SCANNED", "UNRECOGNISED").foreach: status =>
+      s"preserve artefact scan status $status as wire data without inventing success" in:
+        stubFor(post(urlEqualTo("/xray/api/v1/artifact/status"))
+          .willReturn(okJson(s"""{"overall":{"status":"$status"},"details":{"sca":{"status":"$status"}}}""")))
+        val result = connector().checkArtifactStatus("webstore-local", "service1/a.tgz")(token).futureValue
+        result.overall.status shouldBe status
+        result.overall.time shouldBe None
+        result.details.flatMap(_.sca).map(_.status) shouldBe Some(status)
+
+    Seq("""{"overall":{"status":"DONE"}}""", """{"overall":{"status":"DONE"},"details":{}}""").foreach: body =>
+      s"retain missing optional SCA details without treating them as completion: $body" in:
+        stubFor(post(urlEqualTo("/xray/api/v1/artifact/status")).willReturn(okJson(body)))
+        connector().checkArtifactStatus("repo", "path")(token).futureValue.details.flatMap(_.sca) shouldBe None
+
+    Seq("not JSON", "{}", """{"overall":{}}""", """{"overall":{"status":""}}""",
+      """{"overall":{"status":12}}""", """{"overall":{"status":"DONE","time":"invalid"}}""",
+      """{"overall":{"status":"DONE"},"details":{"sca":{}}}""").zipWithIndex.foreach { (body, index) =>
+      s"reject malformed documented artefact status $index" in:
+        stubFor(post(urlEqualTo("/xray/api/v1/artifact/status")).willReturn(okJson(body)))
+        connector().checkArtifactStatus("repo", "path")(token).failed.futureValue shouldBe
+          a[uk.gov.hmrc.vulnerabilities.connector.InvalidXrayResponseV2]
+    }
+
+    Seq(401, 403, 404, 429, 500).foreach: status =>
+      s"preserve artefact-status HTTP $status without retrying" in:
+        stubFor(post(urlEqualTo("/xray/api/v1/artifact/status")).willReturn(aResponse().withStatus(status)))
+        assertUpstreamError(connector().checkArtifactStatus("repo", "path")(token).failed.futureValue, status)
+        wireMockServer.verify(1, postRequestedFor(urlEqualTo("/xray/api/v1/artifact/status")))
+
+    Seq("" -> "path", " " -> "path", "repo" -> "", "repo" -> "\t").foreach: (repo, path) =>
+      s"reject blank artefact-status input ${repo.length}/${path.length} before HTTP" in:
+        intercept[BadRequestException](connector().checkArtifactStatus(repo, path)(token))
+        wireMockServer.getAllServeEvents shouldBe empty
+
     "generate the isolated V2 report with exact artefact filtering and caller credentials" in:
       stubFor(post(urlEqualTo("/xray/api/v1/reports/vulnerabilities"))
         .willReturn(okJson("""{"report_id":1234,"status":"pending"}""")))

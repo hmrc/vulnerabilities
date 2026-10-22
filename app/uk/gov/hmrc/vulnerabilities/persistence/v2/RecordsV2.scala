@@ -126,7 +126,8 @@ case class ScanAttemptRecordV2(
   generation: Long,
   admitted_at: Instant,
   digest: Option[String] = None,
-  receipt: Option[ScanPublicationReceiptV2] = None
+  receipt: Option[ScanPublicationReceiptV2] = None,
+  fingerprint_version: Option[Int] = None
 )
 object ScanAttemptRecordV2:
   private given Format[Instant] = MongoJavatimeFormats.instantFormat

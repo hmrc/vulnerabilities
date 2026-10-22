@@ -27,7 +27,7 @@ import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier, HttpReads, StringCo
 import uk.gov.hmrc.http.client.{HttpClientV2, readEitherSource}
 import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 import uk.gov.hmrc.vulnerabilities.model.{ArtifactoryToken, ServiceName, Version}
-import uk.gov.hmrc.vulnerabilities.model.v2.xray.XrayReport
+import uk.gov.hmrc.vulnerabilities.model.v2.xray.{XrayArtifactStatusV2, XrayReport}
 
 import java.io.{ByteArrayInputStream, IOException}
 import java.util.zip.ZipInputStream
@@ -87,6 +87,11 @@ class XrayConnectorV2 @Inject() (
       case 200 | 204 => ()
       case status    => throw upstreamFailure(status)
 
+  private given artifactStatusReads: HttpReads[XrayArtifactStatusV2] = (_, _, response) =>
+    response.status match
+      case 200 => parseJson[XrayArtifactStatusV2](response.body.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+      case status => throw upstreamFailure(status)
+
   private def validateId(id: Int): Unit =
     if id <= 0 then throw new BadRequestException("Xray report ID must be positive")
 
@@ -104,6 +109,7 @@ class XrayConnectorV2 @Inject() (
   def generateReport(serviceName: ServiceName, version: Version, path: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayReport.ReportRequest] =
     val name = toReportName(serviceName, version)
     val basename = artefactName(path)
+    // The basename filter is not proof of exact full-path scope. HMRC include_path_patterns semantics remain unverified.
     httpClientV2
       .post(url"$baseUrl/xray/api/v1/reports/vulnerabilities")
       .setHeader(
@@ -123,6 +129,22 @@ class XrayConnectorV2 @Inject() (
       .get(url"$baseUrl/xray/api/v1/reports/$id")
       .setHeader("Authorization" -> s"Bearer ${token.accessToken.decryptedValue}")
       .execute[XrayReport.ReportStatus]
+
+  // BDOG-3994: HMRC JFrog contract verification required.
+  // Documented endpoint: POST /xray/api/v1/artifact/status.
+  // repo is the Artifactory repository; path is repository-relative (not a basename/wildcard).
+  // Before production enablement confirm endpoint/authentication/permissions, repository/path interpretation,
+  // response structure/status vocabulary, overall/SCA meaning and freshness, correct revision coverage,
+  // correlation with the completed report, and sufficient evidence for a successful zero-vulnerability report.
+  // HTTP success or DONE alone must never authorise publication. See v2-ingestion-handover.md.
+  def checkArtifactStatus(repo: String, path: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayArtifactStatusV2] =
+    if repo.isBlank || path.isBlank then
+      throw new BadRequestException("Xray repository and repository-relative path must not be blank")
+    httpClientV2
+      .post(url"$baseUrl/xray/api/v1/artifact/status")
+      .setHeader("Authorization" -> s"Bearer ${token.accessToken.decryptedValue}", "Content-Type" -> "application/json")
+      .withBody(Json.obj("repo" -> repo, "path" -> path))
+      .execute[XrayArtifactStatusV2]
 
   def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayReport] =
     validateId(reportId)
