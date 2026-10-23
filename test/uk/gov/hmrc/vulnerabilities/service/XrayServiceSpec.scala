@@ -17,7 +17,6 @@
 package uk.gov.hmrc.vulnerabilities.service
 
 import org.apache.pekko.actor.ActorSystem
-import org.apache.pekko.stream.{Materializer, SystemMaterializer}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
@@ -34,7 +33,7 @@ import uk.gov.hmrc.vulnerabilities.connector.*
 import uk.gov.hmrc.vulnerabilities.model.*
 import uk.gov.hmrc.vulnerabilities.persistence.*
 
-import java.time.{Clock, Instant, ZoneOffset}
+import java.time.Instant
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -92,7 +91,6 @@ class XrayServiceSpec
           expectedReportId = testReportId
         )
 
-        val buildAndDeployConnector    = mock[BuildDeployApiConnector]
         val serviceConfigsConnector    = mock[ServiceConfigsConnector]
         val vulnerabilityAgeRepository = mock[VulnerabilityAgeRepository]
         val tokenRepository            = mock[ArtifactoryTokenRepository]
@@ -141,7 +139,7 @@ class XrayServiceSpec
 
         fakeXrayConnector.generateReportRequests should contain only(
           (ServiceName("platops-example-backend-microservice"), Version("0.230.0"),
-            "webstore-local/slugs/platops-example-backend-microservice/platops-example-backend-microservice_0.230.0_0.5.2.tgz")
+            "https://repo/webstore-local/slugs/platops-example-backend-microservice/platops-example-backend-microservice_0.230.0_0.5.2.tgz")
         )
         fakeXrayConnector.downloadAndUnzipReportRequests should contain only (
           (testReportId, ServiceName("platops-example-backend-microservice"), Version("0.230.0"))
