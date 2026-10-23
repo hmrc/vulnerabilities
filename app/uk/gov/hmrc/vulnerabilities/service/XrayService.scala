@@ -77,8 +77,7 @@ class XrayService @Inject()(
     version    : Version,
     uri        : String,
     flags      : Seq[SlugInfoFlag]
-  ):
-    val path = uri.replaceAll(".*/(webstore|webstore-local)/", "webstore-local/")
+  )
 
   object SlugInfo:
     def fromReport(report: Report) =
@@ -222,7 +221,7 @@ class XrayService @Inject()(
 
   private def scan(slug: SlugInfo)(using HeaderCarrier): EitherT[Future, XrayStatus, (Instant, Seq[XrayConnector.Vulnerability])] =
     EitherT
-      .liftF(withToken(xrayConnector.generateReport(slug.serviceName, slug.version, slug.path)))
+      .liftF(withToken(xrayConnector.generateReport(slug.serviceName, slug.version, slug.uri)))
       .flatMap: resp =>
         logger.info(s"Began generating report for ${slug.serviceName.asString}:${slug.version.original} flags: ${slug.flags.map(_.asString).mkString(", ")}. Report will have id ${resp.reportID}")
         val et =

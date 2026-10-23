@@ -64,20 +64,38 @@ class XrayConnector @Inject() (
       .execute[ArtifactoryToken]
 
   // https://jfrog.com/help/r/xray-rest-apis/generate-vulnerabilities-report
-  def generateReport(serviceName: ServiceName, version: Version, path: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[ReportResponse] =
+  def generateReport(serviceName: ServiceName, version: Version, uri: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[ReportResponse] =
     given Reads[ReportResponse] = ReportResponse.reads
-    // Search does not work with slug path - just */artefact-name
+    // Search does not work with slug uri - just */artefact-name
     // Search is fuzzy when including * in filename e.g. $service_$version*.tgz and returns .tgz.sig files
     // Needs to be full name and include the slug runner version too but start with */
-    val artefactName = path.split("/").lastOption.getOrElse(sys.error(s"invalid path for $path"))
+    val artefactName = uri.split("/").lastOption.getOrElse(sys.error(s"invalid uri for $uri"))
     httpClientV2
       .post(url"$xrayBaseUrl/xray/api/v1/reports/vulnerabilities")
       .setHeader(
         "Authorization" -> s"Bearer ${token.accessToken.decryptedValue}",
         "Content-Type"  -> "application/json"
-      ).withBody(Json.parse(
-        s"""{"name":"${toReportName(serviceName, version)}","resources":{"repositories":[{"name":"webstore-local"}]},"filters":{"impacted_artifact":"*/$artefactName"}}"""
-      ))
+      )
+      .withBody(
+        Json.parse(
+          s"""{
+            | "name": "${toReportName(serviceName, version)}",
+            | "resources": {
+            |   "repositories": [
+            |     {
+            |       "name": "webstore-local"
+            |     },
+            |     {
+            |       "name": "slugs"
+            |     }
+            |   ]
+            | },
+            | "filters": {
+            |   "impacted_artifact": "*/$artefactName"
+            | }
+            |}""".stripMargin
+        )
+      )
       .execute[ReportResponse]
 
   // https://jfrog.com/help/r/xray-rest-apis/get-report-details-by-id
