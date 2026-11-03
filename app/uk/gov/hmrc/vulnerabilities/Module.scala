@@ -52,7 +52,7 @@ class Module extends play.api.inject.Module:
     , bind[Clock                           ].toInstance(Clock.systemUTC())
     , bind[Crypto                          ].toSelf.eagerly()
     , bind[ArtifactCoverageVerifierV2       ].to[JfrogArtifactCoverageVerifierV2]
-    , bind[InitialWorkflowPolicyV2          ].to[UnavailableInitialWorkflowPolicyV2]
+    , bind[InitialWorkflowPolicyV2          ].to[TemporaryInitialWorkflowPolicyV2]
     , bind[DependencyEvidenceServiceV2      ].to[UnavailableDependencyEvidenceServiceV2]
     ) ++
       ecsDeploymentsBindings(configuration)

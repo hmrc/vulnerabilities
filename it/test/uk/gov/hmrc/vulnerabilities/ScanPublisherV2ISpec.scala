@@ -33,12 +33,12 @@ import play.api.libs.ws.WSClient
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.test.MongoSupport
 import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
-import uk.gov.hmrc.vulnerabilities.model.v2.deployment.OccurrenceState
+import uk.gov.hmrc.vulnerabilities.model.v2.deployment.{DeploymentSla, OccurrenceState, Priority}
 import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.*
 import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.ScanPublicationErrorV2.*
 import uk.gov.hmrc.vulnerabilities.persistence.v2.*
 import uk.gov.hmrc.vulnerabilities.service.v2.UnavailableInitialWorkflowPolicyV2
-import uk.gov.hmrc.vulnerabilities.support.FixtureInitialWorkflowPolicyV2
+import uk.gov.hmrc.vulnerabilities.service.v2.TemporaryInitialWorkflowPolicyV2
 import uk.gov.hmrc.vulnerabilities.support.HistoricalPublicationV1
 import scala.concurrent.{Future, Promise}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -86,7 +86,7 @@ class ScanPublisherV2ISpec
     clock: Clock = fixedClock, tx: MongoTransactionsV2 = transactions, scanRepository: ScanRecordRepositoryV2 = scans
   ): ScanPublisherV2 =
     ScanPublisherV2(details, evidence, workflows, scanRepository, attempts, vulnerabilityHistory, occurrenceHistory, tx, clock,
-      if synthetic then FixtureInitialWorkflowPolicyV2 else UnavailableInitialWorkflowPolicyV2(),
+      if synthetic then TemporaryInitialWorkflowPolicyV2() else UnavailableInitialWorkflowPolicyV2(),
       Configuration("v2.write.max-findings" -> maxFindings, "v2.write.max-observations" -> maxObservations))
 
   private def request(
@@ -280,6 +280,16 @@ class ScanPublisherV2ISpec
       count("service_occurrences_v2") shouldBe 1
       count("occurrence_history_v2") shouldBe 1
 
+    "reopen a non-actionable workflow only when CVSS increases" in:
+      publish(request())
+      workflows.collection.updateOne(Filters.equal("vuln_id", id),
+        Updates.combine(Updates.set("state", "riskAccepted"), Updates.set("priority", "monitor")))
+        .toFuture().futureValue
+      publish(request(rows = Seq(finding.copy(cvss = Some(9.5)))))
+      current().workflows.head.state shouldBe OccurrenceState.actionable
+      count("occurrence_history_v2") shouldBe 2
+      occurrenceHistory.collection.find(Filters.equal("event_type", "occurrence_reopened")).headOption().futureValue should not be empty
+
     "update scanner fields while preserving guidance, enrichment and unknown workflow/evidence fields" in:
       publish(request())
       val initial = current().workflows.head
@@ -329,8 +339,7 @@ class ScanPublisherV2ISpec
     Seq(
       "component" -> finding.copy(component = finding.component.copy(artefact = "another-lib")),
       "summary" -> finding.copy(summary = "Incompatible summary"),
-      "fixedVersions" -> finding.copy(fixedVersions = Seq("3.0.0")),
-      "cvss" -> finding.copy(cvss = Some(9.9))
+      "fixedVersions" -> finding.copy(fixedVersions = Seq("3.0.0"))
     ).foreach { (field, changed) =>
       s"reject conflicting $field evidence from another service without publishing any rows" in:
         publish(request())
@@ -430,13 +439,18 @@ class ScanPublisherV2ISpec
       current().evidence shouldBe empty
       count("service_occurrences_v2") shouldBe 0
 
-    "keep production policy unavailable and require explicit caller intent even with a fixture provider" in:
+    "use the temporary policy by default while retaining explicit fail-closed policy injection" in:
       val input = request()
       admit(input)
-      app.injector.instanceOf[ScanPublisherV2].publish(input).futureValue.left.value shouldBe WorkflowPolicyUnavailable(id)
-      val existingOnly = input.copy(workflowInitialisation = WorkflowInitialisationV2.ExistingOnly)
-      publisher().publish(existingOnly).futureValue.left.value shouldBe InitialisationRequired(id)
-      count("vulnerabilities_v2") shouldBe 0
+      val default = app.injector.instanceOf[ScanPublisherV2].publish(input).futureValue.value
+      current().workflows.head.priority shouldBe Priority.monitor
+      current().workflows.head.sla shouldBe DeploymentSla(None, breached = false, nearBreach = false)
+      default.evidenceChanges.added shouldBe Seq(id)
+      val unavailable = request(rows = Seq(finding.copy(vulnerabilityId = "CVE-2026-0002")))
+      admit(unavailable)
+      publisher(synthetic = false).publish(unavailable).futureValue.left.value shouldBe
+        WorkflowPolicyUnavailable("CVE-2026-0002")
+      count("vulnerabilities_v2") shouldBe 1
 
     "preserve existing workflows without requiring any initial policy" in:
       publish(request())

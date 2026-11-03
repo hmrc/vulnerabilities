@@ -29,6 +29,7 @@ import play.api.{Configuration, Logger}
 import play.api.libs.json.*
 import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
 import uk.gov.hmrc.vulnerabilities.model.v2.deployment.ImportedBy
+import uk.gov.hmrc.vulnerabilities.model.v2.deployment.OccurrenceState
 import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.*
 import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.ScanPublicationErrorV2.*
 import uk.gov.hmrc.vulnerabilities.service.v2.InitialWorkflowPolicyV2
@@ -144,7 +145,13 @@ class ScanPublisherV2 @Inject()(
     after: Map[String, VulnerabilityRecordV2],
     newEvidence: Map[String, SlugOccurrenceRecordV2],
     newWorkflows: Seq[ServiceOccurrenceRecordV2],
+    reopenedWorkflows: Seq[WorkflowReopening],
     changes: EvidenceChangesV2
+  )
+
+  private case class WorkflowReopening(
+    workflow: ServiceOccurrenceRecordV2,
+    newState: OccurrenceState
   )
 
   private case class PublicationState(
@@ -231,7 +238,8 @@ class ScanPublisherV2 @Inject()(
     val newEvidence = buildEvidence(input, context, oldEvidence)
     val newWorkflows = initialiseMissingWorkflows(input, context, existingWorkflows, publishedAt, occurrenceIds)
     val changes = calculateEvidenceChanges(input, oldEvidence, newEvidence.toMap)
-    Plan(before, after, newEvidence.toMap, newWorkflows, changes)
+    val reopenedWorkflows = planWorkflowReopenings(input, context, oldEvidence, retained, existingWorkflows)
+    Plan(before, after, newEvidence.toMap, newWorkflows, reopenedWorkflows, changes)
 
   private def validateExistingData(
     global: Seq[VulnerabilityRecordV2],
@@ -256,7 +264,6 @@ class ScanPublisherV2 @Inject()(
           other.exists(_.scanner_observation.exists(_.component != finding.component.identity)))("component"),
         Option.when(other.exists(_.scanner_observation.exists(_.summary != finding.summary)))("summary"),
         Option.when(other.exists(_.scanner_observation.exists(_.fixed_versions.toSet != finding.fixedVersions.toSet)))("fixedVersions"),
-        Option.when(finding.cvss.exists(score => other.exists(_.scanner_observation.exists(_.cvss.exists(_ != score)))))("cvss")
       ).flatten
       if fields.nonEmpty then reject(ScannerConflict(id, fields, other.map(e =>
         ScanContextV2(ServiceName(e.service), Version(e.service_version))).distinct))
@@ -264,8 +271,10 @@ class ScanPublisherV2 @Inject()(
       val references = (previous.flatMap(_.references).getOrElse(Seq.empty) ++ finding.references).distinct
       val fixes = previous.filter(_.fixed_version.toSet == finding.fixedVersions.toSet)
         .fold(finding.fixedVersions)(_.fixed_version)
+      val cvss = Seq(previous.flatMap(_.cvss_score), finding.cvss).flatten ++
+        other.flatMap(_.scanner_observation.flatMap(_.cvss))
       id -> VulnerabilityRecordV2(id, finding.summary, finding.component.identity, fixes,
-        finding.cvss.orElse(previous.flatMap(_.cvss_score)), previous.flatMap(_.epss), previous.flatMap(_.kev),
+        cvss.maxOption, previous.flatMap(_.epss), previous.flatMap(_.kev),
         Some(references), Some(previous.flatMap(_.scanner_revision).getOrElse(0L)))
     .toMap
 
@@ -307,6 +316,26 @@ class ScanPublisherV2 @Inject()(
       val current = newEvidence(id)
       old.copy(scanner_observation = old.scanner_observation.map(_.copy(run_id = input.runId))) != current
     EvidenceChangesV2(added.toSeq.sorted, changed.toSeq.sorted, removed.toSeq.sorted)
+
+  private def planWorkflowReopenings(
+    input: PublishScanV2,
+    context: ScanContextV2,
+    oldEvidence: Map[String, SlugOccurrenceRecordV2],
+    retained: Seq[SlugOccurrenceRecordV2],
+    existingWorkflows: Seq[ServiceOccurrenceRecordV2]
+  ): Seq[WorkflowReopening] =
+    val workflowsById = existingWorkflows.map(workflow => workflow.vuln_id -> workflow).toMap
+    val serviceScoresById = retained.filter(_.service == context.serviceName.asString)
+      .groupBy(_.vuln_id).view.mapValues(_.flatMap(_.scanner_observation.flatMap(_.cvss))).toMap
+    input.findings.findings.flatMap: finding =>
+      workflowsById.get(finding.vulnerabilityId).flatMap: workflow =>
+        val previousCvss = (oldEvidence.get(finding.vulnerabilityId)
+          .flatMap(_.scanner_observation.flatMap(_.cvss)).toSeq ++
+          serviceScoresById.getOrElse(finding.vulnerabilityId, Seq.empty)).maxOption
+        Option.when(
+          workflow.state != OccurrenceState.actionable &&
+            previousCvss.exists(previous => finding.cvss.exists(_ > previous))
+        )(WorkflowReopening(workflow, OccurrenceState.actionable))
 
   private def scannerFields(v: VulnerabilityRecordV2): JsObject =
     Json.obj("vuln_id" -> v.vuln_id, "summary" -> v.summary, "vuln_component" -> v.vuln_component,
@@ -358,15 +387,28 @@ class ScanPublisherV2 @Inject()(
   private def writeWorkflows(
     session: ClientSession, input: PublishScanV2, attempt: ScanAttemptRecordV2, plan: Plan, now: Instant
   ): Future[Unit] =
-    serial(plan.newWorkflows): workflow =>
-      for
-        _ <- workflows.collection.insertOne(session, workflow).toFuture()
-        _ <- occurrenceHistory.collection.insertOne(session, history(input, attempt, workflow.vuln_id,
-          Some(workflow.service), "occurrence_created", now,
-          Json.obj("after" -> ServiceOccurrenceRecordV2.mongoFormat.writes(workflow),
-            "synthetic" -> workflow.synthetic_initialisation.contains(true)),
-          workflow.synthetic_initialisation.contains(true))).toFuture()
-      yield ()
+    for
+      _ <- serial(plan.newWorkflows): workflow =>
+        for
+          _ <- workflows.collection.insertOne(session, workflow).toFuture()
+          _ <- occurrenceHistory.collection.insertOne(session, history(input, attempt, workflow.vuln_id,
+            Some(workflow.service), "occurrence_created", now,
+            Json.obj("after" -> ServiceOccurrenceRecordV2.mongoFormat.writes(workflow),
+              "synthetic" -> workflow.synthetic_initialisation.contains(true)),
+            workflow.synthetic_initialisation.contains(true))).toFuture()
+        yield ()
+      _ <- serial(plan.reopenedWorkflows)(reopen =>
+        workflows.collection.updateOne(session,
+          Filters.and(Filters.equal("vuln_id", reopen.workflow.vuln_id),
+            Filters.equal("service", reopen.workflow.service)),
+          set(Json.obj("state" -> reopen.newState))).toFuture().flatMap: _ =>
+            occurrenceHistory.collection.insertOne(session, history(input, attempt, reopen.workflow.vuln_id,
+              Some(reopen.workflow.service), "occurrence_reopened", now,
+              Json.obj("before" -> reopen.workflow.state, "after" -> reopen.newState,
+                "reason" -> "CVSS severity increased"),
+              syntheticInitialisation = false)).toFuture().map(_ => ())
+      )
+    yield ()
 
   private def writeEvidence(session: ClientSession, context: ScanContextV2, plan: Plan): Future[Unit] =
     for

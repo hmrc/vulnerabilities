@@ -136,7 +136,7 @@ class XrayConnectorV2 @Inject() (
   // Before production enablement confirm endpoint/authentication/permissions, repository/path interpretation,
   // response structure/status vocabulary, overall/SCA meaning and freshness, correct revision coverage,
   // correlation with the completed report, and sufficient evidence for a successful zero-vulnerability report.
-  // HTTP success or DONE alone must never authorise publication. See v2-ingestion-handover.md.
+  // HTTP success or DONE alone must never authorise publication; see the V2 limitations in README.md.
   def checkArtifactStatus(repo: String, path: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayArtifactStatusV2] =
     if repo.isBlank || path.isBlank then
       throw new BadRequestException("Xray repository and repository-relative path must not be blank")

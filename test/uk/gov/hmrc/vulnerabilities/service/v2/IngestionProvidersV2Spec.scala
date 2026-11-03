@@ -23,6 +23,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import play.api.libs.json.Json
 import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
+import uk.gov.hmrc.vulnerabilities.model.v2.deployment.*
 import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.*
 import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.IngestionFailureV2.*
 import uk.gov.hmrc.vulnerabilities.model.v2.xray.{XrayArtifactStatusV2, XrayReport}
@@ -84,8 +85,11 @@ class IngestionProvidersV2Spec extends AnyWordSpec with Matchers with EitherValu
       val ctx = InitialWorkflowContextV2(context, findings.findings.head, Instant.parse("2026-10-21T12:00:00Z"))
       UnavailableInitialWorkflowPolicyV2().initialValues(ctx).left.value shouldBe
         ScanPublicationErrorV2.WorkflowPolicyUnavailable("CVE-2026-0001")
-      FixtureInitialWorkflowPolicyV2.initialValues(ctx).value.synthetic shouldBe true
-      FixtureInitialWorkflowPolicyV2.initialValues(ctx) shouldBe FixtureInitialWorkflowPolicyV2.initialValues(ctx)
+      val temporary = TemporaryInitialWorkflowPolicyV2()
+      temporary.initialValues(ctx).value shouldBe
+        InitialWorkflowValuesV2(Priority.monitor, OccurrenceState.actionable,
+          DeploymentSla(None, breached = false, nearBreach = false), synthetic = true)
+      temporary.initialValues(ctx) shouldBe temporary.initialValues(ctx)
 
   "Dependency evidence boundary" should:
     "distinguish unavailable source from explicit known empty and known nonempty fixture values" in:

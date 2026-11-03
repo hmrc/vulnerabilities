@@ -16,19 +16,10 @@
 
 package uk.gov.hmrc.vulnerabilities.support
 
-import java.time.Instant
 import scala.collection.concurrent.TrieMap
 import scala.concurrent.Future
-import uk.gov.hmrc.vulnerabilities.model.v2.deployment.{DeploymentSla, OccurrenceState, Priority}
 import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.*
 import uk.gov.hmrc.vulnerabilities.service.v2.*
-
-object FixtureInitialWorkflowPolicyV2 extends InitialWorkflowPolicyV2:
-  override def initialValues(context: InitialWorkflowContextV2): Either[ScanPublicationErrorV2, InitialWorkflowValuesV2] =
-    Right(InitialWorkflowValuesV2(Priority.immediate, OccurrenceState.actionable,
-      DeploymentSla(Some(Instant.parse("2026-09-15T10:00:00Z")), breached = true, nearBreach = true,
-        status = Some("running"), clockStartedAt = Some(Instant.parse("2026-09-01T10:00:00Z")),
-        breachedAt = Some(Instant.parse("2026-09-15T10:00:00Z"))), synthetic = true))
 
 class FixtureDependencyEvidenceServiceV2 extends DependencyEvidenceServiceV2:
   var values: Map[String, Seq[ImportedDependencyV2]] = Map("CVE-2026-0001" -> Seq.empty)

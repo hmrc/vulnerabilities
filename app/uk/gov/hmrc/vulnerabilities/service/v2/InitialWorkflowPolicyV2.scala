@@ -18,6 +18,7 @@ package uk.gov.hmrc.vulnerabilities.service.v2
 
 import javax.inject.Singleton
 import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.*
+import uk.gov.hmrc.vulnerabilities.model.v2.deployment.*
 
 trait InitialWorkflowPolicyV2:
   /** Must remain pure and deterministic: Mongo may retry preparation with the same observation time. */
@@ -29,3 +30,23 @@ class UnavailableInitialWorkflowPolicyV2 extends InitialWorkflowPolicyV2:
   // Implement here once approved inputs and rules exist; no fixture or clock-based fallback is safe.
   override def initialValues(context: InitialWorkflowContextV2): Either[ScanPublicationErrorV2, InitialWorkflowValuesV2] =
     Left(ScanPublicationErrorV2.WorkflowPolicyUnavailable(context.finding.vulnerabilityId))
+
+@Singleton
+class TemporaryInitialWorkflowPolicyV2 extends InitialWorkflowPolicyV2:
+  // Temporary non-production placeholders pending the approved priority, SLA and state policies.
+  override def initialValues(context: InitialWorkflowContextV2): Either[ScanPublicationErrorV2, InitialWorkflowValuesV2] =
+    Right(
+      InitialWorkflowValuesV2(
+        priority = Priority.monitor,
+        state = OccurrenceState.actionable,
+        sla = DeploymentSla(
+          deadline = None,
+          breached = false,
+          nearBreach = false,
+          status = None,
+          clockStartedAt = None,
+          breachedAt = None
+        ),
+        synthetic = true
+      )
+    )
