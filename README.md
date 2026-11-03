@@ -55,7 +55,7 @@ New service occurrences are initialised with:
 * Priority `monitor`
 * SLA `deadline = None`, `breached = false`, `nearBreach = false`, with all optional status and clock fields unset
 
-Existing State, Priority and SLA survive rescans. A confirmed numeric CVSS increase reopens the current service occurrence by resetting State to `actionable`. Both the previous and new CVSS values must be present, and the new value must be greater; missing scores are never treated as zero. Equal scores, decreases, newly known scores and changes to other technical evidence do not reopen an occurrence. Empty successful scans do not resolve workflows.
+Existing State, Priority and SLA survive rescans. A valid incoming CVSS score replaces the stored technical score, including when it decreases. A confirmed numeric CVSS increase reopens the current service occurrence by resetting State to `actionable`. Both the previous and new CVSS values must be present, and the new value must be greater; missing scores are never treated as zero. Equal scores, decreases, newly known scores and changes to other technical evidence do not reopen an occurrence. Empty successful scans do not resolve workflows.
 
 These are temporary placeholders, not remediation or SLA assessments. Priority calculation, SLA calculation and manual State-management endpoints belong to future tickets and this branch must not be used as production remediation policy.
 

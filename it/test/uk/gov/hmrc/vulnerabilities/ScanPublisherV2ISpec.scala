@@ -325,6 +325,21 @@ class ScanPublisherV2ISpec
       current().evidence.head.scanner_observation.value.cvss shouldBe None
       count("vulnerability_history_v2") shouldBe 1
 
+    "store the current CVSS score while reopening against the latest committed score" in:
+      publish(request())
+      workflows.collection.updateOne(Filters.equal("vuln_id", id), Updates.set("state", "riskAccepted"))
+        .toFuture().futureValue
+      publish(request(rows = Seq(finding.copy(cvss = Some(7.0)))))
+      current().vulnerabilities.head.cvss_score shouldBe Some(7.0)
+      current().workflows.head.state shouldBe OccurrenceState.riskAccepted
+      publish(request(rows = Seq(finding.copy(cvss = Some(8.0)))))
+      current().vulnerabilities.head.cvss_score shouldBe Some(8.0)
+      current().workflows.head.state shouldBe OccurrenceState.actionable
+      val reopened = occurrenceHistory.collection
+        .find(Filters.equal("event_type", "occurrence_reopened")).headOption().futureValue.value
+      (reopened.changes \ "previousCvss").as[Double] shouldBe 7.0
+      (reopened.changes \ "newCvss").as[Double] shouldBe 8.0
+
     "retain an unknown CVSS as absent rather than zero" in:
       publish(request(rows = Seq(finding.copy(cvss = None))))
       current().vulnerabilities.head.cvss_score shouldBe None

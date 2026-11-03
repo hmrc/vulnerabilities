@@ -151,7 +151,9 @@ class ScanPublisherV2 @Inject()(
 
   private case class WorkflowReopening(
     workflow: ServiceOccurrenceRecordV2,
-    newState: OccurrenceState
+    newState: OccurrenceState,
+    previousCvss: Double,
+    newCvss: Double
   )
 
   private case class PublicationState(
@@ -238,7 +240,7 @@ class ScanPublisherV2 @Inject()(
     val newEvidence = buildEvidence(input, context, oldEvidence)
     val newWorkflows = initialiseMissingWorkflows(input, context, existingWorkflows, publishedAt, occurrenceIds)
     val changes = calculateEvidenceChanges(input, oldEvidence, newEvidence.toMap)
-    val reopenedWorkflows = planWorkflowReopenings(input, context, oldEvidence, retained, existingWorkflows)
+    val reopenedWorkflows = planWorkflowReopenings(input, before, existingWorkflows)
     Plan(before, after, newEvidence.toMap, newWorkflows, reopenedWorkflows, changes)
 
   private def validateExistingData(
@@ -271,10 +273,8 @@ class ScanPublisherV2 @Inject()(
       val references = (previous.flatMap(_.references).getOrElse(Seq.empty) ++ finding.references).distinct
       val fixes = previous.filter(_.fixed_version.toSet == finding.fixedVersions.toSet)
         .fold(finding.fixedVersions)(_.fixed_version)
-      val cvss = Seq(previous.flatMap(_.cvss_score), finding.cvss).flatten ++
-        other.flatMap(_.scanner_observation.flatMap(_.cvss))
       id -> VulnerabilityRecordV2(id, finding.summary, finding.component.identity, fixes,
-        cvss.maxOption, previous.flatMap(_.epss), previous.flatMap(_.kev),
+        finding.cvss.orElse(previous.flatMap(_.cvss_score)), previous.flatMap(_.epss), previous.flatMap(_.kev),
         Some(references), Some(previous.flatMap(_.scanner_revision).getOrElse(0L)))
     .toMap
 
@@ -319,23 +319,21 @@ class ScanPublisherV2 @Inject()(
 
   private def planWorkflowReopenings(
     input: PublishScanV2,
-    context: ScanContextV2,
-    oldEvidence: Map[String, SlugOccurrenceRecordV2],
-    retained: Seq[SlugOccurrenceRecordV2],
+    previousDetails: Map[String, VulnerabilityRecordV2],
     existingWorkflows: Seq[ServiceOccurrenceRecordV2]
   ): Seq[WorkflowReopening] =
     val workflowsById = existingWorkflows.map(workflow => workflow.vuln_id -> workflow).toMap
-    val serviceScoresById = retained.filter(_.service == context.serviceName.asString)
-      .groupBy(_.vuln_id).view.mapValues(_.flatMap(_.scanner_observation.flatMap(_.cvss))).toMap
     input.findings.findings.flatMap: finding =>
       workflowsById.get(finding.vulnerabilityId).flatMap: workflow =>
-        val previousCvss = (oldEvidence.get(finding.vulnerabilityId)
-          .flatMap(_.scanner_observation.flatMap(_.cvss)).toSeq ++
-          serviceScoresById.getOrElse(finding.vulnerabilityId, Seq.empty)).maxOption
+        val previousCvss = previousDetails.get(finding.vulnerabilityId).flatMap(_.cvss_score)
+        val incomingCvss = finding.cvss
         Option.when(
           workflow.state != OccurrenceState.actionable &&
-            previousCvss.exists(previous => finding.cvss.exists(_ > previous))
-        )(WorkflowReopening(workflow, OccurrenceState.actionable))
+            (for
+              previous <- previousCvss
+              incoming <- incomingCvss
+            yield incoming > previous).getOrElse(false)
+        )(WorkflowReopening(workflow, OccurrenceState.actionable, previousCvss.get, incomingCvss.get))
 
   private def scannerFields(v: VulnerabilityRecordV2): JsObject =
     Json.obj("vuln_id" -> v.vuln_id, "summary" -> v.summary, "vuln_component" -> v.vuln_component,
@@ -405,6 +403,7 @@ class ScanPublisherV2 @Inject()(
             occurrenceHistory.collection.insertOne(session, history(input, attempt, reopen.workflow.vuln_id,
               Some(reopen.workflow.service), "occurrence_reopened", now,
               Json.obj("before" -> reopen.workflow.state, "after" -> reopen.newState,
+                "previousCvss" -> reopen.previousCvss, "newCvss" -> reopen.newCvss,
                 "reason" -> "CVSS severity increased"),
               syntheticInitialisation = false)).toFuture().map(_ => ())
       )
