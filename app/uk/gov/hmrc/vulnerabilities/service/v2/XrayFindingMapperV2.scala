@@ -30,66 +30,95 @@ object XrayFindingMapperV2:
       Option.when(context.serviceName.asString.isBlank)(InvalidContext("serviceName", context.serviceName.asString)),
       Option.when(context.appVersion.original.isBlank)(InvalidContext("appVersion", context.appVersion.original))
     ).flatten
-    val rows = report.rows.zipWithIndex.map: (row, index) =>
-      val number = index + 1
-      val component = parseComponent(row, number)
-      val cveErrors =
-        if row.cves.isEmpty then Seq(UnsupportedCve(number, row.issueId, None, None))
-        else row.cves.zipWithIndex.flatMap: (cve, cveIndex) =>
-          val idErrors = Option.when(!cve.cveId.exists(id => cveIdPattern.matches(id)))(
-            UnsupportedCve(number, row.issueId, Some(cveIndex + 1), cve.cveId)
-          ).toSeq
-          val scoreErrors = cve.cveV3Score.toSeq.collect:
-            case score if !score.isFinite || score < 0 || score > 10 =>
-              InvalidCvss(number, row.issueId, cve.cveId, score)
-          idErrors ++ scoreErrors
-      val errors = component.left.toOption.toSeq ++ cveErrors
-      val findings = component.toOption.toSeq.flatMap: parsed =>
-        row.cves.flatMap: cve =>
-          cve.cveId.filter(id => cveIdPattern.matches(id)).map: id =>
-            number -> ScannerFindingV2(
-              vulnerabilityId = id,
-              summary = row.summary,
-              cvss = cve.cveV3Score,
-              component = parsed,
-              fixedVersions = row.fixedVersions,
-              references = row.references,
-              sources = Seq(XrayFindingSourceV2(
-                issueId = row.issueId,
-                cvssVector = cve.cveV3Vector,
-                rowMaxCvss = row.cvss3MaxScore,
-                severity = row.severity,
-                severitySource = row.severitySource,
-                componentPhysicalPath = row.componentPhysicalPath,
-                impactedArtefact = row.impactedArtefact,
-                impactPath = row.impactPath,
-                path = row.path,
-                published = row.published,
-                artefactScanTime = row.artefactScanTime,
-                provider = row.provider,
-                description = row.description,
-                projectKeys = row.projectKeys
-              ))
-            )
-      (errors, findings)
-
+    val rows = report.rows.zipWithIndex.map(mapRow)
     val indexedFindings = rows.flatMap(_._2)
-    val byId = indexedFindings.groupBy(_._2.vulnerabilityId)
-    val grouped = indexedFindings.map(_._2.vulnerabilityId).distinct.map(id => id -> byId(id))
-    val conflicts = grouped.flatMap: (id, entries) =>
-      val findings = entries.map(_._2)
-      val fields = conflictingFields(findings)
-      Option.when(fields.nonEmpty)(ConflictingFindings(id, entries.map(_._1).distinct, fields, findings))
+    val grouped = groupFindings(indexedFindings)
+    val conflicts = findConflicts(grouped)
     val errors = contextErrors ++ rows.flatMap(_._1) ++ conflicts
     if errors.nonEmpty then Left(errors)
     else
-      val findings = grouped.map: (_, entries) =>
-        val all = entries.map(_._2)
-        all.head.copy(
-          references = all.flatMap(_.references).distinct,
-          sources = all.flatMap(_.sources).distinct
+      Right(ScannerFindingsV2(context, report.generatedDate, mergeFindings(grouped)))
+
+  private def mapRow(
+    rowAndIndex: (XrayReport.Vulnerability, Int)
+  ): (Seq[XrayFindingMappingErrorV2], Seq[(Int, ScannerFindingV2)]) =
+    val (row, index) = rowAndIndex
+    val number = index + 1
+    val component = parseComponent(row, number)
+    val cveErrors = validateCves(row, number)
+    val errors = component.left.toOption.toSeq ++ cveErrors
+    val findings = component.toOption.toSeq.flatMap(parsed => buildFindings(row, number, parsed))
+    (errors, findings)
+
+  private def validateCves(
+    row: XrayReport.Vulnerability,
+    number: Int
+  ): Seq[XrayFindingMappingErrorV2] =
+    if row.cves.isEmpty then Seq(UnsupportedCve(number, row.issueId, None, None))
+    else row.cves.zipWithIndex.flatMap: (cve, cveIndex) =>
+      val idErrors = Option.when(!cve.cveId.exists(id => cveIdPattern.matches(id)))(
+        UnsupportedCve(number, row.issueId, Some(cveIndex + 1), cve.cveId)
+      ).toSeq
+      val scoreErrors = cve.cveV3Score.toSeq.collect:
+        case score if !score.isFinite || score < 0 || score > 10 =>
+          InvalidCvss(number, row.issueId, cve.cveId, score)
+      idErrors ++ scoreErrors
+
+  private def buildFindings(
+    row: XrayReport.Vulnerability,
+    number: Int,
+    component: MavenComponentV2
+  ): Seq[(Int, ScannerFindingV2)] =
+    row.cves.flatMap: cve =>
+      cve.cveId.filter(id => cveIdPattern.matches(id)).map: id =>
+        number -> ScannerFindingV2(
+          vulnerabilityId = id,
+          summary = row.summary,
+          cvss = cve.cveV3Score,
+          component = component,
+          fixedVersions = row.fixedVersions,
+          references = row.references,
+          sources = Seq(XrayFindingSourceV2(
+            issueId = row.issueId,
+            cvssVector = cve.cveV3Vector,
+            rowMaxCvss = row.cvss3MaxScore,
+            severity = row.severity,
+            severitySource = row.severitySource,
+            componentPhysicalPath = row.componentPhysicalPath,
+            impactedArtefact = row.impactedArtefact,
+            impactPath = row.impactPath,
+            path = row.path,
+            published = row.published,
+            artefactScanTime = row.artefactScanTime,
+            provider = row.provider,
+            description = row.description,
+            projectKeys = row.projectKeys
+          ))
         )
-      Right(ScannerFindingsV2(context, report.generatedDate, findings))
+
+  private def groupFindings(
+    indexedFindings: Seq[(Int, ScannerFindingV2)]
+  ): Seq[(String, Seq[(Int, ScannerFindingV2)])] =
+    val byId = indexedFindings.groupBy(_._2.vulnerabilityId)
+    indexedFindings.map(_._2.vulnerabilityId).distinct.map(id => id -> byId(id))
+
+  private def findConflicts(
+    grouped: Seq[(String, Seq[(Int, ScannerFindingV2)])]
+  ): Seq[ConflictingFindings] =
+    grouped.flatMap: (id, entries) =>
+      val findings = entries.map(_._2)
+      val fields = conflictingFields(findings)
+      Option.when(fields.nonEmpty)(ConflictingFindings(id, entries.map(_._1).distinct, fields, findings))
+
+  private def mergeFindings(
+    grouped: Seq[(String, Seq[(Int, ScannerFindingV2)])]
+  ): Seq[ScannerFindingV2] =
+    grouped.map: (_, entries) =>
+      val all = entries.map(_._2)
+      all.head.copy(
+        references = all.flatMap(_.references).distinct,
+        sources = all.flatMap(_.sources).distinct
+      )
 
   private def parseComponent(
     row: XrayReport.Vulnerability,

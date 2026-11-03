@@ -147,10 +147,32 @@ class ScanPublisherV2 @Inject()(
     changes: EvidenceChangesV2
   )
 
+  private case class PublicationState(
+    previous: Seq[SlugOccurrenceRecordV2],
+    global: Seq[VulnerabilityRecordV2],
+    retained: Seq[SlugOccurrenceRecordV2],
+    existingWorkflows: Seq[ServiceOccurrenceRecordV2]
+  )
+
   private def publishTransaction(
     session: ClientSession, input: PublishScanV2, attempt: ScanAttemptRecordV2, digest: String, publishedAt: Instant,
     occurrenceIds: Map[String, String]
   ): Future[ScanPublicationReceiptV2] =
+    val context = input.findings.context
+    for
+      state <- loadPublicationState(session, input, attempt)
+      plan = prepare(input, state.global, state.previous, state.retained, state.existingWorkflows, publishedAt, occurrenceIds)
+      _ <- writeDetails(session, input, attempt, plan, publishedAt)
+      _ <- writeWorkflows(session, input, attempt, plan, publishedAt)
+      _ <- writeEvidence(session, context, plan)
+      receipt <- persistPublication(session, input, attempt, digest, publishedAt, plan)
+    yield receipt
+
+  private def loadPublicationState(
+    session: ClientSession,
+    input: PublishScanV2,
+    attempt: ScanAttemptRecordV2
+  ): Future[PublicationState] =
     val context = input.findings.context
     for
       scan <- scans.findDeployment(context.serviceName.asString, context.appVersion.original, Some(session))
@@ -166,17 +188,25 @@ class ScanPublisherV2 @Inject()(
       _ = bound(retained.size, maximumObservations, "Global compatibility evidence exceeds the observation limit")
       existingWorkflows <- if ids.isEmpty then Future.successful(Seq.empty[ServiceOccurrenceRecordV2])
         else workflows.findByIds(context.serviceName.asString, ids, maximum * 2, Some(session))
-      plan = prepare(input, global, previous, retained, existingWorkflows, publishedAt, occurrenceIds)
-      _ <- writeDetails(session, input, attempt, plan, publishedAt)
-      _ <- writeWorkflows(session, input, attempt, plan, publishedAt)
-      _ <- writeEvidence(session, context, plan)
-      scanRecord = ScanRecordV2(context.serviceName.asString, context.appVersion.original, publishedAt,
-        "succeeded", Some(publishedAt), Some(input.runId), Some(attempt.generation), input.findings.generatedDate)
-      scanFields = ScanRecordV2.mongoFormat.writes(scanRecord)
+    yield PublicationState(previous, global, retained, existingWorkflows)
+
+  private def persistPublication(
+    session: ClientSession,
+    input: PublishScanV2,
+    attempt: ScanAttemptRecordV2,
+    digest: String,
+    publishedAt: Instant,
+    plan: Plan
+  ): Future[ScanPublicationReceiptV2] =
+    val context = input.findings.context
+    val scanRecord = ScanRecordV2(context.serviceName.asString, context.appVersion.original, publishedAt,
+      "succeeded", Some(publishedAt), Some(input.runId), Some(attempt.generation), input.findings.generatedDate)
+    val scanFields = ScanRecordV2.mongoFormat.writes(scanRecord)
+    val receipt = ScanPublicationReceiptV2(input.runId, attempt.generation, publishedAt, plan.changes)
+    for
       _ <- scans.collection.updateOne(session, deployment(context, "service_name"),
         set(scanFields + ("source_report_generated" -> scanFields.value.getOrElse("source_report_generated", JsNull))),
         UpdateOptions().upsert(true)).toFuture()
-      receipt = ScanPublicationReceiptV2(input.runId, attempt.generation, publishedAt, plan.changes)
       _ <- attempts.collection.updateOne(session, Filters.equal("run_id", input.runId),
         set(Json.obj("digest" -> digest, "fingerprint_version" -> ScanPublicationFingerprintV2.currentVersion,
           "receipt" -> ScanAttemptRecordV2.receiptFormat.writes(receipt))))
@@ -195,15 +225,34 @@ class ScanPublisherV2 @Inject()(
     val context = input.findings.context
     val before = global.map(v => v.vuln_id -> v).toMap
     val oldEvidence = previous.map(e => e.vuln_id -> e).toMap
-    global.foreach(v => if v.scanner_revision.isEmpty then reject(AdoptionRequired(v.vuln_id)))
-    retained.foreach: e =>
-      if e.scanner_observation.isEmpty || !before.contains(e.vuln_id) then reject(AdoptionRequired(e.vuln_id))
+    validateExistingData(global, retained, before)
     val otherEvidence = retained.filterNot(e => e.service == context.serviceName.asString && e.service_version == context.appVersion.original)
-    val after = input.findings.findings.map: finding =>
+    val after = buildUpdatedDetails(input, before, otherEvidence)
+    val newEvidence = buildEvidence(input, context, oldEvidence)
+    val newWorkflows = initialiseMissingWorkflows(input, context, existingWorkflows, publishedAt, occurrenceIds)
+    val changes = calculateEvidenceChanges(input, oldEvidence, newEvidence.toMap)
+    Plan(before, after, newEvidence.toMap, newWorkflows, changes)
+
+  private def validateExistingData(
+    global: Seq[VulnerabilityRecordV2],
+    retained: Seq[SlugOccurrenceRecordV2],
+    existing: Map[String, VulnerabilityRecordV2]
+  ): Unit =
+    global.foreach(v => if v.scanner_revision.isEmpty then reject(AdoptionRequired(v.vuln_id)))
+    retained.foreach: evidence =>
+      if evidence.scanner_observation.isEmpty || !existing.contains(evidence.vuln_id) then
+        reject(AdoptionRequired(evidence.vuln_id))
+
+  private def buildUpdatedDetails(
+    input: PublishScanV2,
+    existing: Map[String, VulnerabilityRecordV2],
+    otherEvidence: Seq[SlugOccurrenceRecordV2]
+  ): Map[String, VulnerabilityRecordV2] =
+    input.findings.findings.map: finding =>
       val id = finding.vulnerabilityId
       val other = otherEvidence.filter(_.vuln_id == id)
       val fields = Seq(
-        Option.when(before.get(id).exists(_.vuln_component != finding.component.identity) ||
+        Option.when(existing.get(id).exists(_.vuln_component != finding.component.identity) ||
           other.exists(_.scanner_observation.exists(_.component != finding.component.identity)))("component"),
         Option.when(other.exists(_.scanner_observation.exists(_.summary != finding.summary)))("summary"),
         Option.when(other.exists(_.scanner_observation.exists(_.fixed_versions.toSet != finding.fixedVersions.toSet)))("fixedVersions"),
@@ -211,34 +260,53 @@ class ScanPublisherV2 @Inject()(
       ).flatten
       if fields.nonEmpty then reject(ScannerConflict(id, fields, other.map(e =>
         ScanContextV2(ServiceName(e.service), Version(e.service_version))).distinct))
-      val existing = before.get(id)
-      val references = (existing.flatMap(_.references).getOrElse(Seq.empty) ++ finding.references).distinct
-      val fixes = existing.filter(_.fixed_version.toSet == finding.fixedVersions.toSet)
+      val previous = existing.get(id)
+      val references = (previous.flatMap(_.references).getOrElse(Seq.empty) ++ finding.references).distinct
+      val fixes = previous.filter(_.fixed_version.toSet == finding.fixedVersions.toSet)
         .fold(finding.fixedVersions)(_.fixed_version)
       id -> VulnerabilityRecordV2(id, finding.summary, finding.component.identity, fixes,
-        finding.cvss.orElse(existing.flatMap(_.cvss_score)), existing.flatMap(_.epss), existing.flatMap(_.kev),
-        Some(references), Some(existing.flatMap(_.scanner_revision).getOrElse(0L)))
-    val newEvidence = input.findings.findings.map: finding =>
+        finding.cvss.orElse(previous.flatMap(_.cvss_score)), previous.flatMap(_.epss), previous.flatMap(_.kev),
+        Some(references), Some(previous.flatMap(_.scanner_revision).getOrElse(0L)))
+    .toMap
+
+  private def buildEvidence(
+    input: PublishScanV2,
+    context: ScanContextV2,
+    oldEvidence: Map[String, SlugOccurrenceRecordV2]
+  ): Seq[(String, SlugOccurrenceRecordV2)] =
+    input.findings.findings.map: finding =>
       val id = finding.vulnerabilityId
       val importedBy = input.importedBy.get(id).map(_.map(d => ImportedBy(d.group, d.artefact, d.version)))
         .orElse(oldEvidence.get(id).map(_.imported_by)).getOrElse(reject(MissingImportedBy(id)))
       id -> SlugOccurrenceRecordV2(id, context.serviceName.asString, context.appVersion.original,
         importedBy, Some(finding.component.installedVersion), Some(observation(input, finding)))
-    val newWorkflows = input.findings.findings.filterNot(f => existingWorkflows.exists(_.vuln_id == f.vulnerabilityId)).map: finding =>
+
+  private def initialiseMissingWorkflows(
+    input: PublishScanV2,
+    context: ScanContextV2,
+    existingWorkflows: Seq[ServiceOccurrenceRecordV2],
+    publishedAt: Instant,
+    occurrenceIds: Map[String, String]
+  ): Seq[ServiceOccurrenceRecordV2] =
+    input.findings.findings.filterNot(f => existingWorkflows.exists(_.vuln_id == f.vulnerabilityId)).map: finding =>
       if input.workflowInitialisation != WorkflowInitialisationV2.UsePolicy then reject(InitialisationRequired(finding.vulnerabilityId))
       val values = policy.initialValues(InitialWorkflowContextV2(context, finding, publishedAt)).fold(reject, identity)
       ServiceOccurrenceRecordV2(finding.vulnerabilityId, context.serviceName.asString,
         occurrenceIds(finding.vulnerabilityId), publishedAt, values.priority, values.state, values.sla,
         synthetic_initialisation = Some(values.synthetic))
-    val next = newEvidence.toMap
-    val added = next.keySet -- oldEvidence.keySet
-    val removed = oldEvidence.keySet -- next.keySet
-    val changed = (next.keySet intersect oldEvidence.keySet).filter: id =>
+
+  private def calculateEvidenceChanges(
+    input: PublishScanV2,
+    oldEvidence: Map[String, SlugOccurrenceRecordV2],
+    newEvidence: Map[String, SlugOccurrenceRecordV2]
+  ): EvidenceChangesV2 =
+    val added = newEvidence.keySet -- oldEvidence.keySet
+    val removed = oldEvidence.keySet -- newEvidence.keySet
+    val changed = (newEvidence.keySet intersect oldEvidence.keySet).filter: id =>
       val old = oldEvidence(id)
-      val current = next(id)
+      val current = newEvidence(id)
       old.copy(scanner_observation = old.scanner_observation.map(_.copy(run_id = input.runId))) != current
-    Plan(before, after.toMap, next, newWorkflows,
-      EvidenceChangesV2(added.toSeq.sorted, changed.toSeq.sorted, removed.toSeq.sorted))
+    EvidenceChangesV2(added.toSeq.sorted, changed.toSeq.sorted, removed.toSeq.sorted)
 
   private def scannerFields(v: VulnerabilityRecordV2): JsObject =
     Json.obj("vuln_id" -> v.vuln_id, "summary" -> v.summary, "vuln_component" -> v.vuln_component,
@@ -267,13 +335,25 @@ class ScanPublisherV2 @Inject()(
           details.collection.updateOne(session, Filters.equal("vuln_id", id), BsonDocument(Json.stringify(update)))
             .toFuture().map(_ => ())
       write.flatMap: _ =>
-        next match
-          case Some(v) if old.isEmpty || old.exists(o => scannerFields(o) != scannerFields(v)) =>
-            val eventType = if old.isEmpty then "vulnerability_created" else "details_updated"
-            vulnerabilityHistory.collection.insertOne(session, history(input, attempt, id, None, eventType, now,
-              Json.obj("before" -> old.map(scannerFields), "after" -> scannerFields(v)),
-              plan.newWorkflows.exists(_.synthetic_initialisation.contains(true)))).toFuture().map(_ => ())
-          case _ => Future.unit
+        writeHistoryIfDetailsChanged(session, input, attempt, plan, id, old, next, now)
+
+  private def writeHistoryIfDetailsChanged(
+    session: ClientSession,
+    input: PublishScanV2,
+    attempt: ScanAttemptRecordV2,
+    plan: Plan,
+    id: String,
+    old: Option[VulnerabilityRecordV2],
+    next: Option[VulnerabilityRecordV2],
+    now: Instant
+  ): Future[Unit] =
+    next match
+      case Some(value) if old.isEmpty || old.exists(previous => scannerFields(previous) != scannerFields(value)) =>
+        val eventType = if old.isEmpty then "vulnerability_created" else "details_updated"
+        vulnerabilityHistory.collection.insertOne(session, history(input, attempt, id, None, eventType, now,
+          Json.obj("before" -> old.map(scannerFields), "after" -> scannerFields(value)),
+          plan.newWorkflows.exists(_.synthetic_initialisation.contains(true)))).toFuture().map(_ => ())
+      case _ => Future.unit
 
   private def writeWorkflows(
     session: ClientSession, input: PublishScanV2, attempt: ScanAttemptRecordV2, plan: Plan, now: Instant
