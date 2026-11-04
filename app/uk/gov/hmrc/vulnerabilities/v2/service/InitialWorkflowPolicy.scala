@@ -1,0 +1,52 @@
+/*
+ * Copyright 2026 HM Revenue & Customs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package uk.gov.hmrc.vulnerabilities.v2.service
+
+import javax.inject.Singleton
+import uk.gov.hmrc.vulnerabilities.v2.model.ingestion.*
+import uk.gov.hmrc.vulnerabilities.v2.model.deployment.*
+
+trait InitialWorkflowPolicy:
+  /** Must remain pure and deterministic: Mongo may retry preparation with the same observation time. */
+  def initialValues(context: InitialWorkflowContext): Either[ScanPublicationError, InitialWorkflowValues]
+
+@Singleton
+class UnavailableInitialWorkflowPolicy extends InitialWorkflowPolicy:
+  // BDOG-3994: initial priority/state and SLA start/duration/pause/breach rules are not approved.
+  // Implement here once approved inputs and rules exist; no fixture or clock-based fallback is safe.
+  override def initialValues(context: InitialWorkflowContext): Either[ScanPublicationError, InitialWorkflowValues] =
+    Left(ScanPublicationError.WorkflowPolicyUnavailable(context.finding.vulnerabilityId))
+
+@Singleton
+class TemporaryInitialWorkflowPolicy extends InitialWorkflowPolicy:
+  // Temporary non-production placeholders pending the approved priority, SLA and state policies.
+  override def initialValues(context: InitialWorkflowContext): Either[ScanPublicationError, InitialWorkflowValues] =
+    Right(
+      InitialWorkflowValues(
+        priority = Priority.monitor,
+        state = OccurrenceState.actionable,
+        sla = DeploymentSla(
+          deadline = None,
+          breached = false,
+          nearBreach = false,
+          status = None,
+          clockStartedAt = None,
+          breachedAt = None
+        ),
+        synthetic = true
+      )
+    )

@@ -19,25 +19,25 @@ package uk.gov.hmrc.vulnerabilities.support
 import java.nio.charset.StandardCharsets.UTF_8
 import java.security.MessageDigest
 import play.api.libs.json.*
-import uk.gov.hmrc.vulnerabilities.model.v2.ingestion.*
-import uk.gov.hmrc.vulnerabilities.persistence.v2.ScannerObservationV2
+import uk.gov.hmrc.vulnerabilities.v2.model.ingestion.*
+import uk.gov.hmrc.vulnerabilities.v2.persistence.ScannerObservation
 
-/** Frozen fingerprint algorithm from 73a6e72 ScanPublisherV2:144-158, independent of the new codec. */
+/** Frozen fingerprint algorithm from 73a6e72 ScanPublisher:144-158, independent of the new codec. */
 object HistoricalPublicationV1:
   private enum Initialisation:
     case ExistingOnly, SyntheticSeed
 
-  def fingerprint(input: PublishScanV2): String =
+  def fingerprint(input: PublishScan): String =
     val oldMode = input.workflowInitialisation match
-      case WorkflowInitialisationV2.ExistingOnly => Initialisation.ExistingOnly
-      case WorkflowInitialisationV2.UsePolicy => Initialisation.SyntheticSeed
+      case WorkflowInitialisation.ExistingOnly => Initialisation.ExistingOnly
+      case WorkflowInitialisation.UsePolicy => Initialisation.SyntheticSeed
     val json = Json.obj(
       "run" -> input.runId,
       "service" -> input.findings.context.serviceName.asString,
       "version" -> input.findings.context.appVersion.original,
       "initialisation" -> oldMode.toString,
       "findings" -> input.findings.findings.sortBy(_.vulnerabilityId).map { finding =>
-        val observation = ScannerObservationV2(input.runId, finding.summary, finding.component.identity,
+        val observation = ScannerObservation(input.runId, finding.summary, finding.component.identity,
           finding.fixedVersions, finding.cvss, finding.references, finding.sources, input.findings.generatedDate)
         Json.obj("id" -> finding.vulnerabilityId, "installed" -> finding.component.installedVersion,
           "observation" -> observation,

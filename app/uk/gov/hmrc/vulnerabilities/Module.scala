@@ -23,7 +23,7 @@ import uk.gov.hmrc.vulnerabilities.persistence.{ReportRepository, MongoReportRep
 import uk.gov.hmrc.vulnerabilities.scheduler.{EpssKevUpdateScheduler, RefreshArtifactoryTokenScheduler, ReloadScheduler, TimelineScheduler, FixNotScannedScheduler}
 
 import java.time.Clock
-import uk.gov.hmrc.vulnerabilities.service.v2.*
+import uk.gov.hmrc.vulnerabilities.v2.service.*
 
 class Module extends play.api.inject.Module:
 
@@ -51,8 +51,8 @@ class Module extends play.api.inject.Module:
     , bind[EpssKevUpdateScheduler          ].toSelf.eagerly()
     , bind[Clock                           ].toInstance(Clock.systemUTC())
     , bind[Crypto                          ].toSelf.eagerly()
-    , bind[ArtifactCoverageVerifierV2       ].to[JfrogArtifactCoverageVerifierV2]
-    , bind[InitialWorkflowPolicyV2          ].to[TemporaryInitialWorkflowPolicyV2]
-    , bind[DependencyEvidenceServiceV2      ].to[UnavailableDependencyEvidenceServiceV2]
+    , bind[ArtifactCoverageVerifier       ].to[JfrogArtifactCoverageVerifier]
+    , bind[InitialWorkflowPolicy          ].to[TemporaryInitialWorkflowPolicy]
+    , bind[DependencyEvidenceService      ].to[UnavailableDependencyEvidenceService]
     ) ++
       ecsDeploymentsBindings(configuration)

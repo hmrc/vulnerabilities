@@ -77,14 +77,14 @@ Unit tests can be run with:
 
 ```bash
 sbt compile
-sbt "testOnly *IngestionProvidersV2Spec *ScanPublicationFingerprintV2Spec"
+sbt "testOnly *IngestionProvidersSpec *ScanPublicationFingerprintSpec"
 ```
 
 Mongo-backed integration tests require a local transaction-capable MongoDB replica set:
 
 ```bash
-sbt "it/testOnly *ScanPublisherV2ISpec"
-sbt "it/testOnly *VulnerabilityIngestionV2ISpec"
+sbt "it/testOnly *ScanPublisherISpec"
+sbt "it/testOnly *VulnerabilityIngestionISpec"
 sbt compile test it/test
 ```
 
