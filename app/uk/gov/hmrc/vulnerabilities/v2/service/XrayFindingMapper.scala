@@ -114,11 +114,13 @@ object XrayFindingMapper:
     grouped: Seq[(String, Seq[(Int, ScannerFinding)])]
   ): Seq[ScannerFinding] =
     grouped.map: (_, entries) =>
-      val all = entries.map(_._2)
-      all.head.copy(
-        references = all.flatMap(_.references).distinct,
-        sources = all.flatMap(_.sources).distinct
-      )
+      entries.groupBy(_._2.observationKey).toSeq.sortBy(_._1).map: (_, duplicates) =>
+        val all = duplicates.map(_._2)
+        all.head.copy(
+          references = all.flatMap(_.references).distinct,
+          sources = all.flatMap(_.sources).distinct
+        )
+    .flatten
 
   private def parseComponent(
     row: XrayReport.Vulnerability,
@@ -140,9 +142,6 @@ object XrayFindingMapper:
   private def conflictingFields(findings: Seq[ScannerFinding]): Seq[ConflictingFindingField] =
     import ConflictingFindingField.*
     Seq(
-      Option.when(findings.map(_.component.identity).distinct.size > 1)(component),
-      Option.when(findings.map(_.component.installedVersion).distinct.size > 1)(installedVersion),
-      Option.when(findings.map(_.fixedVersions.toSet).distinct.size > 1)(fixedVersions),
       Option.when(findings.map(_.summary).distinct.size > 1)(summary),
       Option.when(findings.map(_.cvss).distinct.size > 1)(cvss)
     ).flatten

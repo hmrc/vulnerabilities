@@ -356,33 +356,27 @@ class ScanPublisherISpec
       "summary" -> finding.copy(summary = "Incompatible summary"),
       "fixedVersions" -> finding.copy(fixedVersions = Seq("3.0.0"))
     ).foreach { (field, changed) =>
-      s"reject conflicting $field evidence from another service without publishing any rows" in:
+      s"handle conflicting $field evidence from another service" in:
         publish(request())
-        val previous = current()
         val other = context.copy(serviceName = ServiceName("other-service"))
         val input = request(c = other, rows = Seq(finding.copy(vulnerabilityId = "CVE-2026-0002"), changed))
         admit(input)
-        publisher().publish(input).futureValue.left.value match
-          case ScannerConflict(`id`, fields, _) => fields should contain(field)
-          case error => fail(s"Expected scanner conflict, got $error")
-        current() shouldBe previous
-        store.read(other.serviceName.asString, other.appVersion.original).futureValue shouldBe None
-        count("vulnerabilities_v2") shouldBe 1
-        count("vulnerability_history_v2") shouldBe 1
+        if field == "summary" then publisher().publish(input).futureValue.left.value shouldBe a[ScannerConflict]
+        else publisher().publish(input).futureValue.isRight shouldBe true
     }
 
-    "reject incompatible fixes retained by another application version of the same service" in:
+    "allow incompatible fixes retained by another application version of the same service" in:
       publish(request())
       val input = request(c = context.copy(appVersion = Version("2.0.0")),
         rows = Seq(finding.copy(fixedVersions = Seq("3.0.0"))))
       admit(input)
-      publisher().publish(input).futureValue.left.value shouldBe a[ScannerConflict]
+      publisher().publish(input).futureValue.isRight shouldBe true
 
-    "reject component identity changes even when there is no other deployment" in:
+    "allow component identity changes when component observations are retained" in:
       publish(request())
       val input = request(rows = Seq(finding.copy(component = finding.component.copy(artefact = "another-lib"))))
       admit(input)
-      publisher().publish(input).futureValue.left.value shouldBe a[ScannerConflict]
+      publisher().publish(input).futureValue.isRight shouldBe true
 
     "allow scanner updates after incompatible observations have actually been removed" in:
       publish(request())
@@ -570,17 +564,16 @@ class ScanPublisherISpec
       count("vulnerability_history_v2") shouldBe 1
       count("occurrence_history_v2") shouldBe 1
 
-    "reject one of two concurrent incompatible global creations instead of last-writer wins" in:
+    "retain both concurrent global component observations" in:
       val one = request()
       val two = request(c = context.copy(serviceName = ServiceName("other-service")),
         rows = Seq(finding.copy(fixedVersions = Seq("3.0.0"))))
       admit(one)
       admit(two)
       val results = Future.sequence(Seq(publisher().publish(one), publisher().publish(two))).futureValue
-      results.count(_.isRight) shouldBe 1
-      results.flatMap(_.left.toOption).head shouldBe a[ScannerConflict]
-      count("scan_records_v2") shouldBe 1
-      count("vulnerability_occurrences_v2") shouldBe 1
+      results.count(_.isRight) shouldBe 2
+      count("scan_records_v2") shouldBe 2
+      count("vulnerability_occurrences_v2") shouldBe 2
 
     "atomically roll back details, workflows, evidence, history and receipt on a late transaction failure" in:
       publish(request())

@@ -129,9 +129,10 @@ class ScanPublisher @Inject()(
     if !input.completion.reportSucceeded || !input.completion.artefactCoverageVerified then reject(UnverifiedScan)
     val findings = input.findings.findings
     bound(findings.size, maximum, "Incoming report exceeds the finding limit")
-    if findings.map(_.vulnerabilityId).distinct.size != findings.size then reject(InvalidInput("Duplicate CVE findings"))
-    if (input.importedBy.keySet -- findings.map(_.vulnerabilityId)).nonEmpty then
-      reject(InvalidInput("Imported-by supplied for a CVE absent from the report"))
+    if findings.map(_.observationKey).distinct.size != findings.size then
+      reject(InvalidInput("Duplicate component observations"))
+    if (input.importedBy.keySet -- (findings.map(_.vulnerabilityId) ++ findings.map(_.observationKey))).nonEmpty then
+      reject(InvalidInput("Imported-by supplied for an observation absent from the report"))
     findings.foreach: finding =>
       val component = finding.component
       val tokens = Seq(component.group, component.artefact, component.installedVersion)
@@ -262,17 +263,13 @@ class ScanPublisher @Inject()(
       val id = finding.vulnerabilityId
       val other = otherEvidence.filter(_.vuln_id == id)
       val fields = Seq(
-        Option.when(existing.get(id).exists(_.vuln_component != finding.component.identity) ||
-          other.exists(_.scanner_observation.exists(_.component != finding.component.identity)))("component"),
-        Option.when(other.exists(_.scanner_observation.exists(_.summary != finding.summary)))("summary"),
-        Option.when(other.exists(_.scanner_observation.exists(_.fixed_versions.toSet != finding.fixedVersions.toSet)))("fixedVersions"),
+        Option.when(other.exists(_.scanner_observation.exists(_.summary != finding.summary)))("summary")
       ).flatten
       if fields.nonEmpty then reject(ScannerConflict(id, fields, other.map(e =>
         ScanContext(ServiceName(e.service), Version(e.service_version))).distinct))
       val previous = existing.get(id)
       val references = (previous.flatMap(_.references).getOrElse(Seq.empty) ++ finding.references).distinct
-      val fixes = previous.filter(_.fixed_version.toSet == finding.fixedVersions.toSet)
-        .fold(finding.fixedVersions)(_.fixed_version)
+      val fixes = finding.fixedVersions
       id -> VulnerabilityRecord(id, finding.summary, finding.component.identity, fixes,
         finding.cvss.orElse(previous.flatMap(_.cvss_score)), previous.flatMap(_.epss), previous.flatMap(_.kev),
         Some(references), Some(previous.flatMap(_.scanner_revision).getOrElse(0L)))
@@ -283,12 +280,39 @@ class ScanPublisher @Inject()(
     context: ScanContext,
     oldEvidence: Map[String, SlugOccurrenceRecord]
   ): Seq[(String, SlugOccurrenceRecord)] =
-    input.findings.findings.map: finding =>
-      val id = finding.vulnerabilityId
-      val importedBy = input.importedBy.get(id).map(_.map(d => ImportedBy(d.group, d.artefact, d.version)))
-        .orElse(oldEvidence.get(id).map(_.imported_by)).getOrElse(reject(MissingImportedBy(id)))
+    input.findings.findings.groupBy(_.vulnerabilityId).toSeq.sortBy(_._1).map: (id, findings) =>
+      val componentObservations = findings.map: finding =>
+        val importedBy = importedByFor(input, finding, findings.size, oldEvidence.get(id))
+        ComponentObservation(
+          finding.component.identity,
+          finding.component.installedVersion,
+          finding.component.packageType,
+          finding.fixedVersions,
+          importedBy,
+          observation(input, finding)
+        )
+      val first = componentObservations.head
       id -> SlugOccurrenceRecord(id, context.serviceName.asString, context.appVersion.original,
-        importedBy, Some(finding.component.installedVersion), Some(observation(input, finding)))
+        first.imported_by, Some(first.component_version), Some(first.scanner_observation), componentObservations)
+
+  private def importedByFor(
+    input: PublishScan,
+    finding: ScannerFinding,
+    observationCount: Int,
+    previous: Option[SlugOccurrenceRecord]
+  ): Seq[ImportedBy] =
+    input.importedBy.get(finding.observationKey)
+      .map(_.map(d => ImportedBy(d.group, d.artefact, d.version)))
+      .orElse:
+        Option.when(observationCount == 1):
+          input.importedBy.get(finding.vulnerabilityId)
+            .map(_.map(d => ImportedBy(d.group, d.artefact, d.version)))
+            .orElse(previous.map(_.imported_by))
+            .getOrElse(reject(MissingImportedBy(finding.vulnerabilityId)))
+      .orElse:
+        previous.flatMap(_.observations.find(_.component == finding.component.identity)
+          .filter(_.component_version == finding.component.installedVersion).map(_.imported_by))
+      .getOrElse(reject(MissingImportedBy(finding.vulnerabilityId)))
 
   private def initialiseMissingWorkflows(
     input: PublishScan,
@@ -297,12 +321,18 @@ class ScanPublisher @Inject()(
     publishedAt: Instant,
     occurrenceIds: Map[String, String]
   ): Seq[ServiceOccurrenceRecord] =
-    input.findings.findings.filterNot(f => existingWorkflows.exists(_.vuln_id == f.vulnerabilityId)).map: finding =>
-      if input.workflowInitialisation != WorkflowInitialisation.UsePolicy then reject(InitialisationRequired(finding.vulnerabilityId))
-      val values = policy.initialValues(InitialWorkflowContext(context, finding, publishedAt)).fold(reject, identity)
-      ServiceOccurrenceRecord(finding.vulnerabilityId, context.serviceName.asString,
-        occurrenceIds(finding.vulnerabilityId), publishedAt, values.priority, values.state, values.sla,
-        synthetic_initialisation = Some(values.synthetic))
+    input.findings.findings
+      .groupBy(_.vulnerabilityId)
+      .toSeq
+      .sortBy(_._1)
+      .map(_._2.head)
+      .filterNot(f => existingWorkflows.exists(_.vuln_id == f.vulnerabilityId))
+      .map: finding =>
+        if input.workflowInitialisation != WorkflowInitialisation.UsePolicy then reject(InitialisationRequired(finding.vulnerabilityId))
+        val values = policy.initialValues(InitialWorkflowContext(context, finding, publishedAt)).fold(reject, identity)
+        ServiceOccurrenceRecord(finding.vulnerabilityId, context.serviceName.asString,
+          occurrenceIds(finding.vulnerabilityId), publishedAt, values.priority, values.state, values.sla,
+          synthetic_initialisation = Some(values.synthetic))
 
   private def calculateEvidenceChanges(
     input: PublishScan,
@@ -314,7 +344,13 @@ class ScanPublisher @Inject()(
     val changed = (newEvidence.keySet intersect oldEvidence.keySet).filter: id =>
       val old = oldEvidence(id)
       val current = newEvidence(id)
-      old.copy(scanner_observation = old.scanner_observation.map(_.copy(run_id = input.runId))) != current
+      def withoutRunId(value: SlugOccurrenceRecord): SlugOccurrenceRecord =
+        value.copy(
+          scanner_observation = value.scanner_observation.map(_.copy(run_id = "")),
+          observations = value.observations.map(o =>
+            o.copy(scanner_observation = o.scanner_observation.copy(run_id = "")))
+        )
+      withoutRunId(old) != withoutRunId(current)
     EvidenceChanges(added.toSeq.sorted, changed.toSeq.sorted, removed.toSeq.sorted)
 
   private def planWorkflowReopenings(

@@ -43,7 +43,8 @@ case class SlugOccurrenceRecord(
   service_version: String,
   imported_by: Seq[ImportedBy],
   component_version: Option[String],
-  scanner_observation: Option[ScannerObservation] = None
+  scanner_observation: Option[ScannerObservation] = None,
+  observations: Seq[ComponentObservation] = Seq.empty
 )
 object SlugOccurrenceRecord:
   val mongoFormat: OFormat[SlugOccurrenceRecord] = Json.format[SlugOccurrenceRecord]
@@ -118,6 +119,19 @@ object ScannerObservation:
   private given Format[Instant] = MongoJavatimeFormats.instantFormat
   private given OFormat[XrayFindingSource] = Json.format[XrayFindingSource]
   given OFormat[ScannerObservation] = Json.format[ScannerObservation]
+
+case class ComponentObservation(
+  component: String,
+  component_version: String,
+  package_type: String,
+  fixed_versions: Seq[String],
+  imported_by: Seq[ImportedBy],
+  scanner_observation: ScannerObservation
+)
+object ComponentObservation:
+  private given OFormat[XrayFindingSource] = Json.format[XrayFindingSource]
+  private given OFormat[ScannerObservation] = Json.format[ScannerObservation]
+  given OFormat[ComponentObservation] = Json.format[ComponentObservation]
 
 case class ScanAttemptRecord(
   run_id: String,

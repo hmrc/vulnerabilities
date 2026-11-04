@@ -162,26 +162,23 @@ class XrayFindingMapperSpec extends AnyWordSpec with Matchers with EitherValues 
       result.findings.head.sources.map(_.impactPath) shouldBe Seq(row.impactPath, second.impactPath)
       result.findings.head.references shouldBe Seq(row.references.head, second.references.head)
 
-    "reject one CVE affecting two different components, even with identical fixes" in:
+    "accept one CVE affecting two different components, even with identical fixes" in:
       val second = row.copy(vulnerableComponent = "gav://other.group:other-lib:2.4.0")
-      val error = conflict(row, second)
-      error.vulnerabilityId shouldBe cve.cveId.value
-      error.rows shouldBe Seq(1, 2)
-      error.fields shouldBe Seq(ConflictingFindingField.component)
-      error.evidence.map(_.component.identity) shouldBe Seq("gav://uk.gov.hmrc:example-lib", "gav://other.group:other-lib")
+      val result = map(row, second).value
+      result.findings.map(_.component.identity) shouldBe
+        Seq("gav://other.group:other-lib", "gav://uk.gov.hmrc:example-lib")
 
-    "report distinct component and fix information rather than selecting a component" in:
-      val error = conflict(row, row.copy(vulnerableComponent = "gav://other.group:other-lib:2.4.0", fixedVersions = Seq("3.2")))
-      error.fields shouldBe Seq(ConflictingFindingField.component, ConflictingFindingField.fixedVersions)
-      error.evidence.map(_.fixedVersions) shouldBe Seq(Seq("2.4.1"), Seq("3.2"))
+    "retain distinct component and fix information" in:
+      val result = map(row, row.copy(vulnerableComponent = "gav://other.group:other-lib:2.4.0", fixedVersions = Seq("3.2"))).value
+      result.findings.map(_.fixedVersions) shouldBe Seq(Seq("3.2"), Seq("2.4.1"))
 
-    "reject two installed versions of one CVE/component within a deployment" in:
-      conflict(row, row.copy(vulnerableComponent = "gav://uk.gov.hmrc:example-lib:2.3.0")).fields shouldBe
-        Seq(ConflictingFindingField.installedVersion)
+    "accept two installed versions of one CVE/component within a deployment" in:
+      map(row, row.copy(vulnerableComponent = "gav://uk.gov.hmrc:example-lib:2.3.0")).value.findings.map(_.component.installedVersion) shouldBe
+        Seq("2.3.0", "2.4.0")
 
-    "reject conflicting fix evidence for the same CVE/component" in:
-      conflict(row, row.copy(fixedVersions = Seq("2.5.0"))).fields shouldBe Seq(ConflictingFindingField.fixedVersions)
-      conflict(row, row.copy(fixedVersions = Seq.empty)).fields shouldBe Seq(ConflictingFindingField.fixedVersions)
+    "accept different opaque fix evidence for distinct observations" in:
+      map(row, row.copy(fixedVersions = Seq("2.5.0"))).value.findings.map(_.fixedVersions) shouldBe
+        Seq(Seq("2.4.1"), Seq("2.5.0"))
 
     "ignore fix order for conflict detection while preserving source strings and first-seen order" in:
       val fixes = Seq("2.4.1", "[3.2,4.0)")
@@ -248,11 +245,8 @@ class XrayFindingMapperSpec extends AnyWordSpec with Matchers with EitherValues 
     "detect report-wide conflicts even when another row is invalid" in:
       val errors = map(row, row.copy(cves = Seq.empty),
         row.copy(vulnerableComponent = "gav://other.group:other-lib:2.4.0")).left.value
-      errors should have size 2
+      errors should have size 1
       errors.head shouldBe UnsupportedCve(2, row.issueId, None, None)
-      errors(1) match
-        case error: ConflictingFindings => error.rows shouldBe Seq(1, 3)
-        case other => fail(s"Expected component conflict, got $other")
 
     "reject blank explicit context even for an empty report" in:
       val invalid = ScanContext(ServiceName(" "), Version(""))

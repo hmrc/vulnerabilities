@@ -47,7 +47,7 @@ private[vulnerabilities] object ScanPublicationFingerprint:
       "service" -> input.findings.context.serviceName.asString,
       "version" -> input.findings.context.appVersion.original,
       "initialisation" -> intent,
-      "findings" -> input.findings.findings.sortBy(_.vulnerabilityId).map { finding =>
+      "findings" -> input.findings.findings.sortBy(f => (f.vulnerabilityId, f.observationKey)).map { finding =>
         Json.obj("id" -> finding.vulnerabilityId, "installed" -> finding.component.installedVersion,
           "observation" -> observation(input, finding),
           "importedBy" -> input.importedBy.get(finding.vulnerabilityId).map(_.map(d =>

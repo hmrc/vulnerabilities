@@ -24,11 +24,21 @@ import uk.gov.hmrc.vulnerabilities.v2.service.*
 class FixtureDependencyEvidenceService extends DependencyEvidenceService:
   var values: Map[String, Seq[ImportedDependency]] = Map("CVE-2026-0001" -> Seq.empty)
   override def importedBy(findings: ScannerFindings): Future[Either[IngestionFailure, Map[String, Seq[ImportedDependency]]]] =
-    val ids = findings.findings.map(_.vulnerabilityId).toSet
+    def valueFor(finding: ScannerFinding): Option[Seq[ImportedDependency]] =
+      values.get(finding.observationKey).orElse(
+        values.collectFirst { case (key, value) if key.startsWith(s"${finding.vulnerabilityId}|") => value }
+      )
     Future.successful:
-      if !ids.subsetOf(values.keySet) then
+      if !findings.findings.groupBy(_.vulnerabilityId).forall { case (id, observations) =>
+        observations.size == 1 && values.contains(id) || observations.forall(f => valueFor(f).nonEmpty)
+      } then
         Left(IngestionFailure.DependencyEvidenceUnavailable("No explicit dependency fixture for every finding"))
-      else Right(values.view.filterKeys(ids.contains).toMap)
+      else Right(
+        findings.findings.groupBy(_.vulnerabilityId).toSeq.flatMap { case (id, observations) =>
+          if observations.size == 1 then Seq(id -> values(id))
+          else observations.map(f => f.observationKey -> valueFor(f).get)
+        }.toMap
+      )
 
 /** Controlled evidence supplied by a test, not a claim about the deployed JFrog API. */
 final case class ControlledReportEvidence(context: ScanContext, artefact: String, rawRows: Int, scannedArtefacts: Int = 1)
