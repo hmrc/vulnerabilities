@@ -39,7 +39,21 @@ private[vulnerabilities] object ScanPublicationFingerprint:
     val intent = input.workflowInitialisation match
       case WorkflowInitialisation.ExistingOnly => "existing-only"
       case WorkflowInitialisation.UsePolicy => "configured-policy"
-    hash(canonical(Json.obj("format" -> currentVersion, "payload" -> payload(input, intent))))
+    val importedBy = JsObject(input.importedBy.toSeq.map{ case (key, dependencies) => 
+      key -> JsArray(dependencies.map(d => 
+        Json.obj(
+          "group" -> d.group,
+          "artefact" -> d.artefact, 
+          "version" -> d.version
+          )
+        )
+      )
+    })
+    hash(canonical(Json.obj(
+      "format" -> currentVersion, 
+      "payload" -> payload(input, intent),
+      "importedBy" -> importedBy
+    )))
 
   private def payload(input: PublishScan, intent: String): JsObject =
     Json.obj(

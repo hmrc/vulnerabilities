@@ -60,3 +60,23 @@ class ScanPublicationFingerprintSpec extends AnyWordSpec with Matchers with Eith
       ScanPublicationFingerprint.currentVersion shouldBe 2
       ScanPublicationFingerprint.current(input) should fullyMatch regex "[0-9a-f]{64}"
       ScanPublicationFingerprint.current(input) should not be ScanPublicationFingerprint.legacy(input)
+
+    "detect changes to component-specific imported-by evidence" in: 
+      val key = findings.findings.head.observationKey 
+      val first = input.copy( 
+        importedBy = Map(
+          key -> Seq(
+            ImportedDependency("parent", "library-a", "1.0")
+          )
+        )
+      )
+      val second = first.copy(
+        importedBy = Map(
+          key -> Seq(
+            ImportedDependency("parent", "library-b", "2.0")
+          )
+        )
+      )
+      ScanPublicationFingerprint.current(first) should not be 
+        ScanPublicationFingerprint.current(second)
+
