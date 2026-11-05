@@ -12,4 +12,5 @@ GET        /api/reports/timeline            uk.gov.hmrc.vulnerabilities.controll
 POST       /admin/rescan                    uk.gov.hmrc.vulnerabilities.controller.AdminController.rescan()
 
 # v2 endpoints
-GET        /v2/team                         uk.gov.hmrc.vulnerabilities.controller.v2.VulnerabilitiesController.teamSummary(team: String)
+GET        /v2/team                         uk.gov.hmrc.vulnerabilities.v2.controller.VulnerabilitiesController.teamSummary(team: String)
+GET        /api/v2/services/:serviceName/app-versions/:appVersion/occurrences   uk.gov.hmrc.vulnerabilities.v2.controller.VulnerabilitiesController.deploymentOccurrences(serviceName: ServiceName, appVersion: Version)
