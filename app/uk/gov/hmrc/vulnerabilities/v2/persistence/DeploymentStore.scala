@@ -32,7 +32,6 @@ class DeploymentStore @Inject()(
   config: Configuration
 )(using ExecutionContext):
   private val maximum = config.get[Int]("v2.read.max-findings")
-  require(maximum > 0 && maximum < Int.MaxValue, "v2.read.max-findings must be positive and less than Int.MaxValue")
 
   def read(service: String, version: String): Future[Option[DeploymentRecords]] =
     transactions.snapshot: session =>
