@@ -66,5 +66,5 @@ enum ScanPublicationError:
   case UnsupportedFingerprintVersion(version: Int)
   case MissingImportedBy(vulnerabilityId: String)
   case ResourceLimit(reason: String)
-  /** Retry/reconcile with the same run ID. A database error is not proof that commit rolled back. */
-  case StorageFailure(cause: Throwable, commitMayHaveSucceeded: Boolean)
+  /** A database error may occur after earlier publication writes have succeeded. */
+  case StorageFailure(cause: Throwable)

@@ -21,7 +21,6 @@ import uk.gov.hmrc.vulnerabilities.v2.model.ingestion.*
 import uk.gov.hmrc.vulnerabilities.v2.model.deployment.*
 
 trait InitialWorkflowPolicy:
-  /** Must remain pure and deterministic: Mongo may retry preparation with the same observation time. */
   def initialValues(context: InitialWorkflowContext): Either[ScanPublicationError, InitialWorkflowValues]
 
 @Singleton

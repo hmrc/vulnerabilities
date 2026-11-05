@@ -76,9 +76,9 @@ class ScanPublisher @Inject()(
         Left(error)
       case e: MongoException =>
         logger.error("V2 publication database operation failed; inspect persisted state before retrying", e)
-        Left(StorageFailure(e, commitMayHaveSucceeded = false))
+        Left(StorageFailure(e))
 
-  /** Admission, not completion time, establishes ordering. Reusing a run cannot allocate another generation. */
+  /** Admission assigns a generation; concurrent completion order is not guaranteed. */
   def admit(runId: String, context: ScanContext): Future[Either[ScanPublicationError, ScanAdmission]] =
     result:
       validateIdentity(runId, context)
@@ -165,7 +165,6 @@ class ScanPublisher @Inject()(
     input: PublishScan, attempt: ScanAttemptRecord, digest: String, publishedAt: Instant,
     occurrenceIds: Map[String, String]
   ): Future[ScanPublicationReceipt] =
-    // These writes are deliberately sequential but are not a multi-document transaction.
     val context = input.findings.context
     for
       state <- loadPublicationState(input, attempt)
@@ -380,7 +379,6 @@ class ScanPublisher @Inject()(
   private def writeDetails(
     input: PublishScan, attempt: ScanAttemptRecord, plan: Plan, now: Instant
   ): Future[Unit] =
-    // Also lock removed CVEs: concurrent publications must recheck retained observations after removals.
     serial((plan.before.keySet ++ plan.after.keySet).toSeq.sorted): id =>
       val next = plan.after.get(id)
       val old = plan.before.get(id)

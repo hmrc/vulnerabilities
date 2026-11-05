@@ -64,7 +64,7 @@ object ServiceOccurrenceRecord:
   private given OFormat[DeploymentSla] = Json.format[DeploymentSla]
   val mongoFormat: OFormat[ServiceOccurrenceRecord] = Json.format[ServiceOccurrenceRecord]
 
-/** Last published success. Admission/failure must not change this deployment's visible state. */
+/** The latest scan status and successful-scan metadata recorded by publication writes. */
 case class ScanRecord(
   service_name: String,
   service_version: String,

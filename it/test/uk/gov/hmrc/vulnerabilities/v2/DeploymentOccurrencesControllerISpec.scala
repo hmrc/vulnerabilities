@@ -134,7 +134,7 @@ class DeploymentOccurrencesControllerISpec
       (row \ "sla" \ "breachedAt").as[Instant] shouldBe deadline
       get().json shouldBe json
 
-    "read updated enrichment and workflow without a rescan or cached result snapshot" in:
+    "read updated enrichment and workflow without a rescan" in:
       seedScan()
       seedFinding()
       get().status shouldBe 200

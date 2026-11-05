@@ -177,7 +177,7 @@ class ScanPublisherISpec
       current().workflows.head shouldBe original
       count("occurrence_history_v2") shouldBe 1
 
-    "publish technical findings, explicit dependency metadata, timestamps and an atomic receipt" in:
+    "publish technical findings, explicit dependency metadata, timestamps and a durable receipt" in:
       val input = request().copy(importedBy = Map(id -> Seq(ImportedDependency("upstream", "parent", "3.0"))))
       val admission = admit(input)
       admission.generation shouldBe 1L
