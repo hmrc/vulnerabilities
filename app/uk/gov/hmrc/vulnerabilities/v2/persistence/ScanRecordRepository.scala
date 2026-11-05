@@ -17,7 +17,6 @@
 package uk.gov.hmrc.vulnerabilities.v2.persistence
 
 import javax.inject.{Inject, Singleton}
-import org.mongodb.scala.ClientSession
 import org.mongodb.scala.model.{IndexModel, IndexOptions, Indexes, Filters}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
@@ -37,6 +36,6 @@ class ScanRecordRepository @Inject()(mongo: MongoComponent)(using ExecutionConte
   ):
   override lazy val requiresTtlIndex = false
 
-  def findDeployment(service: String, version: String, session: Option[ClientSession] = None): Future[Option[ScanRecord]] =
+  def findDeployment(service: String, version: String): Future[Option[ScanRecord]] =
     val filter = Filters.and(Filters.equal("service_name", service), Filters.equal("service_version", version))
-    session.fold(collection.find(filter))(collection.find(_, filter)).headOption()
+    collection.find(filter).headOption()

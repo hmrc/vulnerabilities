@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.vulnerabilities.v2.persistence
+package uk.gov.hmrc.vulnerabilities.v2.service
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.time.{Clock, Instant}
 import java.time.temporal.ChronoUnit.MILLIS
 import java.util.UUID
 import javax.inject.{Inject, Singleton}
-import org.mongodb.scala.{ClientSession, MongoException, ObservableFuture, SingleObservableFuture}
+import org.mongodb.scala.{MongoException, ObservableFuture, SingleObservableFuture}
 import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.model.{Filters, Sorts, UpdateOptions}
 import org.mongodb.scala.bson.conversions.Bson
@@ -32,11 +32,11 @@ import uk.gov.hmrc.vulnerabilities.v2.model.deployment.ImportedBy
 import uk.gov.hmrc.vulnerabilities.v2.model.deployment.OccurrenceState
 import uk.gov.hmrc.vulnerabilities.v2.model.ingestion.*
 import uk.gov.hmrc.vulnerabilities.v2.model.ingestion.ScanPublicationError.*
-import uk.gov.hmrc.vulnerabilities.v2.service.InitialWorkflowPolicy
+import uk.gov.hmrc.vulnerabilities.v2.persistence.*
 import ScanPublicationFingerprint.observation
 import scala.concurrent.{ExecutionContext, Future}
 
-/** Private persistence boundary. No connector, trigger, policy engine or automatic adoption. */
+/** Coordinates V2 publication across collection-focused repositories. */
 @Singleton
 class ScanPublisher @Inject()(
   details: VulnerabilityRepository,
@@ -46,7 +46,6 @@ class ScanPublisher @Inject()(
   attempts: ScanAttemptRepository,
   vulnerabilityHistory: VulnerabilityHistoryRepository,
   occurrenceHistory: OccurrenceHistoryRepository,
-  transactions: MongoTransactions,
   clock: Clock,
   policy: InitialWorkflowPolicy,
   config: Configuration
@@ -76,25 +75,24 @@ class ScanPublisher @Inject()(
         logger.warn(s"V2 publication rejected: $error")
         Left(error)
       case e: MongoException =>
-        logger.error("V2 publication database operation failed; reconcile using the same run identity", e)
-        Left(StorageFailure(e, e.hasErrorLabel(MongoException.UNKNOWN_TRANSACTION_COMMIT_RESULT_LABEL)))
+        logger.error("V2 publication database operation failed; inspect persisted state before retrying", e)
+        Left(StorageFailure(e, commitMayHaveSucceeded = false))
 
   /** Admission, not completion time, establishes ordering. Reusing a run cannot allocate another generation. */
   def admit(runId: String, context: ScanContext): Future[Either[ScanPublicationError, ScanAdmission]] =
     result:
       validateIdentity(runId, context)
       val admittedAt = clock.instant().truncatedTo(MILLIS)
-      transactions.writing: session =>
-        attempts.collection.find(session, Filters.equal("run_id", runId)).headOption().flatMap:
+      attempts.collection.find(Filters.equal("run_id", runId)).headOption().flatMap:
           case Some(previous) =>
             if contextOf(previous) != context then reject(RunIdentityConflict(runId))
             Future.successful(ScanAdmission(runId, context, previous.generation))
           case None =>
-            attempts.collection.find(session, deployment(context, "service_name"))
+            attempts.collection.find(deployment(context, "service_name"))
               .sort(Sorts.descending("generation")).limit(1).headOption().flatMap: latest =>
                 if latest.exists(_.generation == Long.MaxValue) then reject(ResourceLimit("Scan generation exhausted"))
                 val generation = latest.fold(1L)(_.generation + 1)
-                attempts.collection.insertOne(session,
+                attempts.collection.insertOne(
                   ScanAttemptRecord(runId, context.serviceName.asString, context.appVersion.original, generation, admittedAt))
                   .toFuture().map(_ => ScanAdmission(runId, context, generation))
 
@@ -102,11 +100,10 @@ class ScanPublisher @Inject()(
     result:
       validate(input)
       val digest = ScanPublicationFingerprint.current(input)
-      // Fixed for the whole operation, including transaction retries; not the exact commit instant.
+      // Fixed for the whole operation; not the exact commit instant.
       val publishedAt = clock.instant().truncatedTo(MILLIS)
       val occurrenceIds = input.findings.findings.map(f => f.vulnerabilityId -> UUID.randomUUID().toString).toMap
-      transactions.writing: session =>
-        attempts.collection.find(session, Filters.equal("run_id", input.runId)).headOption().flatMap:
+      attempts.collection.find(Filters.equal("run_id", input.runId)).headOption().flatMap:
           case None => reject(UnknownRun(input.runId))
           case Some(attempt) =>
             if contextOf(attempt) != input.findings.context then reject(RunIdentityConflict(input.runId))
@@ -118,7 +115,7 @@ class ScanPublisher @Inject()(
                   case Some(version) => reject(UnsupportedFingerprintVersion(version))
                 if !attempt.digest.contains(expected) then reject(RunIdentityConflict(input.runId))
                 Future.successful(receipt)
-              case None => publishTransaction(session, input, attempt, digest, publishedAt, occurrenceIds)
+              case None => publishOperations(input, attempt, digest, publishedAt, occurrenceIds)
 
   private def validateIdentity(runId: String, context: ScanContext): Unit =
     if runId.isBlank || context.serviceName.asString.isBlank || context.appVersion.original.isBlank then
@@ -164,44 +161,43 @@ class ScanPublisher @Inject()(
     existingWorkflows: Seq[ServiceOccurrenceRecord]
   )
 
-  private def publishTransaction(
-    session: ClientSession, input: PublishScan, attempt: ScanAttemptRecord, digest: String, publishedAt: Instant,
+  private def publishOperations(
+    input: PublishScan, attempt: ScanAttemptRecord, digest: String, publishedAt: Instant,
     occurrenceIds: Map[String, String]
   ): Future[ScanPublicationReceipt] =
+    // These writes are deliberately sequential but are not a multi-document transaction.
     val context = input.findings.context
     for
-      state <- loadPublicationState(session, input, attempt)
+      state <- loadPublicationState(input, attempt)
       plan = prepare(input, state.global, state.previous, state.retained, state.existingWorkflows, publishedAt, occurrenceIds)
-      _ <- writeDetails(session, input, attempt, plan, publishedAt)
-      _ <- writeWorkflows(session, input, attempt, plan, publishedAt)
-      _ <- writeEvidence(session, context, plan)
-      receipt <- persistPublication(session, input, attempt, digest, publishedAt, plan)
+      _ <- writeDetails(input, attempt, plan, publishedAt)
+      _ <- writeWorkflows(input, attempt, plan, publishedAt)
+      _ <- writeEvidence(context, plan)
+      receipt <- persistPublication(input, attempt, digest, publishedAt, plan)
     yield receipt
 
   private def loadPublicationState(
-    session: ClientSession,
     input: PublishScan,
     attempt: ScanAttemptRecord
   ): Future[PublicationState] =
     val context = input.findings.context
     for
-      scan <- scans.findDeployment(context.serviceName.asString, context.appVersion.original, Some(session))
+      scan <- scans.findDeployment(context.serviceName.asString, context.appVersion.original)
       _ = if scan.flatMap(_.generation).exists(_ > attempt.generation) then
         reject(Superseded(input.runId, scan.flatMap(_.generation).get))
-      previous <- evidence.findDeployment(context.serviceName.asString, context.appVersion.original, maximum, Some(session))
+      previous <- evidence.findDeployment(context.serviceName.asString, context.appVersion.original, maximum)
       _ = bound(previous.size, maximum, "Existing deployment exceeds the finding limit")
       ids = (previous.map(_.vuln_id) ++ input.findings.findings.map(_.vulnerabilityId)).distinct.sorted
       global <- if ids.isEmpty then Future.successful(Seq.empty[VulnerabilityRecord])
-        else details.findByIds(ids, maximum * 2, Some(session))
+        else details.findByIds(ids, maximum * 2)
       retained <- if ids.isEmpty then Future.successful(Seq.empty[SlugOccurrenceRecord])
-        else evidence.collection.find(session, Filters.in("vuln_id", ids*)).limit(maximumObservations + 1).toFuture()
+        else evidence.collection.find(Filters.in("vuln_id", ids*)).limit(maximumObservations + 1).toFuture()
       _ = bound(retained.size, maximumObservations, "Global compatibility evidence exceeds the observation limit")
       existingWorkflows <- if ids.isEmpty then Future.successful(Seq.empty[ServiceOccurrenceRecord])
-        else workflows.findByIds(context.serviceName.asString, ids, maximum * 2, Some(session))
+        else workflows.findByIds(context.serviceName.asString, ids, maximum * 2)
     yield PublicationState(previous, global, retained, existingWorkflows)
 
   private def persistPublication(
-    session: ClientSession,
     input: PublishScan,
     attempt: ScanAttemptRecord,
     digest: String,
@@ -214,10 +210,10 @@ class ScanPublisher @Inject()(
     val scanFields = ScanRecord.mongoFormat.writes(scanRecord)
     val receipt = ScanPublicationReceipt(input.runId, attempt.generation, publishedAt, plan.changes)
     for
-      _ <- scans.collection.updateOne(session, deployment(context, "service_name"),
+      _ <- scans.collection.updateOne(deployment(context, "service_name"),
         set(scanFields + ("source_report_generated" -> scanFields.value.getOrElse("source_report_generated", JsNull))),
         UpdateOptions().upsert(true)).toFuture()
-      _ <- attempts.collection.updateOne(session, Filters.equal("run_id", input.runId),
+      _ <- attempts.collection.updateOne(Filters.equal("run_id", input.runId),
         set(Json.obj("digest" -> digest, "fingerprint_version" -> ScanPublicationFingerprint.currentVersion,
           "receipt" -> ScanAttemptRecord.receiptFormat.writes(receipt))))
         .toFuture()
@@ -240,7 +236,7 @@ class ScanPublisher @Inject()(
     val after = buildUpdatedDetails(input, before, otherEvidence)
     val newEvidence = buildEvidence(input, context, oldEvidence)
     val newWorkflows = initialiseMissingWorkflows(input, context, existingWorkflows, publishedAt, occurrenceIds)
-    val changes = calculateEvidenceChanges(input, oldEvidence, newEvidence.toMap)
+    val changes = calculateEvidenceChanges(oldEvidence, newEvidence.toMap)
     val reopenedWorkflows = planWorkflowReopenings(input, before, existingWorkflows)
     Plan(before, after, newEvidence.toMap, newWorkflows, reopenedWorkflows, changes)
 
@@ -335,7 +331,6 @@ class ScanPublisher @Inject()(
           synthetic_initialisation = Some(values.synthetic))
 
   private def calculateEvidenceChanges(
-    input: PublishScan,
     oldEvidence: Map[String, SlugOccurrenceRecord],
     newEvidence: Map[String, SlugOccurrenceRecord]
   ): EvidenceChanges =
@@ -383,7 +378,7 @@ class ScanPublisher @Inject()(
     items.foldLeft(Future.unit)((previous, item) => previous.flatMap(_ => operation(item)))
 
   private def writeDetails(
-    session: ClientSession, input: PublishScan, attempt: ScanAttemptRecord, plan: Plan, now: Instant
+    input: PublishScan, attempt: ScanAttemptRecord, plan: Plan, now: Instant
   ): Future[Unit] =
     // Also lock removed CVEs: concurrent publications must recheck retained observations after removals.
     serial((plan.before.keySet ++ plan.after.keySet).toSeq.sorted): id =>
@@ -391,17 +386,16 @@ class ScanPublisher @Inject()(
       val old = plan.before.get(id)
       val write = old match
         case None =>
-          details.collection.insertOne(session, next.get.copy(scanner_revision = Some(1L))).toFuture().map(_ => ())
+          details.collection.insertOne(next.get.copy(scanner_revision = Some(1L))).toFuture().map(_ => ())
         case Some(_) =>
           val update = Json.obj("$inc" -> Json.obj("scanner_revision" -> 1L)) ++
             next.fold(Json.obj())(v => Json.obj("$set" -> scannerFields(v)))
-          details.collection.updateOne(session, Filters.equal("vuln_id", id), BsonDocument(Json.stringify(update)))
+          details.collection.updateOne(Filters.equal("vuln_id", id), BsonDocument(Json.stringify(update)))
             .toFuture().map(_ => ())
       write.flatMap: _ =>
-        writeHistoryIfDetailsChanged(session, input, attempt, plan, id, old, next, now)
+        writeHistoryIfDetailsChanged(input, attempt, plan, id, old, next, now)
 
   private def writeHistoryIfDetailsChanged(
-    session: ClientSession,
     input: PublishScan,
     attempt: ScanAttemptRecord,
     plan: Plan,
@@ -413,30 +407,30 @@ class ScanPublisher @Inject()(
     next match
       case Some(value) if old.isEmpty || old.exists(previous => scannerFields(previous) != scannerFields(value)) =>
         val eventType = if old.isEmpty then "vulnerability_created" else "details_updated"
-        vulnerabilityHistory.collection.insertOne(session, history(input, attempt, id, None, eventType, now,
+        vulnerabilityHistory.collection.insertOne(history(input, attempt, id, None, eventType, now,
           Json.obj("before" -> old.map(scannerFields), "after" -> scannerFields(value)),
           plan.newWorkflows.exists(_.synthetic_initialisation.contains(true)))).toFuture().map(_ => ())
       case _ => Future.unit
 
   private def writeWorkflows(
-    session: ClientSession, input: PublishScan, attempt: ScanAttemptRecord, plan: Plan, now: Instant
+    input: PublishScan, attempt: ScanAttemptRecord, plan: Plan, now: Instant
   ): Future[Unit] =
     for
       _ <- serial(plan.newWorkflows): workflow =>
         for
-          _ <- workflows.collection.insertOne(session, workflow).toFuture()
-          _ <- occurrenceHistory.collection.insertOne(session, history(input, attempt, workflow.vuln_id,
+          _ <- workflows.collection.insertOne(workflow).toFuture()
+          _ <- occurrenceHistory.collection.insertOne(history(input, attempt, workflow.vuln_id,
             Some(workflow.service), "occurrence_created", now,
             Json.obj("after" -> ServiceOccurrenceRecord.mongoFormat.writes(workflow),
               "synthetic" -> workflow.synthetic_initialisation.contains(true)),
             workflow.synthetic_initialisation.contains(true))).toFuture()
         yield ()
       _ <- serial(plan.reopenedWorkflows)(reopen =>
-        workflows.collection.updateOne(session,
+        workflows.collection.updateOne(
           Filters.and(Filters.equal("vuln_id", reopen.workflow.vuln_id),
             Filters.equal("service", reopen.workflow.service)),
           set(Json.obj("state" -> reopen.newState))).toFuture().flatMap: _ =>
-            occurrenceHistory.collection.insertOne(session, history(input, attempt, reopen.workflow.vuln_id,
+            occurrenceHistory.collection.insertOne(history(input, attempt, reopen.workflow.vuln_id,
               Some(reopen.workflow.service), "occurrence_reopened", now,
               Json.obj("before" -> reopen.workflow.state, "after" -> reopen.newState,
                 "previousCvss" -> reopen.previousCvss, "newCvss" -> reopen.newCvss,
@@ -445,13 +439,13 @@ class ScanPublisher @Inject()(
       )
     yield ()
 
-  private def writeEvidence(session: ClientSession, context: ScanContext, plan: Plan): Future[Unit] =
+  private def writeEvidence(context: ScanContext, plan: Plan): Future[Unit] =
     for
       _ <- serial(plan.changes.removed): id =>
-        evidence.collection.deleteOne(session, Filters.and(deployment(context), Filters.equal("vuln_id", id)))
+        evidence.collection.deleteOne(Filters.and(deployment(context), Filters.equal("vuln_id", id)))
           .toFuture().map(_ => ())
       _ <- serial(plan.newEvidence.values.toSeq.sortBy(_.vuln_id)): e =>
-        evidence.collection.updateOne(session, Filters.and(deployment(context), Filters.equal("vuln_id", e.vuln_id)),
+        evidence.collection.updateOne(Filters.and(deployment(context), Filters.equal("vuln_id", e.vuln_id)),
           set(SlugOccurrenceRecord.mongoFormat.writes(e)), UpdateOptions().upsert(true)).toFuture().map(_ => ())
     yield ()
 

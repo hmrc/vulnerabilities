@@ -17,7 +17,6 @@
 package uk.gov.hmrc.vulnerabilities.v2.persistence
 
 import javax.inject.{Inject, Singleton}
-import org.mongodb.scala.ClientSession
 import org.mongodb.scala.model.{Filters, IndexModel, IndexOptions, Indexes}
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.play.json.PlayMongoRepository
@@ -37,7 +36,7 @@ class ServiceOccurrenceRepository @Inject()(mongo: MongoComponent)(using Executi
   ):
   override lazy val requiresTtlIndex = false
 
-  def findByIds(service: String, ids: Seq[String], maximum: Int, session: Option[ClientSession] = None): Future[Seq[ServiceOccurrenceRecord]] =
+  def findByIds(service: String, ids: Seq[String], maximum: Int): Future[Seq[ServiceOccurrenceRecord]] =
     val filter = Filters.and(Filters.equal("service", service), Filters.in("vuln_id", ids*))
-    session.fold(collection.find(filter))(collection.find(_, filter))
+    collection.find(filter)
       .limit(maximum + 1).toFuture()

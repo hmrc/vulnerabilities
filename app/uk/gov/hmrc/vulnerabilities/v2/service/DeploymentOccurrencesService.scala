@@ -17,16 +17,50 @@
 package uk.gov.hmrc.vulnerabilities.v2.service
 
 import javax.inject.{Inject, Singleton}
+import play.api.Configuration
 import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
 import uk.gov.hmrc.vulnerabilities.v2.model.deployment.*
 import uk.gov.hmrc.vulnerabilities.v2.persistence.ScannerObservation
-import uk.gov.hmrc.vulnerabilities.v2.persistence.{ComponentObservation, DeploymentRecords, DeploymentStore}
+import uk.gov.hmrc.vulnerabilities.v2.persistence.{
+  ComponentObservation, DeploymentRecords, ScanRecordRepository, ServiceOccurrenceRepository,
+  VulnerabilityOccurrenceRepository, VulnerabilityRepository
+}
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
-class DeploymentOccurrencesService @Inject()(store: DeploymentStore)(using ExecutionContext):
+class DeploymentOccurrencesService @Inject()(
+  details: VulnerabilityRepository,
+  evidence: VulnerabilityOccurrenceRepository,
+  serviceWorkflows: ServiceOccurrenceRepository,
+  scans: ScanRecordRepository,
+  config: Configuration
+)(using ExecutionContext):
+  private val maximum = config.get[Int]("v2.read.max-findings")
+
   def get(service: ServiceName, version: Version): Future[Option[DeploymentOccurrences]] =
-    store.read(service.asString, version.original).map(_.map(assemble))
+    read(service.asString, version.original).map(_.map(assemble))
+
+  private def read(service: String, version: String): Future[Option[DeploymentRecords]] =
+    scans.findDeployment(service, version).flatMap:
+      case None => Future.successful(None)
+      case Some(scan) =>
+        evidence.findDeployment(service, version, maximum).flatMap: occurrences =>
+          checkBound(occurrences.size)
+          if occurrences.isEmpty then
+            Future.successful(Some(DeploymentRecords(scan, Seq.empty, Seq.empty, Seq.empty)))
+          else
+            val ids = occurrences.map(_.vuln_id)
+            for
+              vulnerabilities <- details.findByIds(ids, maximum)
+              workflows <- serviceWorkflows.findByIds(service, ids, maximum)
+            yield
+              checkBound(vulnerabilities.size)
+              checkBound(workflows.size)
+              Some(DeploymentRecords(scan, occurrences, vulnerabilities, workflows))
+
+  private def checkBound(size: Int): Unit =
+    if size > maximum then
+      throw ResourceLimit("V2 deployment exceeds configured read resource limit; no partial results returned")
 
   private def assemble(records: DeploymentRecords): DeploymentOccurrences =
     val scan = records.scan
