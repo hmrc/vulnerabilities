@@ -16,12 +16,11 @@
 
 package uk.gov.hmrc.vulnerabilities.v2.connector
 
-import com.fasterxml.jackson.core.JsonProcessingException
 import org.apache.pekko.stream.Materializer
 import org.apache.pekko.stream.scaladsl.Source
 import org.apache.pekko.util.ByteString
 import play.api.Configuration
-import play.api.libs.json.{JsError, JsSuccess, Json, Reads}
+import play.api.libs.json.Json
 import play.api.libs.ws.writeableOf_JsValue
 import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier, HttpReads, StringContextOps, UpstreamErrorResponse}
 import uk.gov.hmrc.http.client.{HttpClientV2, readEitherSource}
@@ -29,11 +28,8 @@ import uk.gov.hmrc.play.bootstrap.config.ServicesConfig
 import uk.gov.hmrc.vulnerabilities.model.{ArtifactoryToken, ServiceName, Version}
 import uk.gov.hmrc.vulnerabilities.v2.model.xray.{XrayArtifactStatus, XrayReport}
 
-import java.io.{ByteArrayInputStream, IOException}
-import java.util.zip.ZipInputStream
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Try, Using}
 
 final class InvalidXrayResponse(message: String) extends UpstreamErrorResponse(message, 502, 502, Map.empty)
 
@@ -56,17 +52,10 @@ class XrayConnector @Inject() (
   private def upstreamFailure(status: Int): UpstreamErrorResponse =
     UpstreamErrorResponse(s"Xray v2 returned HTTP $status", status)
 
-  private def parseJson[A: Reads](bytes: Array[Byte]): A =
-    val json = Try(Json.parse(bytes)).recover:
-      case _: JsonProcessingException => throw invalidResponse("invalid JSON")
-    json.get.validate[A] match
-      case JsSuccess(value, _) => value
-      case JsError(_)         => throw invalidResponse("invalid report schema")
-
   private given reportRequestReads: HttpReads[XrayReport.ReportRequest] = (_, _, response) =>
     response.status match
       case 200 =>
-        val result = parseJson[XrayReport.ReportRequest](response.body.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+        val result = XrayResponseDecoder.parseJson[XrayReport.ReportRequest](response.body.getBytes(java.nio.charset.StandardCharsets.UTF_8))
         if result.reportId <= 0 || result.status.isBlank then
           throw invalidResponse("invalid report ID or status")
         result
@@ -75,7 +64,7 @@ class XrayConnector @Inject() (
   private given reportStatusReads: HttpReads[XrayReport.ReportStatus] = (_, _, response) =>
     response.status match
       case 200 =>
-        val result = parseJson[XrayReport.ReportStatus](response.body.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+        val result = XrayResponseDecoder.parseJson[XrayReport.ReportStatus](response.body.getBytes(java.nio.charset.StandardCharsets.UTF_8))
         if result.status.isBlank || result.numberOfRows < 0 || result.totalArtefacts < 0 then
           throw invalidResponse("invalid report status or counts")
         result
@@ -88,7 +77,7 @@ class XrayConnector @Inject() (
 
   private given artifactStatusReads: HttpReads[XrayArtifactStatus] = (_, _, response) =>
     response.status match
-      case 200 => parseJson[XrayArtifactStatus](response.body.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+      case 200 => XrayResponseDecoder.parseJson[XrayArtifactStatus](response.body.getBytes(java.nio.charset.StandardCharsets.UTF_8))
       case status => throw upstreamFailure(status)
 
   private def validateId(id: Int): Unit =
@@ -153,28 +142,7 @@ class XrayConnector @Inject() (
             if chunk.length.toLong + accumulated.length > maxExportBytes then
               throw invalidResponse("compressed export exceeds size limit")
             accumulated ++ chunk
-          }.map(unzipReport)
-
-  private def unzipReport(bytes: ByteString): XrayReport =
-    Try {
-      Using.resource(new ZipInputStream(new ByteArrayInputStream(bytes.toArray))): zip =>
-        var expandedBytes = 0
-        var report = Option.empty[XrayReport]
-        var entry = zip.getNextEntry
-        while entry != null do
-          val content = zip.readNBytes(maxExportBytes - expandedBytes + 1)
-          expandedBytes += content.length
-          if expandedBytes > maxExportBytes then
-            throw invalidResponse("expanded export exceeds size limit")
-          if !entry.isDirectory then
-            if report.nonEmpty then throw invalidResponse("export contains multiple data files")
-            report = Some(parseJson[XrayReport](content))
-          zip.closeEntry()
-          entry = zip.getNextEntry
-        report.getOrElse(throw invalidResponse("export contains no data file"))
-    }.recover {
-      case _: IOException | _: IllegalArgumentException => throw invalidResponse("malformed ZIP export")
-    }.get
+          }.map(bytes => XrayResponseDecoder.unzipReport(bytes, maxExportBytes))
 
   def deleteReportFromXray(reportId: Int)(token: ArtifactoryToken)(using HeaderCarrier): Future[Unit] =
     validateId(reportId)
