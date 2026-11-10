@@ -18,7 +18,7 @@ package uk.gov.hmrc.vulnerabilities.v2.model.xray
 
 import java.time.Instant
 import play.api.libs.functional.syntax.*
-import play.api.libs.json.{Json, OFormat, __}
+import play.api.libs.json.{Json, OFormat, Reads, JsonValidationError, __}
 
 final case class XrayReport(
   generatedDate: Option[Instant],
@@ -29,19 +29,39 @@ object XrayReport:
   final case class ReportRequest(reportId: Int, status: String)
 
   object ReportRequest:
-    given format: OFormat[ReportRequest] =
+    private val baseFormat: OFormat[ReportRequest] =
       ( (__ \ "report_id").format[Int]
       ~ (__ \ "status"   ).format[String]
       )(apply, r => (r.reportId, r.status))
 
+    private val validatedReads: Reads[ReportRequest] =
+      baseFormat.filter(
+        JsonValidationError("invalid report ID or status")
+      ): report =>
+        report.reportId > 0 && !report.status.isBlank
+
+    given format: OFormat[ReportRequest] =
+      OFormat(validatedReads, baseFormat)
+
   final case class ReportStatus(status: String, numberOfRows: Int, totalArtefacts: Int)
 
   object ReportStatus:
-    given format: OFormat[ReportStatus] =
+    private val baseFormat: OFormat[ReportStatus] =
       ( (__ \ "status"         ).format[String]
       ~ (__ \ "number_of_rows" ).format[Int]
       ~ (__ \ "total_artifacts").format[Int]
       )(apply, r => (r.status, r.numberOfRows, r.totalArtefacts))
+
+    private val validatedReads: Reads[ReportStatus] =
+      baseFormat.filter(
+        JsonValidationError("invalid report status or counts")
+      ): report =>
+        !report.status.isBlank &&
+        report.numberOfRows >= 0 &&
+        report.totalArtefacts >= 0
+
+    given format: OFormat[ReportStatus] =
+      OFormat(validatedReads, baseFormat)
 
   final case class CVE(
     cveId      : Option[String],

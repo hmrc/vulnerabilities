@@ -51,6 +51,8 @@ class XrayConnector @Inject() (
 
   private def handleXrayFailure[A](result: Future[A]): Future[A] =
     result.recoverWith:
+      case error: InvalidXrayResponse =>
+        Future.failed(error)
       case error: UpstreamErrorResponse =>
         Future.failed(upstreamFailure(error.statusCode))
       case _: JsValidationException =>
@@ -75,8 +77,14 @@ class XrayConnector @Inject() (
 
   private def artefactName(path: String): String =
     val basename = path.substring(path.lastIndexOf('/') + 1)
-    if basename.isBlank || basename == "." || basename == ".." || path.exists(c => c == '*' || c == '?') then
-      throw new BadRequestException("Xray artefact path must have an exact, nonempty basename without wildcards")
+    if basename.isBlank
+    || basename == "."
+    || basename == ".."
+    || path.exists(c => c == '*' || c == '?')
+    then
+      throw new BadRequestException(
+        "Xray artefact path must have an exact, nonempty basename without wildcards"
+      )
     basename
 
   def generateReport(serviceName: ServiceName, version: Version, path: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayReport.ReportRequest] =
@@ -143,5 +151,8 @@ class XrayConnector @Inject() (
       httpClientV2
         .delete(url"$baseUrl/xray/api/v1/reports/$reportId")
         .setHeader("Authorization" -> s"Bearer ${token.accessToken.decryptedValue}")
-        .execute[Unit]
+        .execute[Either[UpstreamErrorResponse, Unit]]
+        .flatMap:
+          case Left(error) => Future.failed(upstreamFailure(error.statusCode))
+          case Right(_)    => Future.unit
       )
