@@ -25,10 +25,7 @@ trait DependencyEvidenceService:
 
 @Singleton
 class UnavailableDependencyEvidenceService extends DependencyEvidenceService:
-  // BDOG-3994: likely source: ArtefactProcessorConnector.getMetaArtefact -> dependencyDotCompile
-  // -> DependencyGraphParser -> ImportedDependency. Confirm authoritative repo/source, GAV/Scala suffixes,
-  // direct/transitive/multiple importers, scopes, incomplete data, freshness and replacement semantics first.
-  // V1's missing-data, JAR fallback and single-shortest-path choices are not approved V2 rules.
+  // TODO(BDOG-3994): Confirm the authoritative dependency evidence contract before implementing this.
   override def importedBy(findings: ScannerFindings): Future[Either[IngestionFailure, Map[String, Seq[ImportedDependency]]]] =
     Future.successful:
       if findings.findings.isEmpty then Right(Map.empty)
