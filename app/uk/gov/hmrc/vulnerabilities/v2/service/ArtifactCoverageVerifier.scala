@@ -24,9 +24,7 @@ trait ArtifactCoverageVerifier:
 
 @Singleton
 class JfrogArtifactCoverageVerifier extends ArtifactCoverageVerifier:
-  // BDOG-3994: production verification outstanding. DONE is not report/revision correlation.
-  // Replace this rejection only after HMRC path/scope, SCA freshness, count and safe-empty semantics
-  // are confirmed; do not infer coverage from a basename filter, HTTP success or scan timestamps alone.
+  // TODO(BDOG-3994): Confirm production artefact/report coverage correlation before relaxing this rejection.
   override def verify(input: ArtifactCoverageInput): Either[IngestionFailure, ScanCompletion] =
     Left(IngestionFailure.CoverageUnverified(
       "HMRC artefact revision, freshness and completed-report correlation contract is unverified"))

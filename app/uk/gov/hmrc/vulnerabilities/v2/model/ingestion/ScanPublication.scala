@@ -19,14 +19,12 @@ package uk.gov.hmrc.vulnerabilities.v2.model.ingestion
 import java.time.Instant
 import uk.gov.hmrc.vulnerabilities.v2.model.deployment.{DeploymentSla, OccurrenceState, Priority}
 
-/** Assertions from a trusted caller, not facts that mapping alone can establish. */
 final case class ScanCompletion(reportSucceeded: Boolean, artefactCoverageVerified: Boolean)
 final case class ImportedDependency(group: String, artefact: String, version: String)
 
 enum WorkflowInitialisation:
   case ExistingOnly, UsePolicy
 
-/** These are already shared persisted value types, not the Catalogue response envelope. */
 final case class InitialWorkflowValues(
   priority: Priority,
   state: OccurrenceState,
@@ -66,5 +64,4 @@ enum ScanPublicationError:
   case UnsupportedFingerprintVersion(version: Int)
   case MissingImportedBy(vulnerabilityId: String)
   case ResourceLimit(reason: String)
-  /** A database error may occur after earlier publication writes have succeeded. */
   case StorageFailure(cause: Throwable)

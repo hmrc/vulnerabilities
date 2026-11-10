@@ -19,9 +19,6 @@ package uk.gov.hmrc.vulnerabilities.v2.model.xray
 import java.time.Instant
 import play.api.libs.json.{Json, JsonValidationError, Reads}
 
-/** Wire data, not proof that a particular report covers an artefact revision.
-  * Status strings are preserved, including unknown values; decoding cannot authorise publication.
-  */
 final case class XrayArtifactStatus(
   overall: XrayArtifactStatus.Status,
   details: Option[XrayArtifactStatus.Details]
@@ -32,7 +29,6 @@ object XrayArtifactStatus:
   object Status:
     given Reads[Status] = Json.reads[Status].filter(JsonValidationError("Blank scan status"))(!_.status.isBlank)
 
-  // Only SCA details are needed by this boundary; unrelated scan products do not establish SCA coverage.
   final case class Details(sca: Option[Status])
   object Details:
     given Reads[Details] = Json.reads[Details]

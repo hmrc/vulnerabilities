@@ -19,7 +19,6 @@ package uk.gov.hmrc.vulnerabilities.v2.service
 import uk.gov.hmrc.vulnerabilities.v2.model.ingestion.*
 import uk.gov.hmrc.vulnerabilities.v2.model.xray.XrayReport
 
-/** Pure, report-wide validation. Mongo publication must additionally check existing global CVE/component evidence. */
 object XrayFindingMapper:
   import XrayFindingMappingError.*
 

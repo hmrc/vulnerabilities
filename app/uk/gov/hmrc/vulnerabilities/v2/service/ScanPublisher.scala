@@ -36,7 +36,6 @@ import uk.gov.hmrc.vulnerabilities.v2.persistence.*
 import ScanPublicationFingerprint.observation
 import scala.concurrent.{ExecutionContext, Future}
 
-/** Coordinates V2 publication across collection-focused repositories. */
 @Singleton
 class ScanPublisher @Inject()(
   details: VulnerabilityRepository,
@@ -78,7 +77,6 @@ class ScanPublisher @Inject()(
         logger.error("V2 publication database operation failed; inspect persisted state before retrying", e)
         Left(StorageFailure(e))
 
-  /** Admission assigns a generation; concurrent completion order is not guaranteed. */
   def admit(runId: String, context: ScanContext): Future[Either[ScanPublicationError, ScanAdmission]] =
     result:
       validateIdentity(runId, context)
@@ -100,7 +98,6 @@ class ScanPublisher @Inject()(
     result:
       validate(input)
       val digest = ScanPublicationFingerprint.current(input)
-      // Fixed for the whole operation; not the exact commit instant.
       val publishedAt = clock.instant().truncatedTo(MILLIS)
       val occurrenceIds = input.findings.findings.map(f => f.vulnerabilityId -> UUID.randomUUID().toString).toMap
       attempts.collection.find(Filters.equal("run_id", input.runId)).headOption().flatMap:

@@ -25,7 +25,6 @@ final case class MavenComponent(group: String, artefact: String, installedVersio
   def identity: String = s"gav://$group:$artefact"
   def packageType: String = "maven"
 
-/** Source evidence only: descriptions, vectors and project keys do not establish guidance or ownership. */
 final case class XrayFindingSource(
   issueId: String,
   cvssVector: Option[String],
@@ -55,7 +54,6 @@ final case class ScannerFinding(
   def observationKey: String =
     s"$vulnerabilityId|${component.identity}|${component.installedVersion}|${fixedVersions.sorted.mkString("\u0000")}"
 
-/** Mapping validity is not proof of completed report status or coverage of the requested artefact. */
 final case class ScannerFindings(
   context: ScanContext,
   generatedDate: Option[Instant],

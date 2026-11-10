@@ -22,7 +22,6 @@ import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 import uk.gov.hmrc.vulnerabilities.v2.model.deployment.{DeploymentSla, ImportedBy, OccurrenceState, Priority}
 import uk.gov.hmrc.vulnerabilities.v2.model.ingestion.{EvidenceChanges, ScanPublicationReceipt, XrayFindingSource}
 
-// Partial projections: scanner updates must not replace documents containing other owners' fields.
 case class VulnerabilityRecord(
   vuln_id: String,
   summary: String,
@@ -64,7 +63,6 @@ object ServiceOccurrenceRecord:
   private given OFormat[DeploymentSla] = Json.format[DeploymentSla]
   val mongoFormat: OFormat[ServiceOccurrenceRecord] = Json.format[ServiceOccurrenceRecord]
 
-/** The latest scan status and successful-scan metadata recorded by publication writes. */
 case class ScanRecord(
   service_name: String,
   service_version: String,

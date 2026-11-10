@@ -35,7 +35,6 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Try, Using}
 
-/** Retains UpstreamErrorResponse compatibility while distinguishing invalid data from an upstream HTTP 502. */
 final class InvalidXrayResponse(message: String) extends UpstreamErrorResponse(message, 502, 502, Map.empty)
 
 @Singleton
@@ -109,7 +108,6 @@ class XrayConnector @Inject() (
   def generateReport(serviceName: ServiceName, version: Version, path: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayReport.ReportRequest] =
     val name = toReportName(serviceName, version)
     val basename = artefactName(path)
-    // The basename filter is not proof of exact full-path scope. HMRC include_path_patterns semantics remain unverified.
     httpClientV2
       .post(url"$baseUrl/xray/api/v1/reports/vulnerabilities")
       .setHeader(
@@ -130,13 +128,8 @@ class XrayConnector @Inject() (
       .setHeader("Authorization" -> s"Bearer ${token.accessToken.decryptedValue}")
       .execute[XrayReport.ReportStatus]
 
-  // BDOG-3994: HMRC JFrog contract verification required.
+  // TODO: BDOG-3994: HMRC JFrog contract verification required.
   // Documented endpoint: POST /xray/api/v1/artifact/status.
-  // repo is the Artifactory repository; path is repository-relative (not a basename/wildcard).
-  // Before production enablement confirm endpoint/authentication/permissions, repository/path interpretation,
-  // response structure/status vocabulary, overall/SCA meaning and freshness, correct revision coverage,
-  // correlation with the completed report, and sufficient evidence for a successful zero-vulnerability report.
-  // HTTP success or DONE alone must never authorise publication; see the V2 limitations in README.md.
   def checkArtifactStatus(repo: String, path: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayArtifactStatus] =
     if repo.isBlank || path.isBlank then
       throw new BadRequestException("Xray repository and repository-relative path must not be blank")

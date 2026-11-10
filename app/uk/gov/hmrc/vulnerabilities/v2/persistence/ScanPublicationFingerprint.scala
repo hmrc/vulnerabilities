@@ -28,8 +28,6 @@ private[vulnerabilities] object ScanPublicationFingerprint:
     ScannerObservation(input.runId, finding.summary, finding.component.identity, finding.fixedVersions,
       finding.cvss, finding.references, finding.sources, input.findings.generatedDate)
 
-  // Keep field order and Mongo instant encoding exactly as committed in 73a6e72.
-  // The old label is compatibility data only, never a workflow creation option.
   def legacy(input: PublishScan): String =
     hash(payload(input, input.workflowInitialisation match
       case WorkflowInitialisation.ExistingOnly => "ExistingOnly"

@@ -25,14 +25,11 @@ trait InitialWorkflowPolicy:
 
 @Singleton
 class UnavailableInitialWorkflowPolicy extends InitialWorkflowPolicy:
-  // BDOG-3994: initial priority/state and SLA start/duration/pause/breach rules are not approved.
-  // Implement here once approved inputs and rules exist; no fixture or clock-based fallback is safe.
   override def initialValues(context: InitialWorkflowContext): Either[ScanPublicationError, InitialWorkflowValues] =
     Left(ScanPublicationError.WorkflowPolicyUnavailable(context.finding.vulnerabilityId))
 
 @Singleton
 class TemporaryInitialWorkflowPolicy extends InitialWorkflowPolicy:
-  // Temporary non-production placeholders pending the approved priority, SLA and state policies.
   override def initialValues(context: InitialWorkflowContext): Either[ScanPublicationError, InitialWorkflowValues] =
     Right(
       InitialWorkflowValues(
