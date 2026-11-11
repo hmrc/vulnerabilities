@@ -32,7 +32,11 @@ final case class InitialWorkflowValues(
   synthetic: Boolean = false
 )
 
-final case class InitialWorkflowContext(context: ScanContext, finding: ScannerFinding, observedAt: Instant)
+final case class InitialWorkflowContext(
+  context: ScanContext,
+  finding: ScannerFinding,
+  observedAt: Instant
+)
 
 final case class PublishScan(
   runId: String,
