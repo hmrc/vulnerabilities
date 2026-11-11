@@ -34,7 +34,9 @@ import uk.gov.hmrc.vulnerabilities.v2.model.xray.{XrayArtifactStatus, XrayReport
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
-final class InvalidXrayResponse(message: String) extends UpstreamErrorResponse(message, 502, 502, Map.empty)
+final class InvalidXrayResponse(
+  message: String
+) extends UpstreamErrorResponse(message, 502, 502, Map.empty)
 
 @Singleton
 class XrayConnector @Inject() (
@@ -66,7 +68,6 @@ class XrayConnector @Inject() (
   private def upstreamFailure(status: Int): UpstreamErrorResponse =
     UpstreamErrorResponse(s"Xray v2 returned HTTP $status", status)
 
-
   private def validateId(id: Int): Unit =
     if id <= 0 then throw new BadRequestException("Xray report ID must be positive")
 
@@ -87,7 +88,12 @@ class XrayConnector @Inject() (
       )
     basename
 
-  def generateReport(serviceName: ServiceName, version: Version, path: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayReport.ReportRequest] =
+  def generateReport(
+    serviceName: ServiceName, 
+    version: Version, 
+    path: String
+  )(token: ArtifactoryToken)
+   (using HeaderCarrier): Future[XrayReport.ReportRequest] =
     val name = toReportName(serviceName, version)
     val basename = artefactName(path)
     handleXrayFailure(
@@ -105,7 +111,10 @@ class XrayConnector @Inject() (
         .execute[XrayReport.ReportRequest]
       )
 
-  def checkStatus(id: Int)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayReport.ReportStatus] =
+  def checkStatus(
+    id: Int
+  )(token: ArtifactoryToken
+  )(using HeaderCarrier): Future[XrayReport.ReportStatus] =
     validateId(id)
     handleXrayFailure(
       httpClientV2
@@ -116,7 +125,11 @@ class XrayConnector @Inject() (
 
   // TODO: BDOG-3994: HMRC JFrog contract verification required.
   // Documented endpoint: POST /xray/api/v1/artifact/status.
-  def checkArtifactStatus(repo: String, path: String)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayArtifactStatus] =
+  def checkArtifactStatus(
+    repo: String, 
+    path: String
+  )(token: ArtifactoryToken
+  )(using HeaderCarrier): Future[XrayArtifactStatus] =
     if repo.isBlank || path.isBlank then
       throw new BadRequestException("Xray repository and repository-relative path must not be blank")
     handleXrayFailure(
@@ -127,7 +140,12 @@ class XrayConnector @Inject() (
         .execute[XrayArtifactStatus]
       )
 
-  def downloadAndUnzipReport(reportId: Int, serviceName: ServiceName, version: Version)(token: ArtifactoryToken)(using HeaderCarrier): Future[XrayReport] =
+  def downloadAndUnzipReport(
+    reportId: Int, 
+    serviceName: ServiceName, 
+    version: Version
+  )(token: ArtifactoryToken
+  )(using HeaderCarrier): Future[XrayReport] =
     validateId(reportId)
     val name = toReportName(serviceName, version)
     handleXrayFailure(
@@ -145,7 +163,10 @@ class XrayConnector @Inject() (
             }.map(bytes => XrayResponseDecoder.unzipReport(bytes, maxExportBytes))
       )
 
-  def deleteReportFromXray(reportId: Int)(token: ArtifactoryToken)(using HeaderCarrier): Future[Unit] =
+  def deleteReportFromXray(
+    reportId: Int
+  )(token: ArtifactoryToken
+  )(using HeaderCarrier): Future[Unit] =
     validateId(reportId)
     handleXrayFailure(
       httpClientV2

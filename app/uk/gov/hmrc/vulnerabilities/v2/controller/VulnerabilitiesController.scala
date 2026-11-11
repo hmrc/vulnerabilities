@@ -35,10 +35,10 @@ class VulnerabilitiesController @Inject(
     Action:
       service.teamVulnerabilitySummary(team) match
         case Some(summary) => Ok(Json.toJson(summary))
-        case None => NotFound
+        case None          => NotFound
 
   def deploymentOccurrences(serviceName: ServiceName, appVersion: Version): Action[AnyContent] =
     Action.async:
       deployments.get(serviceName, appVersion).map:
         case Some(report) => Ok(Json.toJson(report))
-        case None => NotFound
+        case None         => NotFound
