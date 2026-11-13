@@ -14,18 +14,20 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.vulnerabilities.controller.v2
+package uk.gov.hmrc.vulnerabilities.v2.controller
 
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
-import uk.gov.hmrc.vulnerabilities.service.v2.TeamVulnerabilityService
+import uk.gov.hmrc.vulnerabilities.v2.service.{DeploymentOccurrencesService, TeamVulnerabilityService}
+import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
 import play.api.libs.json.Json
 
 @Singleton()
 class VulnerabilitiesController @Inject(
-  service: TeamVulnerabilityService
+  service: TeamVulnerabilityService,
+  deployments: DeploymentOccurrencesService
 )(cc: ControllerComponents)
  (using ExecutionContext) extends BackendController(cc):
 
@@ -33,4 +35,10 @@ class VulnerabilitiesController @Inject(
     Action:
       service.teamVulnerabilitySummary(team) match
         case Some(summary) => Ok(Json.toJson(summary))
-        case None => NotFound
+        case None          => NotFound
+
+  def deploymentOccurrences(serviceName: ServiceName, appVersion: Version): Action[AnyContent] =
+    Action.async:
+      deployments.get(serviceName, appVersion).map:
+        case Some(report) => Ok(Json.toJson(report))
+        case None         => NotFound

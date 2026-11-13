@@ -5,6 +5,89 @@ This service provides information about the Vulnerabilities that affect services
 
 It only provides information for services deployed in the following environments: Production, ExternalTest, Staging and QA.
 
+## V2 ingestion
+
+V2 is an isolated, transactional ingestion path. It is disabled by default and has no connected production trigger. The existing V1 schedulers and endpoints are unchanged.
+
+### Data model
+
+V2 separates scanner observations from service workflow decisions:
+
+* Xray findings provide scanner evidence.
+* Global vulnerability details are stored independently from deployment evidence.
+* Application-version evidence records the component, imported-by data and scanner observation.
+* Service-level occurrences own workflow State, Priority and SLA.
+* Scan metadata, publication receipts and technical/workflow history are persisted separately.
+
+The V2 MongoDB collections are:
+
+| Collection | Purpose |
+| --- | --- |
+| `vulnerabilities_v2` | Global vulnerability details |
+| `vulnerability_occurrences_v2` | Service/application-version evidence |
+| `service_occurrences_v2` | Service-level State, Priority and SLA |
+| `scan_records_v2` | Last successful scan |
+| `scan_attempts_v2` | Run identity, generation, fingerprint and receipt |
+| `vulnerability_history_v2` | Technical vulnerability history |
+| `occurrence_history_v2` | Workflow and occurrence history |
+
+### Ingestion flow
+
+```text
+Ingestion trigger
+  -> admit runId
+  -> request Xray vulnerability report
+  -> poll and download
+  -> verify artefact coverage
+  -> validate/map findings
+  -> obtain dependency evidence
+  -> publish to MongoDB transactionally
+  -> clean up temporary Xray report
+```
+
+The production trigger is not connected and Xray scanning currently occurs independently. `/v2/team` remains sample-backed; its behaviour is unchanged and is not evidence of Mongo ingestion or production policy.
+
+### Current workflow placeholders
+
+New service occurrences are initialised with:
+
+* State `actionable`
+* Priority `monitor`
+* SLA `deadline = None`, `breached = false`, `nearBreach = false`, with all optional status and clock fields unset
+
+Existing State, Priority and SLA survive rescans. A valid incoming CVSS score replaces the stored technical score, including when it decreases. A confirmed numeric CVSS increase reopens the current service occurrence by resetting State to `actionable`. Both the previous and new CVSS values must be present, and the new value must be greater; missing scores are never treated as zero. Equal scores, decreases, newly known scores and changes to other technical evidence do not reopen an occurrence. Empty successful scans do not resolve workflows.
+
+These are temporary placeholders, not remediation or SLA assessments. Priority calculation, SLA calculation and manual State-management endpoints belong to future tickets and this branch must not be used as production remediation policy.
+
+### Current limitations
+
+* `v2.ingestion.enabled` remains `false` by default.
+* Production JFrog coverage verification is not implemented.
+* Production imported-by/dependency evidence is outstanding.
+* Build and scheduled V2 ingestion triggers are unconnected.
+* Manual workflow update endpoints are not part of V2 yet.
+* Cross-service CVSS reassessment policy is not yet defined; reopening is limited to the service occurrence being processed.
+* Existing V1 schedulers and endpoints remain unchanged.
+
+The controlled WireMock tests use test fixtures and do not verify behaviour against live HMRC JFrog.
+
+### Running tests
+
+Unit tests can be run with:
+
+```bash
+sbt compile
+sbt "testOnly *IngestionProvidersSpec *ScanPublicationFingerprintSpec"
+```
+
+Mongo-backed integration tests require a local transaction-capable MongoDB replica set:
+
+```bash
+sbt "it/testOnly *ScanPublisherISpec"
+sbt "it/testOnly *VulnerabilityIngestionISpec"
+sbt compile test it/test
+```
+
 # How the data gets updated
 
 ## Collections
