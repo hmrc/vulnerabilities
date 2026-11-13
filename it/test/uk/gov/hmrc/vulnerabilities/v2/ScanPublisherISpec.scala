@@ -28,6 +28,7 @@ import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import play.api.{Application, Configuration}
 import play.api.inject.guice.GuiceApplicationBuilder
+import play.api.libs.json.Json
 import play.api.libs.ws.WSClient
 import uk.gov.hmrc.mongo.MongoComponent
 import uk.gov.hmrc.mongo.test.MongoSupport
@@ -273,8 +274,18 @@ class ScanPublisherISpec
     "update scanner fields while preserving guidance, enrichment and unknown workflow/evidence fields" in:
       publish(request())
       val initial = current().workflows.head
+      val guidance = BsonDocument(Json.stringify(Json.obj("guidance" -> Json.arr(Json.toJson(
+        Guidance(
+          id = "guidance-1",
+          guidance = "Human-maintained",
+          comment = None,
+          author = "test-user",
+          createdAt = Instant.parse("2026-11-13T13:00:00Z")
+        )
+      ))))).getArray("guidance")
       details.collection.updateOne(Filters.equal("vuln_id", id), Updates.combine(
-        Updates.set("guidance", "Human-maintained"), Updates.set("epss", 0.72), Updates.set("kev", true),
+        Updates.set("guidance", guidance),
+        Updates.set("epss", 0.72), Updates.set("kev", true),
         Updates.set("future_user_field", "retained"))).toFuture().futureValue
       workflows.collection.updateOne(Filters.equal("vuln_id", id),
         Updates.set("internet_facing", true)).toFuture().futureValue
@@ -291,7 +302,11 @@ class ScanPublisherISpec
       result.vulnerabilities.head.kev shouldBe Some(true)
       result.vulnerabilities.head.references shouldBe Some(Seq("https://example.invalid/one", "https://example.invalid/two"))
       result.workflows.head shouldBe initial
-      raw("vulnerabilities_v2").getString("guidance").getValue shouldBe "Human-maintained"
+      val guidanceHistory = raw("vulnerabilities_v2").getArray("guidance")
+      val latestGuidance =
+        guidanceHistory.getValues.get(guidanceHistory.size - 1).asDocument()
+      latestGuidance.getString("guidance").getValue shouldBe "Human-maintained"
+      latestGuidance.getString("author").getValue shouldBe "test-user"
       raw("vulnerabilities_v2").getString("future_user_field").getValue shouldBe "retained"
       raw("service_occurrences_v2").getBoolean("internet_facing").getValue shouldBe true
       raw("vulnerability_occurrences_v2").getString("future_evidence_field").getValue shouldBe "retained"
