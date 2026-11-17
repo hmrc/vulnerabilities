@@ -31,7 +31,8 @@ case class VulnerabilityRecord(
   epss: Option[Double],
   kev: Option[Boolean],
   references: Option[Seq[String]] = None,
-  scanner_revision: Option[Long] = None
+  scanner_revision: Option[Long] = None,
+  guidance: Seq[Guidance] = Seq.empty
 )
 object VulnerabilityRecord:
   val mongoFormat: OFormat[VulnerabilityRecord] = Json.format[VulnerabilityRecord]
@@ -146,3 +147,13 @@ object ScanAttemptRecord:
   private given OFormat[EvidenceChanges] = Json.format[EvidenceChanges]
   given receiptFormat: OFormat[ScanPublicationReceipt] = Json.format[ScanPublicationReceipt]
   val mongoFormat: OFormat[ScanAttemptRecord] = Json.format[ScanAttemptRecord]
+
+case class Guidance(
+  id: String,
+  guidance: String,
+  comment: Option[String],
+  author: String,
+  createdAt: Instant
+)
+object Guidance:
+  given OFormat[Guidance] = Json.format[Guidance]

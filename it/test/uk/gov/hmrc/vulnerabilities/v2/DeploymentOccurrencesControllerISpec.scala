@@ -140,7 +140,14 @@ class DeploymentOccurrencesControllerISpec
       get().status shouldBe 200
       details.collection.updateOne(Filters.equal("vuln_id", "CVE-2026-0001"),
         Updates.combine(Updates.set("summary", "Updated summary"), Updates.set("epss", 0.25),
-          Updates.set("guidance", "User-owned guidance remains untouched"))).toFuture().futureValue
+          Updates.set("guidance", BsonDocument(Json.stringify(Json.obj("guidance" -> Json.arr(Json.toJson(
+            Guidance(
+              id = "guidance-1",
+              guidance = "User-owned guidance remains untouched",
+              comment = None,
+              author = "test-user",
+              createdAt = Instant.parse("2026-11-13T13:00:00Z")
+            )))))).getArray("guidance")))).toFuture().futureValue
       workflow.collection.updateOne(Filters.equal("vuln_id", "CVE-2026-0001"),
         Updates.combine(Updates.set("state", "riskAccepted"), Updates.set("priority", "schedule"))).toFuture().futureValue
       val row = (get().json \ "results").as[Seq[JsValue]].head
@@ -149,7 +156,10 @@ class DeploymentOccurrencesControllerISpec
       (row \ "state").as[String] shouldBe "riskAccepted"
       (row \ "priority").as[String] shouldBe "schedule"
       val raw = mongo.database.getCollection[BsonDocument]("vulnerabilities_v2").find().headOption().futureValue.get
-      raw.getString("guidance").getValue shouldBe "User-owned guidance remains untouched"
+      val guidanceHistory = raw.getArray("guidance")
+      val latestGuidance =
+        guidanceHistory.getValues.get(guidanceHistory.size - 1).asDocument()
+      latestGuidance.getString("guidance").getValue shouldBe "User-owned guidance remains untouched"
 
     "scope evidence to the exact service and version, and workflow to the exact service" in:
       seedScan()
