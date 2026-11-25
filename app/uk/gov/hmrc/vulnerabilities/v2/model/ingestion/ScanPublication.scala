@@ -20,7 +20,7 @@ import java.time.Instant
 import uk.gov.hmrc.vulnerabilities.v2.model.deployment.{DeploymentSla, OccurrenceState, Priority}
 
 final case class ScanCompletion(reportSucceeded: Boolean, artefactCoverageVerified: Boolean)
-final case class ImportedDependency(group: String, artefact: String, version: String)
+final case class ImportedDependency(group: String, artefact: String, version: String, scope: String)
 
 enum WorkflowInitialisation:
   case ExistingOnly, UsePolicy

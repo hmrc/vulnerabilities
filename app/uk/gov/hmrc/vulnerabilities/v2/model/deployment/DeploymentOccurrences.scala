@@ -17,6 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.v2.model.deployment
 
 import java.time.Instant
+import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 
 enum Priority:
@@ -38,9 +39,20 @@ private def stringEnum[A](parse: String => A): Format[A] = Format(
   Writes(a => JsString(a.toString))
 )
 
-case class ImportedBy(group: String, artefact: String, version: String)
+case class ImportedBy(
+  group   : String,
+  artefact: String,
+  version : String,
+  scope   : Option[String] = None
+)
+
 object ImportedBy:
-  given OFormat[ImportedBy] = Json.format[ImportedBy]
+  val format: OFormat[ImportedBy] =
+    ( (__ \ "group"   ).format[String]
+    ~ (__ \ "artefact").format[String]
+    ~ (__ \ "version" ).format[String]
+    ~ (__ \ "scope"   ).formatNullable[String]
+    )(ImportedBy.apply, Tuple.fromProductTyped)
 
 case class DeploymentSla(
   deadline: Option[Instant],
@@ -51,10 +63,14 @@ case class DeploymentSla(
   breachedAt: Option[Instant] = None
 )
 object DeploymentSla:
-  given OFormat[DeploymentSla] = Json.format[DeploymentSla]
-  val apiWrites: OWrites[DeploymentSla] = OWrites(s =>
-    Json.toJsObject(s) ++ Json.obj("deadline" -> s.deadline)
-  )
+  val apiWrites: OWrites[DeploymentSla] =
+    ( (__ \ "deadline"      ).write[Option[Instant]]
+    ~ (__ \ "breached"      ).write[Boolean]
+    ~ (__ \ "nearBreach"    ).write[Boolean]
+    ~ (__ \ "status"        ).writeNullable[String]
+    ~ (__ \ "clockStartedAt").writeNullable[Instant]
+    ~ (__ \ "breachedAt"    ).writeNullable[Instant]
+    )((d: DeploymentSla) => Tuple.fromProductTyped(d))
 
 case class DeploymentOccurrence(
   occurrenceId: String,
@@ -74,14 +90,37 @@ case class DeploymentOccurrence(
   appVersion: String
 )
 object DeploymentOccurrence:
-  given OFormat[DeploymentOccurrence] = Json.format[DeploymentOccurrence]
-  val apiWrites: OWrites[DeploymentOccurrence] = OWrites(o =>
-    Json.toJsObject(o) ++ Json.obj("sla" -> DeploymentSla.apiWrites.writes(o.sla))
-  )
+  private val parentWrites: OWrites[ImportedBy] =
+    ( (__ \ "group"   ).write[String]
+    ~ (__ \ "artefact").write[String]
+    ~ (__ \ "version" ).write[String]
+    )(parent => (parent.group, parent.artefact, parent.version))
+
+  val apiWrites: OWrites[DeploymentOccurrence] =
+    ( (__ \ "occurrenceId"    ).write[String]
+    ~ (__ \ "vulnerabilityId" ).write[String]
+    ~ (__ \ "component"       ).write[String]
+    ~ (__ \ "fixedVersions"   ).write[Seq[String]]
+    ~ (__ \ "priority"        ).write[Priority]
+    ~ (__ \ "state"           ).write[OccurrenceState]
+    ~ (__ \ "sla"             ).write[DeploymentSla](DeploymentSla.apiWrites)
+    ~ (__ \ "summary"         ).write[String]
+    ~ (__ \ "componentVersion").writeNullable[String]
+    ~ (__ \ "importedBy"      ).write[Seq[ImportedBy]](Writes.seq(parentWrites))
+    ~ (__ \ "cvss"            ).writeNullable[Double]
+    ~ (__ \ "epss"            ).writeNullable[Double]
+    ~ (__ \ "kev"             ).writeNullable[Boolean]
+    ~ (__ \ "serviceName"     ).write[String]
+    ~ (__ \ "appVersion"      ).write[String]
+    )((d: DeploymentOccurrence) => Tuple.fromProductTyped(d))
 
 case class Page(limit: Int, offset: Int, total: Int)
 object Page:
-  given OFormat[Page] = Json.format[Page]
+  val writes: OWrites[Page] =
+    ( (__ \ "limit" ).write[Int]
+    ~ (__ \ "offset").write[Int]
+    ~ (__ \ "total" ).write[Int]
+    )((p: Page) => Tuple.fromProductTyped(p))
 
 case class DeploymentOccurrences(
   serviceName: String,
@@ -92,13 +131,13 @@ case class DeploymentOccurrences(
   page: Page
 )
 object DeploymentOccurrences:
-  given OWrites[DeploymentOccurrences] = OWrites(r => Json.obj(
-    "serviceName" -> r.serviceName,
-    "appVersion" -> r.appVersion,
-    "scanStatus" -> r.scanStatus,
+  val writes: OWrites[DeploymentOccurrences] = OWrites(r => Json.obj(
+    "serviceName"        -> r.serviceName,
+    "appVersion"         -> r.appVersion,
+    "scanStatus"         -> r.scanStatus,
     "lastSuccessfulScan" -> r.lastSuccessfulScan,
-    "results" -> JsArray(r.results.map(DeploymentOccurrence.apiWrites.writes)),
-    "page" -> r.page
+    "results"            -> JsArray(r.results.map(DeploymentOccurrence.apiWrites.writes)),
+    "page"               -> Json.toJson(r.page)(Page.writes)
   ))
 
 class ResourceLimit(message: String) extends RuntimeException(message)

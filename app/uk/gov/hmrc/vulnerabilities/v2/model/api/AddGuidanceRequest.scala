@@ -16,13 +16,18 @@
 
 package uk.gov.hmrc.vulnerabilities.v2.model.api
 
-import play.api.libs.json.{Json, OFormat}
+import play.api.libs.functional.syntax.*
+import play.api.libs.json.{Reads, __}
 
 case class AddGuidanceRequest(
-  guidance: String, 
-  comment: Option[String],
-  author: String
+  guidance: Option[String],
+  comment : Option[String],
+  author  : String
   )
-object AddGuidanceRequest:
-  given OFormat[AddGuidanceRequest] = Json.format[AddGuidanceRequest]
 
+object AddGuidanceRequest:
+  val reads: Reads[AddGuidanceRequest] =
+    ( (__ \ "guidance").readNullable[String]
+    ~ (__ \ "comment" ).readNullable[String]
+    ~ (__ \ "author"  ).read[String]
+    )(AddGuidanceRequest.apply)

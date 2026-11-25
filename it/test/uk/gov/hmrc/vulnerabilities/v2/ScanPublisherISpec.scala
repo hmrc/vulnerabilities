@@ -179,7 +179,7 @@ class ScanPublisherISpec
       count("occurrence_history_v2") shouldBe 1
 
     "publish technical findings, explicit dependency metadata, timestamps and a durable receipt" in:
-      val input = request().copy(importedBy = Map(id -> Seq(ImportedDependency("upstream", "parent", "3.0"))))
+      val input = request().copy(importedBy = Map(id -> Seq(ImportedDependency("upstream", "parent", "3.0", "compile"))))
       val admission = admit(input)
       admission.generation shouldBe 1L
       val receipt = publisher().publish(input).futureValue.value
@@ -192,8 +192,10 @@ class ScanPublisherISpec
       result.scan.source_report_generated shouldBe Some(sourceTime)
       result.evidence.head.component_version shouldBe Some("2.4.0")
       result.evidence.head.imported_by.head.version shouldBe "3.0"
+      result.evidence.head.imported_by.head.scope shouldBe Some("compile")
       result.evidence.head.scanner_observation.value.sources shouldBe Seq(source)
       result.vulnerabilities.head.fixed_version shouldBe Seq("2.4.1")
+      result.vulnerabilities.head.published_date shouldBe sourceTime
       result.workflows.head.first_detected shouldBe now
       result.workflows.head.synthetic_initialisation shouldBe Some(true)
       raw("scan_records_v2").get("scan_date").isDateTime shouldBe true
@@ -277,12 +279,12 @@ class ScanPublisherISpec
       val guidance = BsonDocument(Json.stringify(Json.obj("guidance" -> Json.arr(Json.toJson(
         Guidance(
           id = "guidance-1",
-          guidance = "Human-maintained",
+          guidance = Some("Human-maintained"),
           comment = None,
           author = "test-user",
           createdAt = Instant.parse("2026-11-13T13:00:00Z")
         )
-      ))))).getArray("guidance")
+      )(Guidance.format))))).getArray("guidance")
       details.collection.updateOne(Filters.equal("vuln_id", id), Updates.combine(
         Updates.set("guidance", guidance),
         Updates.set("epss", 0.72), Updates.set("kev", true),
@@ -392,7 +394,7 @@ class ScanPublisherISpec
 
     "reject unmanaged global records rather than adopting or replacing them" in:
       details.collection.insertOne(VulnerabilityRecord(id, finding.summary, finding.component.identity,
-        finding.fixedVersions, finding.cvss, None, None)).toFuture().futureValue
+        finding.fixedVersions, finding.cvss, None, None, sourceTime)).toFuture().futureValue
       val input = request()
       admit(input)
       publisher().publish(input).futureValue.left.value shouldBe AdoptionRequired(id)
@@ -467,7 +469,7 @@ class ScanPublisherISpec
       val missing = request().copy(importedBy = Map.empty)
       admit(missing)
       publisher().publish(missing).futureValue.left.value shouldBe MissingImportedBy(id)
-      val input = request().copy(importedBy = Map(id -> Seq(ImportedDependency("parent", "lib", "1"))))
+      val input = request().copy(importedBy = Map(id -> Seq(ImportedDependency("parent", "lib", "1", "compile"))))
       publish(input)
       val later = request().copy(importedBy = Map.empty)
       publish(later)

@@ -42,13 +42,15 @@ private[vulnerabilities] object ScanPublicationFingerprint:
         Json.obj(
           "group" -> d.group,
           "artefact" -> d.artefact, 
-          "version" -> d.version
+          "version" -> d.version,
+          "scope" -> d.scope
           )
         )
       )
     })
     hash(canonical(Json.obj(
-      "format" -> currentVersion, 
+      "format" -> currentVersion,
+      "packageTypes" -> input.findings.findings.sortBy(_.observationKey).map(_.component.packageType),
       "payload" -> payload(input, intent),
       "importedBy" -> importedBy
     )))

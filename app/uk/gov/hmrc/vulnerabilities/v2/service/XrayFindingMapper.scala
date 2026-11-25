@@ -135,7 +135,7 @@ object XrayFindingMapper:
         part.nonEmpty && !part.exists(c => c.isWhitespace || c.isSpaceChar || ":/?#".contains(c))
       coordinates.stripPrefix("gav://").split(":", -1).toSeq match
         case Seq(group, artefact, version) if Seq(group, artefact, version).forall(valid) =>
-          Right(MavenComponent(group, artefact, version))
+          Right(MavenComponent(group, artefact, version, row.packageType))
         case _ => Left(MalformedComponentCoordinates(number, row.issueId, coordinates))
 
   private def conflictingFields(findings: Seq[ScannerFinding]): Seq[ConflictingFindingField] =

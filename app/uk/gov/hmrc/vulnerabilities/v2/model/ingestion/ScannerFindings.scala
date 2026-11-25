@@ -21,9 +21,8 @@ import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
 
 final case class ScanContext(serviceName: ServiceName, appVersion: Version)
 
-final case class MavenComponent(group: String, artefact: String, installedVersion: String):
+final case class MavenComponent(group: String, artefact: String, installedVersion: String, packageType: String = "maven"):
   def identity: String = s"gav://$group:$artefact"
-  def packageType: String = "maven"
 
 final case class XrayFindingSource(
   issueId: String,

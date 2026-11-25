@@ -96,7 +96,7 @@ class IngestionProvidersSpec extends AnyWordSpec with Matchers with EitherValues
       UnavailableDependencyEvidenceService().importedBy(findings).futureValue.left.value shouldBe a[DependencyEvidenceUnavailable]
       val fixture = FixtureDependencyEvidenceService()
       fixture.importedBy(findings).futureValue.left.value shouldBe a[DependencyEvidenceUnavailable]
-      fixture.values += "CVE-2026-0002" -> Seq(ImportedDependency("parent", "library", "1"))
+      fixture.values += "CVE-2026-0002" -> Seq(ImportedDependency("parent", "library", "1", "compile"))
       val actual = fixture.importedBy(findings).futureValue.value
       actual("CVE-2026-0001") shouldBe empty
       actual("CVE-2026-0002") should have size 1

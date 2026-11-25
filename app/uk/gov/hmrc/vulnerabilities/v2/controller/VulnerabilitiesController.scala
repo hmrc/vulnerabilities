@@ -18,10 +18,12 @@ package uk.gov.hmrc.vulnerabilities.v2.controller
 
 import play.api.mvc.{Action, AnyContent, ControllerComponents}
 import uk.gov.hmrc.play.bootstrap.backend.controller.BackendController
+import uk.gov.hmrc.play.http.HeaderCarrierConverter
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
-import uk.gov.hmrc.vulnerabilities.v2.service.{DeploymentOccurrencesService, TeamVulnerabilityService, VulnerabilityGuidanceService}
-import uk.gov.hmrc.vulnerabilities.v2.model.api.AddGuidanceRequest
+import uk.gov.hmrc.vulnerabilities.v2.service.{DeploymentOccurrencesService, TeamVulnerabilityService, VulnerabilityDetailsService, VulnerabilityGuidanceService}
+import uk.gov.hmrc.vulnerabilities.v2.model.api.{AddGuidanceRequest, VulnerabilityDetails}
+import uk.gov.hmrc.vulnerabilities.v2.model.deployment.DeploymentOccurrences
 import uk.gov.hmrc.vulnerabilities.model.{ServiceName, Version}
 import play.api.libs.json.{Json, JsValue}
 import scala.concurrent.Future
@@ -29,9 +31,10 @@ import play.api.libs.json.JsError
 
 @Singleton()
 class VulnerabilitiesController @Inject(
-  service: TeamVulnerabilityService,
-  deployments: DeploymentOccurrencesService,
-  guidanceService: VulnerabilityGuidanceService
+  service             : TeamVulnerabilityService,
+  deployments         : DeploymentOccurrencesService,
+  guidanceService     : VulnerabilityGuidanceService,
+  vulnerabilityDetails: VulnerabilityDetailsService
 )(cc: ControllerComponents)
  (using ExecutionContext) extends BackendController(cc):
 
@@ -44,18 +47,24 @@ class VulnerabilitiesController @Inject(
   def deploymentOccurrences(serviceName: ServiceName, appVersion: Version): Action[AnyContent] =
     Action.async:
       deployments.get(serviceName, appVersion).map:
-        case Some(report) => Ok(Json.toJson(report))
+        case Some(report) => Ok(Json.toJson(report)(DeploymentOccurrences.writes))
         case None         => NotFound
+
+  def getVulnerability(vulnerabilityId: String, includeOccurrenceSummary: Boolean, includeOccurrenceDetails: Boolean): Action[AnyContent] =
+    Action.async: request =>
+      given uk.gov.hmrc.http.HeaderCarrier = HeaderCarrierConverter.fromRequest(request)
+      vulnerabilityDetails.get(vulnerabilityId, includeOccurrenceSummary, includeOccurrenceDetails).map:
+        case Some(details) => Ok(Json.toJson(details)(VulnerabilityDetails.writes))
+        case None          => NotFound
 
   def updateGuidance(vulnerabilityId: String): Action[JsValue] =
     Action.async(parse.json) { request =>
-      request.body.validate[AddGuidanceRequest].fold(
+      request.body.validate[AddGuidanceRequest](AddGuidanceRequest.reads).fold(
         errors => Future.successful(BadRequest(JsError.toJson(errors))),
         guidanceRequest =>
           guidanceService
             .addGuidance(vulnerabilityId, guidanceRequest)
-            .map {
+            .map:
               case Some(_) => NoContent
               case None    => NotFound
-            }
     )}

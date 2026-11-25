@@ -17,6 +17,7 @@
 package uk.gov.hmrc.vulnerabilities.v2.persistence
 
 import java.time.Instant
+import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 import uk.gov.hmrc.mongo.play.json.formats.MongoJavatimeFormats
 import uk.gov.hmrc.vulnerabilities.v2.model.deployment.{DeploymentSla, ImportedBy, OccurrenceState, Priority}
@@ -30,12 +31,28 @@ case class VulnerabilityRecord(
   cvss_score: Option[Double],
   epss: Option[Double],
   kev: Option[Boolean],
+  published_date: Instant,
   references: Option[Seq[String]] = None,
   scanner_revision: Option[Long] = None,
   guidance: Seq[Guidance] = Seq.empty
 )
 object VulnerabilityRecord:
-  val mongoFormat: OFormat[VulnerabilityRecord] = Json.format[VulnerabilityRecord]
+  private val guidanceFormat = Format(Reads.seq(Guidance.format), Writes.seq(Guidance.format))
+  val mongoFormat: OFormat[VulnerabilityRecord] =
+    ( (__ \ "vuln_id"         ).format[String]
+    ~ (__ \ "summary"         ).format[String]
+    ~ (__ \ "vuln_component"  ).format[String]
+    ~ (__ \ "fixed_version"   ).format[Seq[String]]
+    ~ (__ \ "cvss_score"      ).formatNullable[Double]
+    ~ (__ \ "epss"            ).formatNullable[Double]
+    ~ (__ \ "kev"             ).formatNullable[Boolean]
+    ~ (__ \ "published_date"  ).format[Instant](MongoJavatimeFormats.instantFormat)
+    ~ (__ \ "references"      ).formatNullable[Seq[String]]
+    ~ (__ \ "scanner_revision").formatNullable[Long]
+    ~ (__ \ "guidance"        ).formatWithDefault[Seq[Guidance]](Seq.empty)(guidanceFormat)
+    )(VulnerabilityRecord.apply, Tuple.fromProductTyped)
+
+private val importedByFormat = Format(Reads.seq(ImportedBy.format), Writes.seq(ImportedBy.format))
 
 case class SlugOccurrenceRecord(
   vuln_id: String,
@@ -47,7 +64,16 @@ case class SlugOccurrenceRecord(
   observations: Seq[ComponentObservation] = Seq.empty
 )
 object SlugOccurrenceRecord:
-  val mongoFormat: OFormat[SlugOccurrenceRecord] = Json.format[SlugOccurrenceRecord]
+  private val observationsFormat = Format(Reads.seq(ComponentObservation.format), Writes.seq(ComponentObservation.format))
+  val mongoFormat: OFormat[SlugOccurrenceRecord] =
+    ( (__ \ "vuln_id"             ).format[String]
+    ~ (__ \ "service"             ).format[String]
+    ~ (__ \ "service_version"     ).format[String]
+    ~ (__ \ "imported_by"         ).format[Seq[ImportedBy]](importedByFormat)
+    ~ (__ \ "component_version"   ).formatNullable[String]
+    ~ (__ \ "scanner_observation" ).formatNullable[ScannerObservation]
+    ~ (__ \ "observations"        ).formatWithDefault[Seq[ComponentObservation]](Seq.empty)(observationsFormat)
+    )(SlugOccurrenceRecord.apply, Tuple.fromProductTyped)
 
 case class ServiceOccurrenceRecord(
   vuln_id: String,
@@ -129,8 +155,15 @@ case class ComponentObservation(
 )
 object ComponentObservation:
   private given OFormat[XrayFindingSource] = Json.format[XrayFindingSource]
-  private given OFormat[ScannerObservation] = Json.format[ScannerObservation]
-  given OFormat[ComponentObservation] = Json.format[ComponentObservation]
+  private val scannerFormat: OFormat[ScannerObservation] = Json.format[ScannerObservation]
+  val format: OFormat[ComponentObservation] =
+    ( (__ \ "component"           ).format[String]
+    ~ (__ \ "component_version"   ).format[String]
+    ~ (__ \ "package_type"        ).format[String]
+    ~ (__ \ "fixed_versions"      ).format[Seq[String]]
+    ~ (__ \ "imported_by"         ).format[Seq[ImportedBy]](importedByFormat)
+    ~ (__ \ "scanner_observation" ).format[ScannerObservation](scannerFormat)
+    )(ComponentObservation.apply, Tuple.fromProductTyped)
 
 case class ScanAttemptRecord(
   run_id: String,
@@ -150,10 +183,16 @@ object ScanAttemptRecord:
 
 case class Guidance(
   id: String,
-  guidance: String,
+  guidance: Option[String],
   comment: Option[String],
   author: String,
   createdAt: Instant
 )
 object Guidance:
-  given OFormat[Guidance] = Json.format[Guidance]
+  val format: OFormat[Guidance] =
+    ( (__ \ "id"       ).format[String]
+    ~ (__ \ "guidance" ).formatNullable[String]
+    ~ (__ \ "comment"  ).formatNullable[String]
+    ~ (__ \ "author"   ).format[String]
+    ~ (__ \ "createdAt").format[Instant]
+    )(Guidance.apply, Tuple.fromProductTyped)

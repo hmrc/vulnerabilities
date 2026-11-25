@@ -83,7 +83,7 @@ class DeploymentOccurrencesControllerISpec
   private def seedFinding(id: String = "CVE-2026-0001", s: String = service, v: String = version,
     storedId: String = occurrenceId): Unit =
     details.collection.insertOne(VulnerabilityRecord(id, "Example dependency vulnerability",
-      "gav://uk.gov.hmrc:example-lib", Seq("2.4.1"), Some(8.1), Some(0.14), Some(true))).toFuture().futureValue
+      "gav://uk.gov.hmrc:example-lib", Seq("2.4.1"), Some(8.1), Some(0.14), Some(true), scanned)).toFuture().futureValue
     evidence.collection.insertOne(SlugOccurrenceRecord(id, s, v,
       Seq(ImportedBy("uk.gov.hmrc", "bootstrap-play", "10.1.0")), Some("2.4.0"))).toFuture().futureValue
     workflow.collection.insertOne(ServiceOccurrenceRecord(id, s, storedId, scanned,
@@ -124,7 +124,7 @@ class DeploymentOccurrencesControllerISpec
       (row \ "cvss").as[Double] shouldBe 8.1
       (row \ "epss").as[Double] shouldBe 0.14
       (row \ "kev").as[Boolean] shouldBe true
-      (row \ "importedBy").as[Seq[ImportedBy]] shouldBe Seq(ImportedBy("uk.gov.hmrc", "bootstrap-play", "10.1.0"))
+      (row \ "importedBy").as[Seq[ImportedBy]](Reads.seq(ImportedBy.format)) shouldBe Seq(ImportedBy("uk.gov.hmrc", "bootstrap-play", "10.1.0"))
       (row \ "priority").as[String] shouldBe "immediate"
       (row \ "state").as[String] shouldBe "actionable"
       (row \ "sla" \ "deadline").as[Instant] shouldBe deadline
@@ -143,11 +143,11 @@ class DeploymentOccurrencesControllerISpec
           Updates.set("guidance", BsonDocument(Json.stringify(Json.obj("guidance" -> Json.arr(Json.toJson(
             Guidance(
               id = "guidance-1",
-              guidance = "User-owned guidance remains untouched",
+              guidance = Some("User-owned guidance remains untouched"),
               comment = None,
               author = "test-user",
               createdAt = Instant.parse("2026-11-13T13:00:00Z")
-            )))))).getArray("guidance")))).toFuture().futureValue
+            ))(Guidance.format))))).getArray("guidance")))).toFuture().futureValue
       workflow.collection.updateOne(Filters.equal("vuln_id", "CVE-2026-0001"),
         Updates.combine(Updates.set("state", "riskAccepted"), Updates.set("priority", "schedule"))).toFuture().futureValue
       val row = (get().json \ "results").as[Seq[JsValue]].head

@@ -33,7 +33,7 @@ class ScanPublicationFingerprintSpec extends AnyWordSpec with Matchers with Eith
     Json.parse(s.readAllBytes()).as[XrayReport])
   private val findings = XrayFindingMapper.map(report, ScanContext(ServiceName("example-service"), Version("1.8.0"))).value
   private val input = PublishScan("historical-format-regression", findings, ScanCompletion(true, true),
-    ListMap("CVE-2026-0001" -> Seq.empty, "CVE-2026-0002" -> Seq(ImportedDependency("parent", "library", "1"))),
+    ListMap("CVE-2026-0001" -> Seq.empty, "CVE-2026-0002" -> Seq(ImportedDependency("parent", "library", "1", "compile"))),
     WorkflowInitialisation.UsePolicy)
 
   "Publication fingerprint codecs" should:
@@ -66,14 +66,14 @@ class ScanPublicationFingerprintSpec extends AnyWordSpec with Matchers with Eith
       val first = input.copy( 
         importedBy = Map(
           key -> Seq(
-            ImportedDependency("parent", "library-a", "1.0")
+            ImportedDependency("parent", "library-a", "1.0", "compile")
           )
         )
       )
       val second = first.copy(
         importedBy = Map(
           key -> Seq(
-            ImportedDependency("parent", "library-b", "2.0")
+            ImportedDependency("parent", "library-b", "2.0", "compile")
           )
         )
       )

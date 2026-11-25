@@ -127,7 +127,10 @@ class ScanPublisher @Inject()(
       reject(InvalidInput("Duplicate component observations"))
     if (input.importedBy.keySet -- (findings.map(_.vulnerabilityId) ++ findings.map(_.observationKey))).nonEmpty then
       reject(InvalidInput("Imported-by supplied for an observation absent from the report"))
+    if input.importedBy.valuesIterator.flatten.exists(_.scope.isBlank) then
+      reject(InvalidInput("Imported-by evidence requires a dependency scope"))
     findings.foreach: finding =>
+      if finding.sources.isEmpty then reject(InvalidInput("Publication requires a scanner publication date"))
       val component = finding.component
       val tokens = Seq(component.group, component.artefact, component.installedVersion)
       if !finding.vulnerabilityId.matches("CVE-[0-9]{4}-[0-9]{4,}") ||
@@ -251,6 +254,8 @@ class ScanPublisher @Inject()(
     existing: Map[String, VulnerabilityRecord],
     otherEvidence: Seq[SlugOccurrenceRecord]
   ): Map[String, VulnerabilityRecord] =
+    val publicationDates = input.findings.findings.groupMap(_.vulnerabilityId)(_.sources.map(_.published))
+      .view.mapValues(_.flatten.min).toMap
     input.findings.findings.map: finding =>
       val id = finding.vulnerabilityId
       val other = otherEvidence.filter(_.vuln_id == id)
@@ -262,9 +267,10 @@ class ScanPublisher @Inject()(
       val previous = existing.get(id)
       val references = (previous.flatMap(_.references).getOrElse(Seq.empty) ++ finding.references).distinct
       val fixes = finding.fixedVersions
+      val publishedDate = (previous.map(_.published_date).toSeq :+ publicationDates(id)).min
       id -> VulnerabilityRecord(id, finding.summary, finding.component.identity, fixes,
         finding.cvss.orElse(previous.flatMap(_.cvss_score)), previous.flatMap(_.epss), previous.flatMap(_.kev),
-        Some(references), Some(previous.flatMap(_.scanner_revision).getOrElse(0L)))
+        publishedDate, Some(references), Some(previous.flatMap(_.scanner_revision).getOrElse(0L)))
     .toMap
 
   private def buildEvidence(
@@ -294,11 +300,11 @@ class ScanPublisher @Inject()(
     previous: Option[SlugOccurrenceRecord]
   ): Seq[ImportedBy] =
     input.importedBy.get(finding.observationKey)
-      .map(_.map(d => ImportedBy(d.group, d.artefact, d.version)))
+      .map(_.map(d => ImportedBy(d.group, d.artefact, d.version, Some(d.scope))))
       .orElse:
         Option.when(observationCount == 1):
           input.importedBy.get(finding.vulnerabilityId)
-            .map(_.map(d => ImportedBy(d.group, d.artefact, d.version)))
+            .map(_.map(d => ImportedBy(d.group, d.artefact, d.version, Some(d.scope))))
             .orElse(previous.map(_.imported_by))
             .getOrElse(reject(MissingImportedBy(finding.vulnerabilityId)))
       .orElse:
@@ -364,7 +370,8 @@ class ScanPublisher @Inject()(
 
   private def scannerFields(v: VulnerabilityRecord): JsObject =
     Json.obj("vuln_id" -> v.vuln_id, "summary" -> v.summary, "vuln_component" -> v.vuln_component,
-      "fixed_version" -> v.fixed_version, "references" -> v.references.getOrElse(Seq.empty)) ++
+      "fixed_version" -> v.fixed_version, "references" -> v.references.getOrElse(Seq.empty),
+      "published_date" -> VulnerabilityRecord.mongoFormat.writes(v).value("published_date")) ++
       v.cvss_score.fold(Json.obj())(score => Json.obj("cvss_score" -> score))
 
   private def set(fields: JsObject): BsonDocument =
