@@ -92,10 +92,10 @@ class XrayFindingMapperSpec extends AnyWordSpec with Matchers with EitherValues 
       finding.component.identity shouldBe "gav://uk.gov.hmrc:example-lib_2.13"
       finding.component.installedVersion shouldBe "2.4.0-RC1+build.7"
 
-    "accept Maven package types case-insensitively" in:
+    "accept Maven package types case-insensitively and retain the supplied spelling" in:
       Seq("maven", "Maven", "MAVEN", "mAvEn").foreach: packageType =>
         map(row.copy(packageType = packageType)).value.findings.head.component shouldBe
-          MavenComponent("uk.gov.hmrc", "example-lib", "2.4.0")
+          MavenComponent("uk.gov.hmrc", "example-lib", "2.4.0", packageType)
 
     "retain fixed-version strings and ranges without interpretation" in:
       val fixes = Seq("[2.4.1,3.0)", "(,1.3.16]", " 2.4.1 ", "2.4.1", "2.4.1")

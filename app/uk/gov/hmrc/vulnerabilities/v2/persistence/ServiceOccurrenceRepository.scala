@@ -40,3 +40,6 @@ class ServiceOccurrenceRepository @Inject()(mongo: MongoComponent)(using Executi
     val filter = Filters.and(Filters.equal("service", service), Filters.in("vuln_id", ids*))
     collection.find(filter)
       .limit(maximum + 1).toFuture()
+
+  def findByVulnerabilityId(id: String): Future[Seq[ServiceOccurrenceRecord]] =
+    collection.find(Filters.equal("vuln_id", id)).toFuture()
